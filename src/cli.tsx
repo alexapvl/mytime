@@ -125,7 +125,8 @@ TUI keys:
   esc       Quit
 
 Backlog:
-  j/k       Navigate
+  ←/→       Move priority
+  ↑/↓       Navigate
   a         Add task
   q         Quick-add (NLP)
   e         Edit

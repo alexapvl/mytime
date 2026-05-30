@@ -176,7 +176,7 @@ export function DayView({ onRefresh, onStatus }: Props) {
       <Text bold>
         {day.toFormat('EEE MMM d, yyyy')} {isToday ? '(today)' : ''}
       </Text>
-      <Text dimColor>click events · h/l prev/next day · t today · j/k select · s reschedule · +/- resize · x done · u unschedule</Text>
+      <Text dimColor>click events · ←/→ prev/next day · t today · ↑/↓ select · s reschedule · +/- resize · x done · u unschedule</Text>
       <Box flexDirection="column" marginTop={1}>
         {lines.map((line) => {
           if (!line.item) {
@@ -272,7 +272,7 @@ export function WeekView({ onRefresh, onStatus }: Props) {
 
       if (scheduled.length === 0) return;
 
-      // j/k stay within the selected event's day; don't jump to another day's event.
+      // Vertical navigation stays within the selected event's day; don't jump to another day's event.
       const moveWithinDay = (dir: 1 | -1) => {
         const cur = scheduled[sel];
         if (!cur?.start) return;
@@ -331,7 +331,7 @@ export function WeekView({ onRefresh, onStatus }: Props) {
       <Text bold>
         Week of {weekStart.toFormat('MMM d')} – {weekStart.endOf('week').toFormat('MMM d, yyyy')}
       </Text>
-      <Text dimColor>click events · h/l prev/next week · t this week · j/k select · s reschedule · x done · u unschedule</Text>
+      <Text dimColor>click events · ←/→ prev/next week · t this week · ↑/↓ select · s reschedule · x done · u unschedule</Text>
       <Box marginTop={1}>
         {days.map((d) => {
           const dayItems = scheduled.filter((i) => i.start && isSameDay(i.start, d.toISO()!));

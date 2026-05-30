@@ -115,7 +115,7 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
       <Text bold color="cyan">
         {isReschedule ? 're-schedule' : 'schedule'}: {item.title}
       </Text>
-      <Text dimColor>h/l change day · j/k pick time · a all day · type digits to filter · enter confirm · esc cancel</Text>
+      <Text dimColor>←/→ change day · ↑/↓ pick time · a all day · type digits to filter · enter confirm · esc cancel</Text>
 
       <Box marginTop={1}>
         <Text>date: </Text>

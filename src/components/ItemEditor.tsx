@@ -57,6 +57,8 @@ export function ItemEditor({ item, mode, defaultPriority = 0, onSubmit, onCancel
 
   useAppInput((_input, key) => {
     if (key.escape) onCancel();
+    if (key.upArrow) prevField();
+    if (key.downArrow) nextField();
     if (key.tab && key.shift) prevField();
     else if (key.tab) nextField();
     if (key.return && (key.meta || key.ctrl)) submit();
@@ -67,7 +69,7 @@ export function ItemEditor({ item, mode, defaultPriority = 0, onSubmit, onCancel
       <Text bold color="cyan">
         {mode === 'add' ? 'New task' : 'Edit task'}
       </Text>
-      <Text dimColor>tab/enter next field · shift+tab prev · enter save (last) · cmd+enter save · esc cancel</Text>
+      <Text dimColor>tab/enter/↓ next field · shift+tab/↑ prev · enter save (last) · cmd+enter save · esc cancel</Text>
 
       <Box>
         <Text color={field === 'title' ? 'cyan' : undefined}>Title*: </Text>

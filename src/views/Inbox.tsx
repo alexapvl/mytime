@@ -280,7 +280,7 @@ export function InboxView({ onRefresh, onStatus }: Props) {
   return (
     <Box flexDirection="column">
       <Text dimColor>
-        click to select · h/l priority · j/k navigate · a add · q quick-add · e edit · s {selectedItem?.start ? 're-schedule' : 'schedule'} · x done · d delete
+        click to select · ←/→ priority · ↑/↓ navigate · a add · q quick-add · e edit · s {selectedItem?.start ? 're-schedule' : 'schedule'} · x done · d delete
       </Text>
       <Box marginTop={1}>
         {columns.map((column, columnIndex) => {
@@ -310,7 +310,7 @@ export function InboxView({ onRefresh, onStatus }: Props) {
                     </Text>
                     {selectedHere && item.start ? (
                       <Text dimColor wrap="truncate">
-                        {'    '}
+                        {'    ↳ '}
                         {scheduleLabel(item)}
                       </Text>
                     ) : null}

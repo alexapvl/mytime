@@ -64,9 +64,9 @@ mytime mcp                      # run the MCP server (stdio) for AI agents
 | `r` | Sync with Google |
 | `esc` | Quit |
 
-**Inbox:** `j/k` navigate · `a` add · `q` quick-add (NLP) · `e` edit · `s` schedule · `x` done · `d` delete
+**Inbox:** `←/→` priority · `↑/↓` navigate · `a` add · `q` quick-add (NLP) · `e` edit · `s` schedule · `x` done · `d` delete
 
-**Today / Week:** `h/l` prev/next · `t` jump to today/this week · `j/k` select · `shift+↑↓` move block · `+/-` resize · `u` unschedule
+**Today / Week:** `←/→` prev/next · `t` jump to today/this week · `↑/↓` select · `shift+↑↓` move block · `+/-` resize · `u` unschedule
 
 ## MCP server
 
