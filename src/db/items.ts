@@ -4,15 +4,16 @@ import { nowISO } from '../lib/time.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const SELECT = `
-  SELECT id, title, notes, project, tags, priority, status, source,
+  SELECT id, title, notes, project, tags, priority, status, source, all_day,
          start, end, google_event_id, google_calendar_id, synced_at, updated_at, created_at, completed_at
   FROM items
 `;
 
 export function createItem(
-  partial: Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'source'> & {
+  partial: Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'source' | 'allDay'> & {
     status?: Item['status'];
     source?: Item['source'];
+    allDay?: boolean;
   },
 ): Item {
   const now = nowISO();
@@ -27,6 +28,7 @@ export function createItem(
     source: partial.source ?? 'task',
     start: partial.start,
     end: partial.end,
+    allDay: partial.allDay ?? false,
     googleEventId: partial.googleEventId,
     googleCalendarId: partial.googleCalendarId,
     syncedAt: partial.syncedAt,
@@ -38,8 +40,8 @@ export function createItem(
   const row = itemToRow(item);
   getDb()
     .prepare(
-      `INSERT INTO items (id, title, notes, project, tags, priority, status, source, start, end, google_event_id, google_calendar_id, synced_at, updated_at, created_at, completed_at)
-       VALUES (@id, @title, @notes, @project, @tags, @priority, @status, @source, @start, @end, @google_event_id, @google_calendar_id, @synced_at, @updated_at, @created_at, @completed_at)`,
+      `INSERT INTO items (id, title, notes, project, tags, priority, status, source, start, end, all_day, google_event_id, google_calendar_id, synced_at, updated_at, created_at, completed_at)
+       VALUES (@id, @title, @notes, @project, @tags, @priority, @status, @source, @start, @end, @all_day, @google_event_id, @google_calendar_id, @synced_at, @updated_at, @created_at, @completed_at)`,
     )
     .run(row);
 
@@ -62,7 +64,7 @@ export function updateItem(id: string, updates: Partial<Item>): Item | null {
   getDb()
     .prepare(
       `UPDATE items SET title=@title, notes=@notes, project=@project, tags=@tags, priority=@priority,
-       status=@status, source=@source, start=@start, end=@end, google_event_id=@google_event_id,
+       status=@status, source=@source, start=@start, end=@end, all_day=@all_day, google_event_id=@google_event_id,
        google_calendar_id=@google_calendar_id, synced_at=@synced_at, updated_at=@updated_at, completed_at=@completed_at
        WHERE id=@id`,
     )
@@ -107,9 +109,16 @@ export function listInbox(): Item[] {
 export function listScheduledInRange(start: string, end: string): Item[] {
   const rows = getDb()
     .prepare(
-      `${SELECT} WHERE status = 'open' AND start IS NOT NULL AND start >= ? AND start <= ? ORDER BY start ASC`,
+      `${SELECT}
+       WHERE status = 'open'
+         AND start IS NOT NULL
+         AND (
+           (all_day = 1 AND start <= date(?) AND (end IS NULL OR end > date(?)))
+           OR (all_day = 0 AND start < ? AND (end IS NULL OR end > ?))
+         )
+       ORDER BY all_day DESC, start ASC`,
     )
-    .all(start, end) as ItemRow[];
+    .all(end, start, end, start) as ItemRow[];
   return rows.map(rowToItem);
 }
 
@@ -143,13 +152,19 @@ export function toggleDone(id: string): Item | null {
 export function scheduleItem(id: string, start: string, end: string): Item | null {
   const item = getItem(id);
   if (!item || item.source !== 'task') return null;
-  return updateItem(id, { start, end, syncedAt: undefined });
+  return updateItem(id, { start, end, allDay: false, syncedAt: undefined });
+}
+
+export function scheduleAllDayItem(id: string, start: string, end: string): Item | null {
+  const item = getItem(id);
+  if (!item || item.source !== 'task') return null;
+  return updateItem(id, { start, end, allDay: true, syncedAt: undefined });
 }
 
 export function unscheduleItem(id: string): Item | null {
   const item = getItem(id);
   if (!item || item.source !== 'task') return null;
-  return updateItem(id, { start: undefined, end: undefined, googleEventId: undefined, googleCalendarId: undefined, syncedAt: undefined });
+  return updateItem(id, { start: undefined, end: undefined, allDay: false, googleEventId: undefined, googleCalendarId: undefined, syncedAt: undefined });
 }
 
 export function markSynced(id: string, googleEventId?: string, googleCalendarId?: string): Item | null {

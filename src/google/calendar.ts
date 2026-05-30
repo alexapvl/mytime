@@ -63,15 +63,22 @@ export type GoogleEventPayload = {
   description?: string;
   start: string;
   end: string;
+  allDay?: boolean;
 };
 
 export async function upsertEvent(calendarId: string, event: GoogleEventPayload, eventId?: string) {
   const calendar = getCalendarClient();
+  const start = event.allDay
+    ? { date: event.start }
+    : { dateTime: event.start };
+  const end = event.allDay
+    ? { date: event.end }
+    : { dateTime: event.end };
   const body = {
     summary: event.summary,
     description: event.description,
-    start: { dateTime: event.start },
-    end: { dateTime: event.end },
+    start,
+    end,
   };
 
   if (eventId) {

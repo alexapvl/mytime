@@ -92,8 +92,9 @@ export async function syncWithGoogle(): Promise<SyncResult> {
           const end = event.end?.dateTime ?? event.end?.date;
           if (!start || !end) continue;
 
-          const startISO = parseEventTime(start, event.start?.dateTime ? false : true);
-          const endISO = parseEventTime(end, event.end?.dateTime ? false : true);
+          const allDay = !event.start?.dateTime;
+          const startISO = parseEventTime(start, allDay);
+          const endISO = parseEventTime(end, allDay);
 
           // The done marker lives only on Google; keep local titles clean.
           const rawSummary = event.summary ?? 'Untitled';
@@ -114,6 +115,7 @@ export async function syncWithGoogle(): Promise<SyncResult> {
                 notes: event.description ?? local.notes,
                 start: startISO,
                 end: endISO,
+                allDay,
                 source,
                 googleCalendarId: cal.id,
                 googleEventId: event.id,
@@ -129,6 +131,7 @@ export async function syncWithGoogle(): Promise<SyncResult> {
               source,
               start: startISO,
               end: endISO,
+              allDay,
               googleEventId: event.id,
               googleCalendarId: cal.id,
               syncedAt: nowISO(),
@@ -181,6 +184,7 @@ export async function pushTask(item: Item): Promise<boolean> {
       description: buildDescription(item),
       start: item.start,
       end: item.end,
+      allDay: item.allDay,
     },
     item.googleCalendarId === mytimeCalendarId ? item.googleEventId : undefined,
   );
@@ -190,7 +194,7 @@ export async function pushTask(item: Item): Promise<boolean> {
 
 function parseEventTime(value: string, allDay: boolean): string {
   if (allDay) {
-    return DateTime.fromISO(value).startOf('day').toISO()!;
+    return DateTime.fromISO(value).toISODate()!;
   }
   return DateTime.fromISO(value).toISO()!;
 }

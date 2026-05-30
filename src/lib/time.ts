@@ -6,6 +6,11 @@ export function formatTime(iso: string): string {
   return DateTime.fromISO(iso).toFormat('HH:mm');
 }
 
+export function formatScheduleTime(start: string, end: string | undefined, allDay: boolean): string {
+  if (allDay) return 'all day';
+  return end ? `${formatTime(start)}-${formatTime(end)}` : formatTime(start);
+}
+
 export function formatDate(iso: string): string {
   return DateTime.fromISO(iso).toFormat('EEE MMM d');
 }
@@ -46,6 +51,11 @@ export function roundToNextHour(iso?: string): string {
 
 export function defaultEnd(start: string, durationMinutes = 60): string {
   return DateTime.fromISO(start).plus({ minutes: durationMinutes }).toISO()!;
+}
+
+export function allDayRange(day: string): { start: string; end: string } {
+  const start = DateTime.fromISO(day).startOf('day');
+  return { start: start.toISODate()!, end: start.plus({ days: 1 }).toISODate()! };
 }
 
 export function hourLabels(): string[] {

@@ -3,10 +3,11 @@ import { Box, Text } from 'ink';
 import { DateTime } from 'luxon';
 import { useAppInput } from '../hooks/useAppInput.js';
 import type { Item } from '../db/types.js';
+import { allDayRange } from '../lib/time.js';
 
 type Props = {
   item: Item;
-  onSubmit: (start: string, end: string) => void;
+  onSubmit: (start: string, end: string, allDay: boolean) => void;
   onCancel: () => void;
 };
 
@@ -71,7 +72,12 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
     }
     if (key.return) {
       const slot = filtered[sel];
-      if (slot) onSubmit(slot.toISO()!, slot.plus({ hours: 1 }).toISO()!);
+      if (slot) onSubmit(slot.toISO()!, slot.plus({ hours: 1 }).toISO()!, false);
+      return;
+    }
+    if (input === 'a') {
+      const range = allDayRange(date.toISO()!);
+      onSubmit(range.start, range.end, true);
       return;
     }
     if (input === 'h' || key.leftArrow) {
@@ -109,7 +115,7 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
       <Text bold color="cyan">
         {isReschedule ? 're-schedule' : 'schedule'}: {item.title}
       </Text>
-      <Text dimColor>h/l change day · j/k pick time · type digits to filter · enter confirm · esc cancel</Text>
+      <Text dimColor>h/l change day · j/k pick time · a all day · type digits to filter · enter confirm · esc cancel</Text>
 
       <Box marginTop={1}>
         <Text>date: </Text>

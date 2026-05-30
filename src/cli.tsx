@@ -43,8 +43,9 @@ async function main() {
         priority: parsed.priority,
         start: parsed.start,
         end: parsed.end,
+        allDay: parsed.allDay,
       });
-      console.log(`Added: ${item.title}${item.start ? ` @ ${item.start}` : ''}`);
+      console.log(`Added: ${item.title}${item.start ? ` @ ${item.allDay ? 'all day ' : ''}${item.start}` : ''}`);
       if (isAuthenticated() && item.start) {
         const result = await syncWithGoogle();
         if (result.errors.length) console.warn(result.errors.join('\n'));
@@ -58,7 +59,7 @@ async function main() {
         console.log('Nothing scheduled today.');
       } else {
         for (const item of items) {
-          console.log(`${formatTime(item.start!)}–${formatTime(item.end!)}  ${item.title}`);
+          console.log(`${item.allDay ? 'all day' : `${formatTime(item.start!)}–${formatTime(item.end!)}`}  ${item.title}`);
         }
       }
       process.exit(0);

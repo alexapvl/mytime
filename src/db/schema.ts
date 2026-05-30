@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { DateTime } from 'luxon';
 import { ensureMytimeDir, DB_PATH } from '../lib/config.js';
 
 let db: Database.Database | null = null;
@@ -27,6 +28,7 @@ function initSchema(database: Database.Database): void {
       source TEXT NOT NULL DEFAULT 'task',
       start TEXT,
       end TEXT,
+      all_day INTEGER NOT NULL DEFAULT 0,
       google_event_id TEXT,
       google_calendar_id TEXT,
       synced_at TEXT,
@@ -58,6 +60,23 @@ function migrateSchema(database: Database.Database): void {
   }
   if (!names.has('google_calendar_id')) {
     database.exec('ALTER TABLE items ADD COLUMN google_calendar_id TEXT');
+  }
+  if (!names.has('all_day')) {
+    database.exec('ALTER TABLE items ADD COLUMN all_day INTEGER NOT NULL DEFAULT 0');
+  }
+  normalizeAllDayDates(database);
+}
+
+function normalizeAllDayDates(database: Database.Database): void {
+  const rows = database
+    .prepare("SELECT id, start, end FROM items WHERE all_day = 1 AND (start LIKE '%T%' OR end LIKE '%T%')")
+    .all() as { id: string; start: string | null; end: string | null }[];
+
+  const update = database.prepare('UPDATE items SET start = ?, end = ? WHERE id = ?');
+  for (const row of rows) {
+    const start = row.start ? DateTime.fromISO(row.start).toISODate() : null;
+    const end = row.end ? DateTime.fromISO(row.end).toISODate() : null;
+    update.run(start, end, row.id);
   }
 }
 

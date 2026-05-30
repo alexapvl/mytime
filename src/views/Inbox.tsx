@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useStdout } from 'ink';
 import TextInput from 'ink-text-input';
+import { DateTime } from 'luxon';
 import { ItemEditor } from '../components/ItemEditor.js';
 import { ScheduleEditor } from '../components/ScheduleEditor.js';
 import { useClickRegions } from '../components/Mouse.js';
@@ -9,9 +10,9 @@ import { useAppInput } from '../hooks/useAppInput.js';
 import type { ClickRegion } from '../lib/mouse.js';
 import { VIEW_ROW0 } from '../lib/layout.js';
 import type { Item } from '../db/types.js';
-import { createItem, deleteItem, listInbox, scheduleItem, toggleDone, updateItem } from '../db/items.js';
+import { createItem, deleteItem, listInbox, scheduleAllDayItem, scheduleItem, toggleDone, updateItem } from '../db/items.js';
 import { autoPush, autoRemove } from '../google/autoSync.js';
-import { formatDate, formatTime } from '../lib/time.js';
+import { formatDate, formatScheduleTime } from '../lib/time.js';
 import { parseQuickAdd } from '../lib/nlp.js';
 
 type Props = {
@@ -21,10 +22,49 @@ type Props = {
 
 type Mode = 'list' | 'add' | 'edit' | 'schedule' | 'quick';
 
+const PRIORITIES: Item['priority'][] = [0, 1, 2, 3];
+const COLUMN_GAP = 1;
+
+function itemSortValue(item: Item): number {
+  return item.start ? DateTime.fromISO(item.start).toMillis() : Number.POSITIVE_INFINITY;
+}
+
+function compareItems(a: Item, b: Item): number {
+  const aScheduled = Boolean(a.start);
+  const bScheduled = Boolean(b.start);
+  if (aScheduled !== bScheduled) return aScheduled ? -1 : 1;
+
+  if (a.start && b.start) {
+    const aDay = DateTime.fromISO(a.start).startOf('day').toMillis();
+    const bDay = DateTime.fromISO(b.start).startOf('day').toMillis();
+    if (aDay !== bDay) return aDay - bDay;
+    if (a.allDay !== b.allDay) return a.allDay ? -1 : 1;
+
+    const aTime = itemSortValue(a);
+    const bTime = itemSortValue(b);
+    if (aTime !== bTime) return aTime - bTime;
+  }
+
+  return DateTime.fromISO(a.createdAt).toMillis() - DateTime.fromISO(b.createdAt).toMillis();
+}
+
+function itemLabel(item: Item): string {
+  const project = item.project ? ` #${item.project}` : '';
+  const tags = item.tags.length ? ` ${item.tags.join(' ')}` : '';
+  return `${item.title}${project}${tags}`;
+}
+
+function scheduleLabel(item: Item): string {
+  if (!item.start) return '';
+  return `${formatDate(item.start)} ${formatScheduleTime(item.start, item.end, item.allDay)}`;
+}
+
 export function InboxView({ onRefresh, onStatus }: Props) {
   const { setInputFocused } = useInputFocus();
+  const { stdout } = useStdout();
   const [items, setItems] = useState<Item[]>(() => listInbox());
   const [selected, setSelected] = useState(0);
+  const [selectedPriority, setSelectedPriority] = useState<Item['priority']>(0);
   const [mode, setMode] = useState<Mode>('list');
   const [quickInput, setQuickInput] = useState('');
 
@@ -38,11 +78,67 @@ export function InboxView({ onRefresh, onStatus }: Props) {
     onRefresh();
   };
 
-  // The help line sits on VIEW_ROW0; items follow on subsequent rows.
+  const columns = useMemo(
+    () => PRIORITIES.map((priority) => items.filter((item) => item.priority === priority).sort(compareItems)),
+    [items],
+  );
+  const selectedColumnIndex = PRIORITIES.indexOf(selectedPriority);
+  const selectedColumn = columns[selectedColumnIndex] ?? [];
+  const selectedItem = selectedColumn[selected];
+  const viewWidth = Math.max(80, stdout.columns ?? 80) - 4;
+  const columnWidth = Math.max(16, Math.floor((viewWidth - COLUMN_GAP * (PRIORITIES.length - 1)) / PRIORITIES.length));
+
+  const movePriority = (direction: -1 | 1) => {
+    const nextColumn = selectedColumnIndex + direction;
+    if (nextColumn < 0 || nextColumn >= columns.length) return;
+
+    const targetColumn = columns[nextColumn] ?? [];
+    setSelectedPriority(PRIORITIES[nextColumn]!);
+    setSelected((row) => Math.min(row, Math.max(0, targetColumn.length - 1)));
+  };
+
+  useEffect(() => {
+    setSelected((s) => Math.min(s, Math.max(0, selectedColumn.length - 1)));
+  }, [selectedColumn.length]);
+
+  // The help line sits on VIEW_ROW0; headers and items follow on subsequent rows.
   const regions = useMemo<ClickRegion[]>(() => {
     if (mode !== 'list') return [];
-    return items.map((_, i) => ({ row: VIEW_ROW0 + 1 + i, onClick: () => setSelected(i) }));
-  }, [mode, items]);
+    return columns.flatMap((column, columnIndex) =>
+      [
+        {
+          row: VIEW_ROW0 + 2,
+          col: 2 + columnIndex * (columnWidth + COLUMN_GAP),
+          endCol: 2 + columnIndex * (columnWidth + COLUMN_GAP) + columnWidth - 1,
+          onClick: () => {
+            setSelectedPriority(PRIORITIES[columnIndex]!);
+            setSelected(0);
+          },
+        },
+        ...(column.length === 0
+          ? [
+              {
+                row: VIEW_ROW0 + 3,
+                col: 2 + columnIndex * (columnWidth + COLUMN_GAP),
+                endCol: 2 + columnIndex * (columnWidth + COLUMN_GAP) + columnWidth - 1,
+                onClick: () => {
+                  setSelectedPriority(PRIORITIES[columnIndex]!);
+                  setSelected(0);
+                },
+              },
+            ]
+          : column.map((_, rowIndex) => ({
+              row: VIEW_ROW0 + 3 + rowIndex,
+              col: 2 + columnIndex * (columnWidth + COLUMN_GAP),
+              endCol: 2 + columnIndex * (columnWidth + COLUMN_GAP) + columnWidth - 1,
+              onClick: () => {
+                setSelectedPriority(PRIORITIES[columnIndex]!);
+                setSelected(rowIndex);
+              },
+            }))),
+      ],
+    );
+  }, [mode, columns, columnWidth]);
   useClickRegions('inbox', regions);
 
   useAppInput(
@@ -56,27 +152,29 @@ export function InboxView({ onRefresh, onStatus }: Props) {
       }
       if (mode !== 'list') return;
 
-      if (input === 'j' || key.downArrow) setSelected((s) => Math.min(s + 1, Math.max(0, items.length - 1)));
+      if (input === 'j' || key.downArrow) setSelected((s) => Math.min(s + 1, Math.max(0, selectedColumn.length - 1)));
       if (input === 'k' || key.upArrow) setSelected((s) => Math.max(s - 1, 0));
+      if (input === 'h' || key.leftArrow) movePriority(-1);
+      if (input === 'l' || key.rightArrow) movePriority(1);
       if (input === 'a') setMode('add');
       if (input === 'q') setMode('quick');
-      if (input === 'e' && items[selected]) setMode('edit');
-      if (input === 'x' && items[selected]) {
-        const id = items[selected]!.id;
+      if (input === 'e' && selectedItem) setMode('edit');
+      if (input === 'x' && selectedItem) {
+        const id = selectedItem.id;
         toggleDone(id);
         refresh();
         autoPush(id, onStatus);
         onStatus('Toggled done');
       }
-      if (input === 'd' && items[selected]) {
-        const victim = items[selected]!;
+      if (input === 'd' && selectedItem) {
+        const victim = selectedItem;
         deleteItem(victim.id);
         setSelected((s) => Math.max(0, s - 1));
         refresh();
         autoRemove(victim, onStatus);
         onStatus('Deleted');
       }
-      if (input === 's' && items[selected]) setMode('schedule');
+      if (input === 's' && selectedItem) setMode('schedule');
     },
     { isActive: mode === 'list' || mode === 'quick' },
   );
@@ -93,13 +191,15 @@ export function InboxView({ onRefresh, onStatus }: Props) {
             onChange={setQuickInput}
             onSubmit={(val) => {
               const parsed = parseQuickAdd(val);
+              const priority = /\bp[0-3]\b/i.test(val) ? parsed.priority : selectedPriority;
               const created = createItem({
                 title: parsed.title,
                 tags: parsed.tags,
                 project: parsed.project,
-                priority: parsed.priority,
+                priority,
                 start: parsed.start,
                 end: parsed.end,
+                allDay: parsed.allDay,
               });
               refresh();
               if (created.start) autoPush(created.id, onStatus);
@@ -117,6 +217,7 @@ export function InboxView({ onRefresh, onStatus }: Props) {
     return (
       <ItemEditor
         mode="add"
+        defaultPriority={selectedPriority}
         onCancel={() => setMode('list')}
         onSubmit={(data) => {
           createItem({
@@ -134,8 +235,8 @@ export function InboxView({ onRefresh, onStatus }: Props) {
     );
   }
 
-  if (mode === 'edit' && items[selected]) {
-    const item = items[selected]!;
+  if (mode === 'edit' && selectedItem) {
+    const item = selectedItem;
     return (
       <ItemEditor
         mode="edit"
@@ -158,17 +259,18 @@ export function InboxView({ onRefresh, onStatus }: Props) {
     );
   }
 
-  if (mode === 'schedule' && items[selected]) {
-    const item = items[selected]!;
+  if (mode === 'schedule' && selectedItem) {
+    const item = selectedItem;
     return (
       <ScheduleEditor
         item={item}
         onCancel={() => setMode('list')}
-        onSubmit={(start, end) => {
-          scheduleItem(item.id, start, end);
+        onSubmit={(start, end, allDay) => {
+          if (allDay) scheduleAllDayItem(item.id, start, end);
+          else scheduleItem(item.id, start, end);
           refresh();
           autoPush(item.id, onStatus);
-          onStatus(`Scheduled for ${formatDate(start)} ${formatTime(start)}`);
+          onStatus(`Scheduled for ${formatDate(start)} ${allDay ? 'all day' : formatScheduleTime(start, end, false)}`);
           setMode('list');
         }}
       />
@@ -178,27 +280,48 @@ export function InboxView({ onRefresh, onStatus }: Props) {
   return (
     <Box flexDirection="column">
       <Text dimColor>
-        click to select · j/k navigate · a add · q quick-add · e edit · s schedule · x done · d delete
+        click to select · h/l priority · j/k navigate · a add · q quick-add · e edit · s {selectedItem?.start ? 're-schedule' : 'schedule'} · x done · d delete
       </Text>
-      {items.length === 0 ? (
-        <Text dimColor>Backlog empty. Press a to add or q for quick-add.</Text>
-      ) : (
-        items.map((item, i) => (
-          <Text
-            key={item.id}
-            color={i === selected ? 'cyan' : undefined}
-            bold={i === selected}
-            underline={i === selected}
-          >
-            {i === selected ? '▸ ' : '  '}
-            {item.start ? `${formatDate(item.start)} ${formatTime(item.start)}  ` : ''}
-            {item.priority > 0 ? `[P${item.priority}] ` : ''}
-            {item.title}
-            {item.project ? ` #${item.project}` : ''}
-            {item.tags.length ? ` ${item.tags.join(' ')}` : ''}
-          </Text>
-        ))
-      )}
+      <Box marginTop={1}>
+        {columns.map((column, columnIndex) => {
+          const columnSelected = columnIndex === selectedColumnIndex;
+          return (
+          <Box key={PRIORITIES[columnIndex]} flexDirection="column" width={columnWidth} marginRight={COLUMN_GAP}>
+            <Text bold color={columnSelected ? 'cyan' : undefined} underline={columnSelected && column.length === 0}>
+              P{PRIORITIES[columnIndex]}
+            </Text>
+            {column.length === 0 ? (
+              <Text color={columnSelected ? 'cyan' : undefined} dimColor={!columnSelected}>
+                {columnSelected ? '▸ —' : '—'}
+              </Text>
+            ) : (
+              column.map((item, rowIndex) => {
+                const selectedHere = columnSelected && rowIndex === selected;
+                return (
+                  <Box key={item.id} flexDirection="column">
+                    <Text
+                      color={selectedHere ? 'cyan' : undefined}
+                      bold={selectedHere}
+                      underline={selectedHere}
+                      wrap="truncate"
+                    >
+                      {selectedHere ? '▸ ' : '  '}
+                      {itemLabel(item)}
+                    </Text>
+                    {selectedHere && item.start ? (
+                      <Text dimColor wrap="truncate">
+                        {'    '}
+                        {scheduleLabel(item)}
+                      </Text>
+                    ) : null}
+                  </Box>
+                );
+              })
+            )}
+          </Box>
+        );
+        })}
+      </Box>
     </Box>
   );
 }

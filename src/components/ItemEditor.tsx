@@ -7,19 +7,20 @@ import type { Item } from '../db/types.js';
 type Props = {
   item?: Item;
   mode: 'add' | 'edit';
+  defaultPriority?: 0 | 1 | 2 | 3;
   onSubmit: (data: { title: string; notes?: string; project?: string; tags: string[]; priority: 0 | 1 | 2 | 3 }) => void;
   onCancel: () => void;
 };
 
 type Field = 'title' | 'notes' | 'project' | 'tags' | 'priority';
 
-export function ItemEditor({ item, mode, onSubmit, onCancel }: Props) {
+export function ItemEditor({ item, mode, defaultPriority = 0, onSubmit, onCancel }: Props) {
   const [field, setField] = useState<Field>('title');
   const [title, setTitle] = useState(item?.title ?? '');
   const [notes, setNotes] = useState(item?.notes ?? '');
   const [project, setProject] = useState(item?.project ?? '');
   const [tags, setTags] = useState(item?.tags.join(' ') ?? '');
-  const [priority, setPriority] = useState(String(item?.priority ?? 0));
+  const [priority, setPriority] = useState(String(item?.priority ?? defaultPriority));
 
   const fields: Field[] = ['title', 'notes', 'project', 'tags', 'priority'];
   const isLastField = field === fields[fields.length - 1];

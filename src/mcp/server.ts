@@ -11,13 +11,14 @@ import {
   listAllScheduled,
   listInbox,
   listScheduledInRange,
+  scheduleAllDayItem,
   scheduleItem,
   toggleDone,
   unscheduleItem,
   updateItem,
 } from '../db/items.js';
 import { parseQuickAdd } from '../lib/nlp.js';
-import { defaultEnd, todayEnd, todayStart } from '../lib/time.js';
+import { allDayRange, defaultEnd, todayEnd, todayStart } from '../lib/time.js';
 import { isAuthenticated } from '../google/auth.js';
 import { pushTask, removeFromGoogle, syncWithGoogle } from '../google/sync.js';
 
@@ -204,6 +205,7 @@ function registerTools(server: McpServer): void {
         priority: parsed.priority,
         start: parsed.start,
         end: parsed.end,
+        allDay: parsed.allDay,
       });
       const note = item.start ? await syncPush(item.id) : '';
       return text({ message: `Added: ${item.title}${note}`, item: view(item) });
@@ -243,16 +245,28 @@ function registerTools(server: McpServer): void {
     id,
     start,
     end,
+    allDay,
     durationMinutes,
   }: {
     id: string;
     start: string;
     end?: string;
+    allDay?: boolean;
     durationMinutes?: number;
   }): Promise<CallToolResult> => {
     if (!DateTime.fromISO(start).isValid) return toolError(`Invalid start datetime: ${start}`);
     if (end && !DateTime.fromISO(end).isValid) return toolError(`Invalid end datetime: ${end}`);
     await ensureFresh();
+    const useAllDay = allDay === true || !start.includes('T');
+    if (useAllDay) {
+      const range = allDayRange(start);
+      const finalEnd = end ? allDayRange(end).end : range.end;
+      if (DateTime.fromISO(finalEnd) <= DateTime.fromISO(range.start)) return toolError('end must be after start');
+      const result = scheduleAllDayItem(id, range.start, finalEnd);
+      if (!result) return toolError(`Cannot schedule: no task with id ${id} (external events are read-only)`);
+      const note = await syncPush(id);
+      return text({ message: `Scheduled all day${note}`, item: view(result) });
+    }
     const finalEnd = end ?? defaultEnd(start, durationMinutes ?? 60);
     if (DateTime.fromISO(finalEnd) <= DateTime.fromISO(start)) return toolError('end must be after start');
     const result = scheduleItem(id, start, finalEnd);
@@ -263,15 +277,16 @@ function registerTools(server: McpServer): void {
 
   const scheduleSchema = {
     id: z.string(),
-    start: z.string().describe('ISO datetime for the event start'),
-    end: z.string().optional().describe('ISO datetime for the event end'),
+    start: z.string().describe('ISO datetime/date for the event start'),
+    end: z.string().optional().describe('ISO datetime/date for the event end'),
+    allDay: z.boolean().optional().describe('Schedule as an all-day event. Also inferred when start is an ISO date like 2026-05-30.'),
     durationMinutes: z.number().int().positive().optional().describe('Used when end is omitted (default 60)'),
   };
 
   server.registerTool(
     'schedule_task',
     {
-      description: 'Schedule a task at a given start time. Provide end or durationMinutes (default 60 min).',
+      description: 'Schedule a task at a given start date/time. Use allDay or an ISO date-only start for an all-day event.',
       inputSchema: scheduleSchema,
     },
     scheduleHandler,

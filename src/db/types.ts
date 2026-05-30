@@ -14,6 +14,7 @@ export type Item = {
   source: ItemSource;
   start?: string;
   end?: string;
+  allDay: boolean;
   googleEventId?: string;
   googleCalendarId?: string;
   syncedAt?: string;
@@ -33,6 +34,7 @@ export type ItemRow = {
   source: string;
   start: string | null;
   end: string | null;
+  all_day: number;
   google_event_id: string | null;
   google_calendar_id: string | null;
   synced_at: string | null;
@@ -53,6 +55,7 @@ export function rowToItem(row: ItemRow): Item {
     source: (row.source as ItemSource) || 'task',
     start: row.start ?? undefined,
     end: row.end ?? undefined,
+    allDay: Boolean(row.all_day),
     googleEventId: row.google_event_id ?? undefined,
     googleCalendarId: row.google_calendar_id ?? undefined,
     syncedAt: row.synced_at ?? undefined,
@@ -74,6 +77,7 @@ export function itemToRow(item: Item): ItemRow {
     source: item.source,
     start: item.start ?? null,
     end: item.end ?? null,
+    all_day: item.allDay ? 1 : 0,
     google_event_id: item.googleEventId ?? null,
     google_calendar_id: item.googleCalendarId ?? null,
     synced_at: item.syncedAt ?? null,

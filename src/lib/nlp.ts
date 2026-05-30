@@ -1,11 +1,12 @@
 import * as chrono from 'chrono-node';
 import { DateTime } from 'luxon';
-import { defaultEnd } from './time.js';
+import { allDayRange, defaultEnd } from './time.js';
 
 export type ParsedItem = {
   title: string;
   start?: string;
   end?: string;
+  allDay: boolean;
   tags: string[];
   project?: string;
   priority: 0 | 1 | 2 | 3;
@@ -39,17 +40,26 @@ export function parseQuickAdd(input: string): ParsedItem {
   const results = chrono.parse(text, new Date(), { forwardDate: true });
   let start: string | undefined;
   let end: string | undefined;
+  let allDay = false;
   let title = text;
 
   if (results.length > 0) {
     const r = results[0]!;
     const startDate = r.start.date();
-    start = DateTime.fromJSDate(startDate).toISO()!;
+    const hasTime = r.start.isCertain('hour') || r.start.isCertain('minute');
+    if (hasTime) {
+      start = DateTime.fromJSDate(startDate).toISO()!;
 
-    if (r.end) {
-      end = DateTime.fromJSDate(r.end.date()).toISO()!;
+      if (r.end) {
+        end = DateTime.fromJSDate(r.end.date()).toISO()!;
+      } else {
+        end = defaultEnd(start, 60);
+      }
     } else {
-      end = defaultEnd(start, 60);
+      allDay = true;
+      const range = allDayRange(DateTime.fromJSDate(startDate).toISO()!);
+      start = range.start;
+      end = r.end ? allDayRange(DateTime.fromJSDate(r.end.date()).toISO()!).end : range.end;
     }
 
     title = text.slice(0, r.index).trim() + text.slice(r.index + r.text.length).trim();
@@ -60,5 +70,5 @@ export function parseQuickAdd(input: string): ParsedItem {
     title = input.trim();
   }
 
-  return { title, start, end, tags, project, priority };
+  return { title, start, end, allDay, tags, project, priority };
 }

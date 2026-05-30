@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Text } from 'ink';
 import { DateTime } from 'luxon';
 import type { Item } from '../db/types.js';
-import { listScheduledInRange, scheduleItem, toggleDone, unscheduleItem, updateItem } from '../db/items.js';
-import { addMinutes, formatTime, hourLabels, isSameDay } from '../lib/time.js';
+import { listScheduledInRange, scheduleAllDayItem, scheduleItem, toggleDone, unscheduleItem, updateItem } from '../db/items.js';
+import { addMinutes, formatScheduleTime, formatTime, hourLabels, isSameDay } from '../lib/time.js';
 import { autoPush, autoRemove } from '../google/autoSync.js';
 import { useClickRegions } from '../components/Mouse.js';
 import { ScheduleEditor } from '../components/ScheduleEditor.js';
@@ -63,8 +63,9 @@ export function DayView({ onRefresh, onStatus }: Props) {
   // Build the rendered line list so click rows stay in sync with the layout.
   const lines = useMemo(() => {
     const out: { key: string; hour: string; item?: Item }[] = [];
+    scheduled.filter((item) => item.allDay).forEach((item) => out.push({ key: item.id, hour: 'all day', item }));
     hours.forEach((hour, hi) => {
-      const blocks = scheduled.filter((item) => item.start && DateTime.fromISO(item.start).hour === hi);
+      const blocks = scheduled.filter((item) => !item.allDay && item.start && DateTime.fromISO(item.start).hour === hi);
       if (blocks.length === 0) {
         out.push({ key: `empty-${hour}`, hour });
       } else {
@@ -120,6 +121,15 @@ export function DayView({ onRefresh, onStatus }: Props) {
         onStatus('Marked done');
         return;
       }
+      if (item.allDay) {
+        if (input === 'u') {
+          unscheduleItem(item.id);
+          refresh();
+          autoRemove(item, onStatus);
+          onStatus('Unscheduled');
+        }
+        return;
+      }
       if (input === '+' || input === '=') {
         updateItem(item.id, { end: addMinutes(item.end, 15) });
         refresh();
@@ -149,8 +159,9 @@ export function DayView({ onRefresh, onStatus }: Props) {
       <ScheduleEditor
         item={target}
         onCancel={() => setEditing(null)}
-        onSubmit={(start, end) => {
-          scheduleItem(target.id, start, end);
+        onSubmit={(start, end, allDay) => {
+          if (allDay) scheduleAllDayItem(target.id, start, end);
+          else scheduleItem(target.id, start, end);
           setEditing(null);
           refresh();
           autoPush(target.id, onStatus);
@@ -188,7 +199,7 @@ export function DayView({ onRefresh, onStatus }: Props) {
               underline={selectedHere}
             >
               {line.hour} {selectedHere ? '▸ ' : '· '}
-              {formatTime(item.end!)} {item.title}
+              {item.allDay ? item.title : `${formatTime(item.end!)} ${item.title}`}
               {external ? ' [gcal]' : ''}
             </Text>
           );
@@ -303,8 +314,9 @@ export function WeekView({ onRefresh, onStatus }: Props) {
       <ScheduleEditor
         item={target}
         onCancel={() => setEditing(null)}
-        onSubmit={(start, end) => {
-          scheduleItem(target.id, start, end);
+        onSubmit={(start, end, allDay) => {
+          if (allDay) scheduleAllDayItem(target.id, start, end);
+          else scheduleItem(target.id, start, end);
           setEditing(null);
           refresh();
           autoPush(target.id, onStatus);
@@ -342,7 +354,7 @@ export function WeekView({ onRefresh, onStatus }: Props) {
                       underline={idx === sel}
                       wrap="truncate"
                     >
-                      {formatTime(item.start!)} {item.title}
+                      {formatScheduleTime(item.start!, item.end, item.allDay)} {item.title}
                     </Text>
                   );
                 })
