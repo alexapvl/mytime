@@ -9,7 +9,20 @@ export function useAppInput(inputHandler: InputHandler, options: InputOptions = 
   inkUseInput((input, key) => {
     if (isKeyboardSuppressed()) return;
     const cleaned = stripMouseSequences(input);
-    if (!cleaned && !key.escape && !key.return && !key.tab && !key.backspace && !key.delete) return;
+    if (
+      !cleaned &&
+      !key.escape &&
+      !key.return &&
+      !key.tab &&
+      !key.backspace &&
+      !key.delete &&
+      !key.leftArrow &&
+      !key.rightArrow &&
+      !key.upArrow &&
+      !key.downArrow
+    ) {
+      return;
+    }
     inputHandler(cleaned, key);
   }, options);
 }
