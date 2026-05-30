@@ -31,6 +31,14 @@ const DAY_CONTENT_ROW = VIEW_ROW0 + 3;
 // WeekView: header help [blank] day-names(+3) events(+4 onward)
 const WEEK_EVENTS_ROW = VIEW_ROW0 + 4;
 const WEEK_COLUMN_GAP = 1;
+const WEEK_FOCUS_WEIGHT = 2;
+
+function hasWeekTime(item: Item): boolean {
+  if (item.allDay || !item.start || !item.end) return false;
+  const start = DateTime.fromISO(item.start);
+  const end = DateTime.fromISO(item.end);
+  return !(start.hour === 0 && start.minute === 0 && end.hour === 0 && end.minute === 0);
+}
 
 export function DayView({ onRefresh, onStatus }: Props) {
   const { setInputFocused } = useInputFocus();
@@ -238,13 +246,30 @@ export function WeekView({ onRefresh, onStatus }: Props) {
   const days = Array.from({ length: 7 }, (_, i) => weekStart.plus({ days: i }));
   const scheduled = items.filter((i) => i.start);
   const sel = Math.min(selected, Math.max(0, scheduled.length - 1));
+  const selectedWeekItem = scheduled[sel];
+  const selectedDayIndex = selectedWeekItem?.start
+    ? Math.max(0, days.findIndex((d) => isSameDay(selectedWeekItem.start!, d.toISO()!)))
+    : Math.max(0, days.findIndex((d) => d.hasSame(DateTime.local(), 'day')));
   const viewWidth = Math.max(80, stdout.columns ?? 80) - 4;
-  const dayWidth = Math.max(10, Math.floor((viewWidth - WEEK_COLUMN_GAP * (days.length - 1)) / days.length));
+  const availableWidth = viewWidth - WEEK_COLUMN_GAP * (days.length - 1);
+  const totalWeight = days.length + WEEK_FOCUS_WEIGHT - 1;
+  const dayWidths = days.map((_, dayIndex) =>
+    Math.max(8, Math.floor((availableWidth * (dayIndex === selectedDayIndex ? WEEK_FOCUS_WEIGHT : 1)) / totalWeight)),
+  );
+  const usedWidth = dayWidths.reduce((sum, width) => sum + width, 0);
+  if (usedWidth < availableWidth) {
+    dayWidths[selectedDayIndex] += availableWidth - usedWidth;
+  }
+  const dayStarts = dayWidths.reduce<number[]>((starts, width, dayIndex) => {
+    starts.push(dayIndex === 0 ? 2 : starts[dayIndex - 1]! + dayWidths[dayIndex - 1]! + WEEK_COLUMN_GAP);
+    return starts;
+  }, []);
 
   const regions = useMemo<ClickRegion[]>(() => {
     const out: ClickRegion[] = [];
     days.forEach((d, dayIndex) => {
-      const colStart = 2 + dayIndex * (dayWidth + WEEK_COLUMN_GAP);
+      const colStart = dayStarts[dayIndex]!;
+      const dayWidth = dayWidths[dayIndex]!;
       const dayItems = scheduled.filter((i) => i.start && isSameDay(i.start, d.toISO()!));
       dayItems.forEach((item, ei) => {
         out.push({
@@ -256,7 +281,7 @@ export function WeekView({ onRefresh, onStatus }: Props) {
       });
     });
     return out;
-  }, [scheduled, weekStart.toISODate(), dayWidth]);
+  }, [scheduled, weekStart.toISODate(), dayStarts, dayWidths, selectedWeekItem]);
   useClickRegions('week', editing ? [] : regions);
 
   useAppInput(
@@ -351,8 +376,9 @@ export function WeekView({ onRefresh, onStatus }: Props) {
       <Box marginTop={1}>
         {days.map((d) => {
           const dayItems = scheduled.filter((i) => i.start && isSameDay(i.start, d.toISO()!));
+          const dayIndex = days.indexOf(d);
           return (
-            <Box key={d.toISODate()} flexDirection="column" marginRight={WEEK_COLUMN_GAP} width={dayWidth}>
+            <Box key={d.toISODate()} flexDirection="column" marginRight={WEEK_COLUMN_GAP} width={dayWidths[dayIndex]!}>
               <Text bold color={d.hasSame(DateTime.local(), 'day') ? 'cyan' : undefined}>
                 {d.toFormat('EEE d')}
               </Text>
@@ -362,16 +388,21 @@ export function WeekView({ onRefresh, onStatus }: Props) {
                 dayItems.map((item) => {
                   const idx = scheduled.indexOf(item);
                   const external = item.source === 'external';
+                  const selectedHere = idx === sel;
+                  const showTime = dayIndex === selectedDayIndex;
+                  const prefix = showTime && hasWeekTime(item) ? `${formatScheduleTime(item.start!, item.end, item.allDay)} ` : '';
                   return (
-                    <Text
-                      key={item.id}
-                      color={idx === sel ? 'cyan' : external ? 'magenta' : undefined}
-                      dimColor={external && idx !== sel}
-                      underline={idx === sel}
-                      wrap="truncate"
-                    >
-                      {formatScheduleTime(item.start!, item.end, item.allDay)} {item.title}
-                    </Text>
+                    <Box key={item.id} flexDirection="column">
+                      <Text
+                        color={selectedHere ? 'cyan' : external ? 'magenta' : undefined}
+                        dimColor={external && !selectedHere}
+                        underline={selectedHere}
+                        wrap="truncate"
+                      >
+                        {prefix}
+                        {item.title}
+                      </Text>
+                    </Box>
                   );
                 })
               )}
