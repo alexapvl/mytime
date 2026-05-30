@@ -276,17 +276,29 @@ export function WeekView({ onRefresh, onStatus }: Props) {
 
       if (scheduled.length === 0) return;
 
-      // Vertical navigation stays within the selected event's day; don't jump to another day's event.
-      const moveWithinDay = (dir: 1 | -1) => {
+      const moveVertical = (dir: 1 | -1) => {
         const cur = scheduled[sel];
         if (!cur?.start) return;
+        const currentDayIndex = days.findIndex((d) => isSameDay(cur.start!, d.toISO()!));
         const dayItems = scheduled.filter((i) => i.start && isSameDay(i.start, cur.start!));
         const pos = dayItems.indexOf(cur);
         const next = dayItems[pos + dir];
-        if (next) setSelected(scheduled.indexOf(next));
+        if (next) {
+          setSelected(scheduled.indexOf(next));
+          return;
+        }
+
+        for (let dayIndex = currentDayIndex + dir; dayIndex >= 0 && dayIndex < days.length; dayIndex += dir) {
+          const targetDayItems = scheduled.filter((i) => i.start && isSameDay(i.start, days[dayIndex]!.toISO()!));
+          const target = dir === 1 ? targetDayItems[0] : targetDayItems[targetDayItems.length - 1];
+          if (target) {
+            setSelected(scheduled.indexOf(target));
+            return;
+          }
+        }
       };
-      if (input === 'j' || key.downArrow) moveWithinDay(1);
-      if (input === 'k' || key.upArrow) moveWithinDay(-1);
+      if (input === 'j' || key.downArrow) moveVertical(1);
+      if (input === 'k' || key.upArrow) moveVertical(-1);
 
       const item = scheduled[sel];
       if (!item?.start || !item.end || item.source === 'external') return;
