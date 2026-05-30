@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useStdout } from 'ink';
 import { DateTime } from 'luxon';
 import type { Item } from '../db/types.js';
 import { listScheduledInRange, scheduleAllDayItem, scheduleItem, toggleDone, unscheduleItem, updateItem } from '../db/items.js';
@@ -10,7 +10,7 @@ import { ScheduleEditor } from '../components/ScheduleEditor.js';
 import { useInputFocus } from '../context/InputFocusContext.js';
 import { useAppInput } from '../hooks/useAppInput.js';
 import type { ClickRegion } from '../lib/mouse.js';
-import { VIEW_ROW0, weekColStart, WEEK_COL_WIDTH } from '../lib/layout.js';
+import { VIEW_ROW0 } from '../lib/layout.js';
 
 type Props = {
   onRefresh: () => void;
@@ -30,6 +30,7 @@ function nearestIndexToNow(items: Item[]): number {
 const DAY_CONTENT_ROW = VIEW_ROW0 + 3;
 // WeekView: header help [blank] day-names(+3) events(+4 onward)
 const WEEK_EVENTS_ROW = VIEW_ROW0 + 4;
+const WEEK_COLUMN_GAP = 1;
 
 export function DayView({ onRefresh, onStatus }: Props) {
   const { setInputFocused } = useInputFocus();
@@ -211,6 +212,7 @@ export function DayView({ onRefresh, onStatus }: Props) {
 
 export function WeekView({ onRefresh, onStatus }: Props) {
   const { setInputFocused } = useInputFocus();
+  const { stdout } = useStdout();
   const [weekStart, setWeekStart] = useState(() => DateTime.local().startOf('week'));
   const [items, setItems] = useState<Item[]>([]);
   const [selected, setSelected] = useState(0);
@@ -236,23 +238,25 @@ export function WeekView({ onRefresh, onStatus }: Props) {
   const days = Array.from({ length: 7 }, (_, i) => weekStart.plus({ days: i }));
   const scheduled = items.filter((i) => i.start);
   const sel = Math.min(selected, Math.max(0, scheduled.length - 1));
+  const viewWidth = Math.max(80, stdout.columns ?? 80) - 4;
+  const dayWidth = Math.max(10, Math.floor((viewWidth - WEEK_COLUMN_GAP * (days.length - 1)) / days.length));
 
   const regions = useMemo<ClickRegion[]>(() => {
     const out: ClickRegion[] = [];
     days.forEach((d, dayIndex) => {
-      const colStart = weekColStart(dayIndex);
+      const colStart = 2 + dayIndex * (dayWidth + WEEK_COLUMN_GAP);
       const dayItems = scheduled.filter((i) => i.start && isSameDay(i.start, d.toISO()!));
       dayItems.forEach((item, ei) => {
         out.push({
           row: WEEK_EVENTS_ROW + ei,
           col: colStart,
-          endCol: colStart + WEEK_COL_WIDTH - 3,
+          endCol: colStart + dayWidth - 1,
           onClick: () => setSelected(scheduled.indexOf(item)),
         });
       });
     });
     return out;
-  }, [scheduled, weekStart.toISODate()]);
+  }, [scheduled, weekStart.toISODate(), dayWidth]);
   useClickRegions('week', editing ? [] : regions);
 
   useAppInput(
@@ -336,7 +340,7 @@ export function WeekView({ onRefresh, onStatus }: Props) {
         {days.map((d) => {
           const dayItems = scheduled.filter((i) => i.start && isSameDay(i.start, d.toISO()!));
           return (
-            <Box key={d.toISODate()} flexDirection="column" marginRight={2} width={18}>
+            <Box key={d.toISODate()} flexDirection="column" marginRight={WEEK_COLUMN_GAP} width={dayWidth}>
               <Text bold color={d.hasSame(DateTime.local(), 'day') ? 'cyan' : undefined}>
                 {d.toFormat('EEE d')}
               </Text>
