@@ -4,6 +4,7 @@ import TextInput from 'ink-text-input';
 import { DateTime } from 'luxon';
 import { ItemEditor } from '../components/ItemEditor.js';
 import { ScheduleEditor } from '../components/ScheduleEditor.js';
+import { MarqueeText } from '../components/MarqueeText.js';
 import { ShortcutBar } from '../components/ShortcutBar.js';
 import { useClickRegions } from '../components/Mouse.js';
 import { useInputFocus } from '../context/InputFocusContext.js';
@@ -365,15 +366,15 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
                 const selectedHere = columnSelected && rowIndex === selected;
                 return (
                   <Box key={item.id} flexDirection="column">
-                    <Text
+                    <MarqueeText
+                      text={itemLabel(item)}
+                      maxWidth={columnWidth}
+                      prefix={selectedHere ? '▸ ' : '  '}
+                      active={selectedHere}
                       color={selectedHere ? 'cyan' : undefined}
                       bold={selectedHere}
                       underline={selectedHere}
-                      wrap="truncate"
-                    >
-                      {selectedHere ? '▸ ' : '  '}
-                      {itemLabel(item)}
-                    </Text>
+                    />
                     {selectedHere && item.start ? (
                       <Text dimColor wrap="truncate">
                         {'    ↳ '}

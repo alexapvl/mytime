@@ -9,6 +9,7 @@ import { autoPush, autoRemove } from '../google/autoSync.js';
 import { ItemEditor } from '../components/ItemEditor.js';
 import { useClickRegions } from '../components/Mouse.js';
 import { ScheduleEditor } from '../components/ScheduleEditor.js';
+import { MarqueeText } from '../components/MarqueeText.js';
 import { ShortcutBar } from '../components/ShortcutBar.js';
 import { useInputFocus } from '../context/InputFocusContext.js';
 import { useUndo } from '../context/UndoContext.js';
@@ -671,15 +672,15 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
                   const prefix = showTime && hasWeekTime(item) ? `${formatScheduleTime(item.start!, item.end, item.allDay)} ` : '';
                   return (
                     <Box key={item.id} flexDirection="column">
-                      <Text
+                      <MarqueeText
+                        text={item.title}
+                        maxWidth={dayWidths[dayIndex]!}
+                        prefix={prefix}
+                        active={selectedHere}
                         color={selectedHere ? 'cyan' : external ? 'magenta' : undefined}
                         dimColor={external && !selectedHere}
                         underline={selectedHere}
-                        wrap="truncate"
-                      >
-                        {prefix}
-                        {item.title}
-                      </Text>
+                      />
                     </Box>
                   );
                 })
