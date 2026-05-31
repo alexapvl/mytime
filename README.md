@@ -91,7 +91,7 @@ Register it in your client's MCP config (the global `mytime` command must be on 
 | `get_item` | Get a single item by id |
 | `search_tasks` | Search by title / project / tags |
 | `add_task` | Create an unscheduled task |
-| `quick_add` | Add from natural language (`@tag #project pN`, dates) |
+| `quick_add` | Add from natural language (`#tag @project pN`, dates) |
 | `update_task` | Update fields of a task |
 | `schedule_task` / `reschedule_task` | Set/change a task's start (and end or duration) |
 | `complete_task` | Mark done / not done (omit `done` to toggle) |
@@ -112,4 +112,4 @@ Natural language via [chrono-node](https://github.com/wanasit/chrono):
 - `dentist Friday 10am-11am`
 - `review PR @work p2 #swe`
 
-Tags: `@context` · Projects: `#name` · Priority: `p0`–`p3`
+Tags: `#context` · Projects: `@name` · Priority: `p0`–`p3`

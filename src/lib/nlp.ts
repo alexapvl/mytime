@@ -22,9 +22,9 @@ export function parseQuickAdd(input: string, referenceDate: Date = new Date()): 
   if (tagMatches) {
     for (const m of tagMatches) {
       const tag = m.trim();
-      if (tag.startsWith('#')) {
+      if (tag.startsWith('@')) {
         project = tag.slice(1);
-      } else {
+      } else if (tag.startsWith('#')) {
         tags.push(tag);
       }
     }

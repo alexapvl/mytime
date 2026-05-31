@@ -126,7 +126,7 @@ export async function syncWithGoogle(): Promise<SyncResult> {
             createItem({
               title,
               notes: event.description ?? undefined,
-              tags: source === 'external' ? ['@gcal'] : [],
+              tags: source === 'external' ? ['#gcal'] : [],
               priority: 0,
               source,
               start: startISO,
@@ -202,7 +202,7 @@ function parseEventTime(value: string, allDay: boolean): string {
 function buildDescription(item: Item): string {
   const parts: string[] = [];
   if (item.notes) parts.push(item.notes);
-  if (item.project) parts.push(`Project: #${item.project}`);
+  if (item.project) parts.push(`Project: @${item.project}`);
   if (item.tags.length) parts.push(`Tags: ${item.tags.join(' ')}`);
   if (item.priority) parts.push(`Priority: P${item.priority}`);
   parts.push('— synced via mytime');

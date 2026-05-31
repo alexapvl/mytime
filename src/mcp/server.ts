@@ -191,7 +191,7 @@ function registerTools(server: McpServer): void {
     'quick_add',
     {
       description:
-        'Add a task from natural language. Parses date/time, @tags, #project and pN priority. e.g. "review PR tomorrow 3pm @work #swe p2".',
+        'Add a task from natural language. Parses date/time, #tags, @project and pN priority. e.g. "review PR tomorrow 3pm @work #swe p2".',
       inputSchema: { text: z.string() },
     },
     async ({ text: input }) => {

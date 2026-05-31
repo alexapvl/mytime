@@ -9,11 +9,13 @@ import { autoPush, autoRemove } from '../google/autoSync.js';
 import { ItemEditor } from '../components/ItemEditor.js';
 import { useClickRegions } from '../components/Mouse.js';
 import { ScheduleEditor } from '../components/ScheduleEditor.js';
+import { ShortcutBar } from '../components/ShortcutBar.js';
 import { useInputFocus } from '../context/InputFocusContext.js';
 import { useAppInput } from '../hooks/useAppInput.js';
 import type { ClickRegion } from '../lib/mouse.js';
 import { VIEW_ROW0 } from '../lib/layout.js';
 import { parseQuickAdd } from '../lib/nlp.js';
+import { DAILY_SHORTCUTS, WEEK_SHORTCUTS } from '../lib/shortcuts.js';
 
 type Props = {
   onRefresh: () => void;
@@ -343,13 +345,13 @@ export function DayView({ onRefresh, onStatus }: Props) {
       <Text bold>
         {day.toFormat('EEE MMM d, yyyy')} {isToday ? '(today)' : ''}
       </Text>
-      <Text dimColor>
-        {selectedDayItem?.source !== 'task'
-          ? 'click events · ←/→ prev/next day · t today · ↑/↓ select · a add · q quick-add'
-          : hasWeekTime(selectedDayItem)
-            ? 'click events · ←/→ prev/next day · t today · ↑/↓ select · a add · q quick-add · ⇧↑/↓ move 1h · s reschedule · +/- resize · x done · d delete'
-            : 'click events · ←/→ prev/next day · t today · ↑/↓ select · a add · q quick-add · s reschedule · x done · d delete'}
-      </Text>
+      <ShortcutBar
+        shortcuts={DAILY_SHORTCUTS}
+        context={{
+          isTask: selectedDayItem?.source === 'task',
+          hasTime: selectedDayItem ? hasWeekTime(selectedDayItem) : false,
+        }}
+      />
       <Box flexDirection="column" marginTop={1}>
         {lines.map((line) => {
           if (!line.item) {
@@ -612,11 +614,7 @@ export function WeekView({ onRefresh, onStatus }: Props) {
       <Text bold>
         Week of {weekStart.toFormat('MMM d')} – {weekStart.endOf('week').toFormat('MMM d, yyyy')}
       </Text>
-      <Text dimColor>
-        {selectedWeekItem?.source !== 'task'
-          ? 'click days/events · ←/→ day · ⇧←/→ week · t today · ↑/↓ select · a add · q quick-add'
-          : 'click days/events · ←/→ day · ⇧←/→ week · t today · ↑/↓ select · a add · q quick-add · s reschedule · x done · d delete'}
-      </Text>
+      <ShortcutBar shortcuts={WEEK_SHORTCUTS} context={{ isTask: selectedWeekItem?.source === 'task' }} />
       <Box marginTop={1}>
         {days.map((d) => {
           const dayItems = scheduled.filter((i) => i.start && isSameDay(i.start, d.toISO()!));

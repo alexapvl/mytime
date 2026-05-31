@@ -4,6 +4,7 @@ import TextInput from 'ink-text-input';
 import { DateTime } from 'luxon';
 import { ItemEditor } from '../components/ItemEditor.js';
 import { ScheduleEditor } from '../components/ScheduleEditor.js';
+import { ShortcutBar } from '../components/ShortcutBar.js';
 import { useClickRegions } from '../components/Mouse.js';
 import { useInputFocus } from '../context/InputFocusContext.js';
 import { useAppInput } from '../hooks/useAppInput.js';
@@ -14,6 +15,7 @@ import { createItem, deleteItem, listBacklog, scheduleAllDayItem, scheduleItem, 
 import { autoPush, autoRemove } from '../google/autoSync.js';
 import { formatDate, formatScheduleTime } from '../lib/time.js';
 import { parseQuickAdd } from '../lib/nlp.js';
+import { BACKLOG_SHORTCUTS } from '../lib/shortcuts.js';
 
 type Props = {
   onRefresh: () => void;
@@ -49,9 +51,14 @@ function compareItems(a: Item, b: Item): number {
 }
 
 function itemLabel(item: Item): string {
-  const project = item.project ? ` #${item.project}` : '';
-  const tags = item.tags.length ? ` ${item.tags.join(' ')}` : '';
-  return `${item.title}${project}${tags}`;
+  return item.title;
+}
+
+function metaLabel(item: Item): string {
+  const parts: string[] = [];
+  if (item.project) parts.push(`@${item.project.replace(/^@/, '')}`);
+  if (item.tags.length) parts.push(...item.tags);
+  return parts.join(' ');
 }
 
 function scheduleLabel(item: Item): string {
@@ -325,9 +332,7 @@ export function BacklogView({ onRefresh, onStatus }: Props) {
 
   return (
     <Box flexDirection="column">
-      <Text dimColor>
-        click to select · ←/→ priority · ⇧←/→ move priority · ↑/↓ navigate · a add · q quick-add · e edit · s {selectedItem?.start ? 'reschedule' : 'schedule'} · x done · d delete
-      </Text>
+      <ShortcutBar shortcuts={BACKLOG_SHORTCUTS} context={{ scheduled: Boolean(selectedItem?.start) }} />
       <Box marginTop={1}>
         {columns.map((column, columnIndex) => {
           const columnSelected = columnIndex === selectedColumnIndex;
@@ -358,6 +363,12 @@ export function BacklogView({ onRefresh, onStatus }: Props) {
                       <Text dimColor wrap="truncate">
                         {'    ↳ '}
                         {scheduleLabel(item)}
+                      </Text>
+                    ) : null}
+                    {selectedHere && metaLabel(item) ? (
+                      <Text dimColor wrap="truncate">
+                        {'    ↳ '}
+                        {metaLabel(item)}
                       </Text>
                     ) : null}
                   </Box>

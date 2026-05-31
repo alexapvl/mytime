@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Box, Text } from 'ink';
-import TextInput from 'ink-text-input';
 import { useAppInput } from '../hooks/useAppInput.js';
 import type { Item } from '../db/types.js';
 
@@ -14,16 +13,38 @@ type Props = {
 
 type Field = 'title' | 'notes' | 'project' | 'tags' | 'priority';
 
+function cleanTypedInput(value: string): string {
+  return value.replace(/[\r\n]/g, '');
+}
+
+function editableText(value: string) {
+  if (!value) return <Text inverse> </Text>;
+  return (
+    <>
+      <Text>{value}</Text>
+      <Text inverse> </Text>
+    </>
+  );
+}
+
 export function ItemEditor({ item, mode, defaultPriority = 0, onSubmit, onCancel }: Props) {
   const [field, setField] = useState<Field>('title');
   const [title, setTitle] = useState(item?.title ?? '');
   const [notes, setNotes] = useState(item?.notes ?? '');
-  const [project, setProject] = useState(item?.project ?? '');
+  const [project, setProject] = useState(item?.project?.replace(/^@/, '') ?? '');
   const [tags, setTags] = useState(item?.tags.join(' ') ?? '');
   const [priority, setPriority] = useState(String(item?.priority ?? defaultPriority));
 
   const fields: Field[] = ['title', 'notes', 'project', 'tags', 'priority'];
   const isLastField = field === fields[fields.length - 1];
+  const values: Record<Field, string> = { title, notes, project, tags, priority };
+  const setters: Record<Field, (value: string) => void> = {
+    title: setTitle,
+    notes: setNotes,
+    project: setProject,
+    tags: setTags,
+    priority: setPriority,
+  };
 
   const submit = () => {
     if (!title.trim()) {
@@ -34,13 +55,13 @@ export function ItemEditor({ item, mode, defaultPriority = 0, onSubmit, onCancel
     const parsedTags = tags
       .split(/\s+/)
       .map((t) => t.trim())
-      .filter((t) => t.startsWith('@') || t.startsWith('#'));
+      .filter((t) => t.startsWith('#'));
 
     onSubmit({
       title: title.trim(),
       notes: notes.trim() || undefined,
-      project: project.trim() || undefined,
-      tags: parsedTags.filter((t) => t.startsWith('@')),
+      project: project.trim().replace(/^@/, '') || undefined,
+      tags: parsedTags,
       priority: Math.min(3, Math.max(0, parseInt(priority, 10) || 0)) as 0 | 1 | 2 | 3,
     });
   };
@@ -55,13 +76,40 @@ export function ItemEditor({ item, mode, defaultPriority = 0, onSubmit, onCancel
     if (idx > 0) setField(fields[idx - 1]!);
   };
 
-  useAppInput((_input, key) => {
+  useAppInput((input, key) => {
     if (key.escape) onCancel();
-    if (key.upArrow) prevField();
-    if (key.downArrow) nextField();
-    if (key.tab && key.shift) prevField();
-    else if (key.tab) nextField();
-    if (key.return && (key.meta || key.ctrl)) submit();
+    if (input === '\n' || (key.return && (key.shift || key.ctrl || key.meta))) {
+      return;
+    }
+    if (key.upArrow) {
+      prevField();
+      return;
+    }
+    if (key.downArrow) {
+      nextField();
+      return;
+    }
+    if (key.tab && key.shift) {
+      prevField();
+      return;
+    }
+    if (key.tab) {
+      nextField();
+      return;
+    }
+    if (key.return) {
+      if (isLastField) submit();
+      else nextField();
+      return;
+    }
+    if (key.backspace || key.delete) {
+      setters[field](values[field].slice(0, -1));
+      return;
+    }
+    const typed = cleanTypedInput(input);
+    if (typed && !key.ctrl && !key.meta) {
+      setters[field](values[field] + typed);
+    }
   });
 
   return (
@@ -69,12 +117,12 @@ export function ItemEditor({ item, mode, defaultPriority = 0, onSubmit, onCancel
       <Text bold color="cyan">
         {mode === 'add' ? 'New task' : 'Edit task'}
       </Text>
-      <Text dimColor>tab/enter/↓ next field · shift+tab/↑ prev · enter save (last) · cmd+enter save · esc cancel</Text>
+      <Text dimColor>type to edit · backspace delete · tab/enter/↓ next field · shift+tab/↑ prev · enter save (last) · esc cancel</Text>
 
       <Box>
         <Text color={field === 'title' ? 'cyan' : undefined}>Title*: </Text>
         {field === 'title' ? (
-          <TextInput value={title} onChange={setTitle} onSubmit={isLastField ? submit : nextField} />
+          editableText(title)
         ) : (
           <Text>{title || '—'}</Text>
         )}
@@ -82,23 +130,23 @@ export function ItemEditor({ item, mode, defaultPriority = 0, onSubmit, onCancel
       <Box>
         <Text color={field === 'notes' ? 'cyan' : undefined}>Notes: </Text>
         {field === 'notes' ? (
-          <TextInput value={notes} onChange={setNotes} onSubmit={isLastField ? submit : nextField} />
+          editableText(notes)
         ) : (
-          <Text dimColor>{notes || '—'}</Text>
+          <Text>{notes || '—'}</Text>
         )}
       </Box>
       <Box>
         <Text color={field === 'project' ? 'cyan' : undefined}>Project: </Text>
         {field === 'project' ? (
-          <TextInput value={project} onChange={setProject} onSubmit={isLastField ? submit : nextField} />
+          editableText(project)
         ) : (
-          <Text>{project ? `#${project}` : '—'}</Text>
+          <Text>{project || '—'}</Text>
         )}
       </Box>
       <Box>
         <Text color={field === 'tags' ? 'cyan' : undefined}>Tags: </Text>
         {field === 'tags' ? (
-          <TextInput value={tags} onChange={setTags} onSubmit={isLastField ? submit : nextField} />
+          editableText(tags)
         ) : (
           <Text>{tags || '—'}</Text>
         )}
@@ -106,9 +154,9 @@ export function ItemEditor({ item, mode, defaultPriority = 0, onSubmit, onCancel
       <Box>
         <Text color={field === 'priority' ? 'cyan' : undefined}>Priority (0-3): </Text>
         {field === 'priority' ? (
-          <TextInput value={priority} onChange={setPriority} onSubmit={submit} />
+          editableText(priority)
         ) : (
-          <Text>P{priority}</Text>
+          <Text>{priority}</Text>
         )}
       </Box>
     </Box>
