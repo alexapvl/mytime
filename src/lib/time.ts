@@ -6,8 +6,17 @@ export function formatTime(iso: string): string {
   return DateTime.fromISO(iso).toFormat('HH:mm');
 }
 
+export function isAllDaySchedule(start: string, end: string | undefined, allDay: boolean): boolean {
+  if (allDay) return true;
+  if (!start.includes('T')) return true;
+  if (!end) return false;
+  const s = DateTime.fromISO(start);
+  const e = DateTime.fromISO(end);
+  return s.hour === 0 && s.minute === 0 && e.hour === 0 && e.minute === 0;
+}
+
 export function formatScheduleTime(start: string, end: string | undefined, allDay: boolean): string {
-  if (allDay) return 'all day';
+  if (isAllDaySchedule(start, end, allDay)) return 'all day';
   return end ? `${formatTime(start)}-${formatTime(end)}` : formatTime(start);
 }
 

@@ -7,7 +7,7 @@ import { parseQuickAdd } from './lib/nlp.js';
 import { authenticate, isAuthenticated } from './google/auth.js';
 import { syncWithGoogle } from './google/sync.js';
 import { listScheduledInRange } from './db/items.js';
-import { todayStart, todayEnd, formatTime } from './lib/time.js';
+import { todayStart, todayEnd, formatScheduleTime } from './lib/time.js';
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -59,7 +59,7 @@ async function main() {
         console.log('Nothing scheduled today.');
       } else {
         for (const item of items) {
-          console.log(`${item.allDay ? 'all day' : `${formatTime(item.start!)}–${formatTime(item.end!)}`}  ${item.title}`);
+          console.log(`${formatScheduleTime(item.start!, item.end, item.allDay)}  ${item.title}`);
         }
       }
       process.exit(0);
