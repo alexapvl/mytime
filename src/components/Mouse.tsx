@@ -1,6 +1,14 @@
 import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef } from 'react';
 import { useStdin } from 'ink';
-import { ClickRegion, dedupeClicks, extractMouseClicks, hitTestRegion, stripMouseSequences } from '../lib/mouse.js';
+import {
+  ClickRegion,
+  dedupeClicks,
+  enableMouseTracking,
+  extractMouseClicks,
+  hasFocusIn,
+  hitTestRegion,
+  stripInputSequences,
+} from '../lib/mouse.js';
 
 type MouseContextValue = {
   setRegions: (id: string, regions: ClickRegion[]) => void;
@@ -34,6 +42,7 @@ export function MouseProvider({ children }: { children: React.ReactNode }) {
     emitter.emit = (event: string, ...args: unknown[]): boolean => {
       if (event === 'input' && typeof args[0] === 'string') {
         const chunk = args[0];
+        if (hasFocusIn(chunk)) enableMouseTracking();
         const clicks = dedupeClicks(extractMouseClicks(chunk));
         if (clicks.length > 0) {
           const all = [...groupsRef.current.values()].flat();
@@ -41,7 +50,7 @@ export function MouseProvider({ children }: { children: React.ReactNode }) {
             hitTestRegion(all, click)?.onClick();
           }
         }
-        return originalEmit(event, stripMouseSequences(chunk), ...args.slice(1));
+        return originalEmit(event, stripInputSequences(chunk), ...args.slice(1));
       }
       return originalEmit(event, ...args);
     };

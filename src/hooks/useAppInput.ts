@@ -1,6 +1,6 @@
 import { useInput as inkUseInput } from 'ink';
 import type { Key } from 'ink';
-import { isKeyboardSuppressed, stripMouseSequences } from '../lib/mouse.js';
+import { isKeyboardSuppressed, stripInputSequences } from '../lib/mouse.js';
 
 type InputHandler = (input: string, key: Key) => void;
 type InputOptions = { isActive?: boolean };
@@ -8,7 +8,7 @@ type InputOptions = { isActive?: boolean };
 export function useAppInput(inputHandler: InputHandler, options: InputOptions = {}): void {
   inkUseInput((input, key) => {
     if (isKeyboardSuppressed()) return;
-    const cleaned = stripMouseSequences(input);
+    const cleaned = stripInputSequences(input);
     if (
       !cleaned &&
       !key.escape &&

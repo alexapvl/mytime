@@ -7,6 +7,7 @@ import { parseQuickAdd } from './lib/nlp.js';
 import { authenticate, isAuthenticated } from './google/auth.js';
 import { syncWithGoogle } from './google/sync.js';
 import { listScheduledInRange } from './db/items.js';
+import { enterTuiModes, exitTuiModes } from './lib/mouse.js';
 import { todayStart, todayEnd, formatScheduleTime } from './lib/time.js';
 
 const args = process.argv.slice(2);
@@ -92,19 +93,16 @@ async function main() {
   }
 }
 
-const ENTER_TUI = '\x1b[?1049h\x1b[2J\x1b[H\x1b[?1000h\x1b[?1006h';
-const EXIT_TUI = '\x1b[?1000l\x1b[?1006l\x1b[?1049l';
-
 async function runTui(initialScreen: 'main' | 'settings' = 'main') {
   const tty = process.stdout.isTTY;
   let restored = false;
   const restore = () => {
     if (restored) return;
     restored = true;
-    if (tty) process.stdout.write(EXIT_TUI);
+    if (tty) exitTuiModes();
   };
 
-  if (tty) process.stdout.write(ENTER_TUI);
+  if (tty) enterTuiModes();
   process.once('exit', restore);
 
   try {

@@ -13,6 +13,9 @@ export function isKeyboardSuppressed(): boolean {
   return Date.now() - suppressUntil < 100;
 }
 
+const FOCUS_IN = '\x1b[I';
+const FOCUS_SEQ_RE = /\x1b\[[IO]/g;
+
 /** Click only — no drag tracking (1002) to avoid click-and-hold floods. */
 export function enableMouseTracking(): void {
   process.stdout.write('\x1b[?1000h\x1b[?1006h');
@@ -20,6 +23,35 @@ export function enableMouseTracking(): void {
 
 export function disableMouseTracking(): void {
   process.stdout.write('\x1b[?1000l\x1b[?1006l');
+}
+
+/** Focus in/out events (DECSET 1004) so we can re-enable mouse after refocus. */
+export function enableFocusReporting(): void {
+  process.stdout.write('\x1b[?1004h');
+}
+
+export function disableFocusReporting(): void {
+  process.stdout.write('\x1b[?1004l');
+}
+
+export function hasFocusIn(chunk: string): boolean {
+  return chunk.includes(FOCUS_IN);
+}
+
+export function stripFocusSequences(chunk: string): string {
+  return chunk.replace(FOCUS_SEQ_RE, '');
+}
+
+export function enterTuiModes(): void {
+  process.stdout.write('\x1b[?1049h\x1b[2J\x1b[H');
+  enableMouseTracking();
+  enableFocusReporting();
+}
+
+export function exitTuiModes(): void {
+  disableFocusReporting();
+  disableMouseTracking();
+  process.stdout.write('\x1b[?1049l');
 }
 
 const SGR_MOUSE_RE = /\x1b\[<(\d+);(\d+);(\d+)([mM])/g;
@@ -50,6 +82,11 @@ export function extractMouseClicks(chunk: string): MouseClick[] {
 
 export function stripMouseSequences(chunk: string): string {
   return chunk.replace(SGR_MOUSE_RE, '');
+}
+
+/** Remove mouse and focus escape sequences before keyboard handlers see them. */
+export function stripInputSequences(chunk: string): string {
+  return stripFocusSequences(stripMouseSequences(chunk));
 }
 
 export type ClickRegion = {
