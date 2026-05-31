@@ -6,6 +6,7 @@ import { syncWithGoogle } from './google/sync.js';
 import { isAuthenticated } from './google/auth.js';
 import { MouseProvider, useClickRegions } from './components/Mouse.js';
 import { InputFocusProvider, useInputFocus } from './context/InputFocusContext.js';
+import { UndoProvider, useUndo } from './context/UndoContext.js';
 import { useAppInput } from './hooks/useAppInput.js';
 import { TAB_ROW } from './lib/layout.js';
 
@@ -20,12 +21,13 @@ const TABS: { id: Tab; label: string; key: string }[] = [
 function AppShell() {
   const { exit } = useApp();
   const { inputFocused } = useInputFocus();
+  const { undoLast } = useUndo();
   const [tab, setTab] = useState<Tab>('backlog');
   const [status, setStatus] = useState('');
   const [syncing, setSyncing] = useState(false);
-  const [, setTick] = useState(0);
+  const [refreshToken, setRefreshToken] = useState(0);
 
-  const refresh = useCallback(() => setTick((t) => t + 1), []);
+  const refresh = useCallback(() => setRefreshToken((t) => t + 1), []);
 
   useClickRegions('tabs', [
     { row: TAB_ROW, col: 1, endCol: 11, onClick: () => setTab('backlog') },
@@ -60,6 +62,15 @@ function AppShell() {
       if (input === '2') setTab('daily');
       if (input === '3') setTab('week');
       if (input === 'r') void doSync();
+      if (input === 'u') {
+        const label = undoLast();
+        if (label) {
+          refresh();
+          setStatus(`Undid: ${label}`);
+        } else {
+          setStatus('Nothing to undo');
+        }
+      }
     },
     { isActive: !inputFocused },
   );
@@ -81,13 +92,13 @@ function AppShell() {
             </Text>
           </Box>
         ))}
-        <Text dimColor> · r sync · esc quit</Text>
+        <Text dimColor> · r sync · u undo · esc quit</Text>
       </Box>
 
       <Box flexDirection="column" marginBottom={1} minHeight={10}>
-        {tab === 'backlog' && <BacklogView onRefresh={refresh} onStatus={setStatus} />}
-        {tab === 'daily' && <DayView onRefresh={refresh} onStatus={setStatus} />}
-        {tab === 'week' && <WeekView onRefresh={refresh} onStatus={setStatus} />}
+        {tab === 'backlog' && <BacklogView refreshToken={refreshToken} onRefresh={refresh} onStatus={setStatus} />}
+        {tab === 'daily' && <DayView refreshToken={refreshToken} onRefresh={refresh} onStatus={setStatus} />}
+        {tab === 'week' && <WeekView refreshToken={refreshToken} onRefresh={refresh} onStatus={setStatus} />}
       </Box>
 
       <Box borderStyle="single" borderColor="gray" paddingX={1}>
@@ -104,9 +115,11 @@ function AppShell() {
 export function App() {
   return (
     <InputFocusProvider>
-      <MouseProvider>
-        <AppShell />
-      </MouseProvider>
+      <UndoProvider>
+        <MouseProvider>
+          <AppShell />
+        </MouseProvider>
+      </UndoProvider>
     </InputFocusProvider>
   );
 }

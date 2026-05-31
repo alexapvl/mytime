@@ -15,15 +15,16 @@ const VISIBLE = 9;
 const STEP_MINUTES = [15, 30, 60, 120, 240] as const;
 const DEFAULT_STEP_INDEX = 2;
 
-/** Hourly slots for a day. Today starts at the next full hour; future days span all 24h. */
+/** Step-aligned slots for a day. Today starts at the next slot boundary at or after now. */
 function buildSlots(date: DateTime, stepMinutes: number): DateTime[] {
   const now = DateTime.local();
   const isToday = date.hasSame(now, 'day');
   const dayStart = date.startOf('day');
-  const firstSlot = isToday ? now.plus({ minutes: stepMinutes }).startOf('minute') : dayStart;
-  const offsetMinutes = Math.ceil(firstSlot.diff(dayStart, 'minutes').minutes / stepMinutes) * stepMinutes;
+  const startMinute = isToday
+    ? Math.ceil(now.diff(dayStart, 'minutes').minutes / stepMinutes) * stepMinutes
+    : 0;
   const slots: DateTime[] = [];
-  for (let minute = Math.max(0, offsetMinutes); minute < 24 * 60; minute += stepMinutes) {
+  for (let minute = startMinute; minute < 24 * 60; minute += stepMinutes) {
     slots.push(dayStart.plus({ minutes: minute }));
   }
   return slots;

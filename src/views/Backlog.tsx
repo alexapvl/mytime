@@ -7,6 +7,7 @@ import { ScheduleEditor } from '../components/ScheduleEditor.js';
 import { ShortcutBar } from '../components/ShortcutBar.js';
 import { useClickRegions } from '../components/Mouse.js';
 import { useInputFocus } from '../context/InputFocusContext.js';
+import { useUndo } from '../context/UndoContext.js';
 import { useAppInput } from '../hooks/useAppInput.js';
 import type { ClickRegion } from '../lib/mouse.js';
 import { VIEW_ROW0 } from '../lib/layout.js';
@@ -16,10 +17,12 @@ import { autoPush, autoRemove } from '../google/autoSync.js';
 import { formatDate, formatScheduleTime } from '../lib/time.js';
 import { parseQuickAdd } from '../lib/nlp.js';
 import { BACKLOG_SHORTCUTS } from '../lib/shortcuts.js';
+import { cloneItem, makeUndoDelete, makeUndoToggleDone } from '../lib/undoActions.js';
 
 type Props = {
   onRefresh: () => void;
   onStatus: (msg: string) => void;
+  refreshToken?: number;
 };
 
 type Mode = 'list' | 'add' | 'edit' | 'schedule' | 'quick';
@@ -66,8 +69,9 @@ function scheduleLabel(item: Item): string {
   return `${formatDate(item.start)} ${formatScheduleTime(item.start, item.end, item.allDay)}`;
 }
 
-export function BacklogView({ onRefresh, onStatus }: Props) {
+export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
   const { setInputFocused } = useInputFocus();
+  const { pushUndo } = useUndo();
   const { stdout } = useStdout();
   const [items, setItems] = useState<Item[]>(() => listBacklog());
   const [selected, setSelected] = useState(0);
@@ -79,6 +83,11 @@ export function BacklogView({ onRefresh, onStatus }: Props) {
     setInputFocused(mode !== 'list');
     return () => setInputFocused(false);
   }, [mode, setInputFocused]);
+
+  useEffect(() => {
+    if (refreshToken === undefined || refreshToken === 0) return;
+    setItems(listBacklog());
+  }, [refreshToken]);
 
   const refresh = () => {
     setItems(listBacklog());
@@ -213,15 +222,21 @@ export function BacklogView({ onRefresh, onStatus }: Props) {
       if (input === 'q') setMode('quick');
       if (input === 'e' && selectedItem) setMode('edit');
       if (input === 'x' && selectedItem) {
+        const before = cloneItem(selectedItem);
         const id = selectedItem.id;
         toggleDone(id);
+        pushUndo(
+          before.status === 'open' ? `Marked done: ${before.title}` : `Marked open: ${before.title}`,
+          makeUndoToggleDone(before, onStatus),
+        );
         refresh();
         autoPush(id, onStatus);
         onStatus('Toggled done');
       }
       if (input === 'd' && selectedItem) {
-        const victim = selectedItem;
+        const victim = cloneItem(selectedItem);
         deleteItem(victim.id);
+        pushUndo(`Deleted: ${victim.title}`, makeUndoDelete(victim, onStatus));
         setSelected((s) => Math.max(0, s - 1));
         refresh();
         autoRemove(victim, onStatus);

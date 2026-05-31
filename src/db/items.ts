@@ -78,6 +78,17 @@ export function deleteItem(id: string): boolean {
   return result.changes > 0;
 }
 
+export function restoreItem(item: Item): Item {
+  const row = itemToRow(item);
+  getDb()
+    .prepare(
+      `INSERT INTO items (id, title, notes, project, tags, priority, status, source, start, end, all_day, google_event_id, google_calendar_id, synced_at, updated_at, created_at, completed_at)
+       VALUES (@id, @title, @notes, @project, @tags, @priority, @status, @source, @start, @end, @all_day, @google_event_id, @google_calendar_id, @synced_at, @updated_at, @created_at, @completed_at)`,
+    )
+    .run(row);
+  return item;
+}
+
 export function getItem(id: string): Item | null {
   const row = getDb().prepare(`${SELECT} WHERE id = ?`).get(id) as ItemRow | undefined;
   return row ? rowToItem(row) : null;

@@ -11,15 +11,18 @@ import { useClickRegions } from '../components/Mouse.js';
 import { ScheduleEditor } from '../components/ScheduleEditor.js';
 import { ShortcutBar } from '../components/ShortcutBar.js';
 import { useInputFocus } from '../context/InputFocusContext.js';
+import { useUndo } from '../context/UndoContext.js';
 import { useAppInput } from '../hooks/useAppInput.js';
 import type { ClickRegion } from '../lib/mouse.js';
 import { VIEW_ROW0 } from '../lib/layout.js';
 import { parseQuickAdd } from '../lib/nlp.js';
 import { DAILY_SHORTCUTS, WEEK_SHORTCUTS } from '../lib/shortcuts.js';
+import { cloneItem, makeUndoDelete, makeUndoToggleDone } from '../lib/undoActions.js';
 
 type Props = {
   onRefresh: () => void;
   onStatus: (msg: string) => void;
+  refreshToken?: number;
 };
 type CalendarMode = 'list' | 'add' | 'quick';
 
@@ -128,8 +131,9 @@ function CalendarTaskCreator({
 }
 
 
-export function DayView({ onRefresh, onStatus }: Props) {
+export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
   const { setInputFocused } = useInputFocus();
+  const { pushUndo } = useUndo();
   const [day, setDay] = useState(() => DateTime.local().startOf('day'));
   const [items, setItems] = useState<Item[]>([]);
   const [selected, setSelected] = useState(0);
@@ -153,6 +157,11 @@ export function DayView({ onRefresh, onStatus }: Props) {
     else setSelected(nearestIndexToNow(loaded));
     onRefresh();
   }, [day.toISODate()]);
+
+  useEffect(() => {
+    if (refreshToken === undefined || refreshToken === 0) return;
+    setItems(listScheduledInRange(day.startOf('day').toISO()!, day.endOf('day').toISO()!));
+  }, [refreshToken]);
 
   const refresh = () => {
     setItems(listScheduledInRange(day.startOf('day').toISO()!, day.endOf('day').toISO()!));
@@ -274,17 +283,24 @@ export function DayView({ onRefresh, onStatus }: Props) {
         return;
       }
       if (input === 'x') {
+        const before = cloneItem(item);
         toggleDone(item.id);
+        pushUndo(
+          before.status === 'open' ? `Marked done: ${before.title}` : `Marked open: ${before.title}`,
+          makeUndoToggleDone(before, onStatus),
+        );
         refresh();
         autoPush(item.id, onStatus);
         onStatus('Marked done');
         return;
       }
       if (input === 'd') {
-        deleteItem(item.id);
+        const victim = cloneItem(item);
+        deleteItem(victim.id);
+        pushUndo(`Deleted: ${victim.title}`, makeUndoDelete(victim, onStatus));
         setSelected((s) => Math.max(0, s - 1));
         refresh();
-        autoRemove(item, onStatus);
+        autoRemove(victim, onStatus);
         onStatus('Deleted');
         return;
       }
@@ -383,8 +399,9 @@ export function DayView({ onRefresh, onStatus }: Props) {
   );
 }
 
-export function WeekView({ onRefresh, onStatus }: Props) {
+export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
   const { setInputFocused } = useInputFocus();
+  const { pushUndo } = useUndo();
   const { stdout } = useStdout();
   const [weekStart, setWeekStart] = useState(() => DateTime.local().startOf('week'));
   const [focusedDayISO, setFocusedDayISO] = useState(() => DateTime.local().toISODate()!);
@@ -420,6 +437,11 @@ export function WeekView({ onRefresh, onStatus }: Props) {
     }
     onRefresh();
   }, [weekStart.toISODate()]);
+
+  useEffect(() => {
+    if (refreshToken === undefined || refreshToken === 0) return;
+    setItems(listScheduledInRange(weekStart.toISO()!, weekStart.endOf('week').toISO()!));
+  }, [refreshToken]);
 
   const refresh = () => {
     setItems(listScheduledInRange(weekStart.toISO()!, weekStart.endOf('week').toISO()!));
@@ -557,17 +579,24 @@ export function WeekView({ onRefresh, onStatus }: Props) {
         return;
       }
       if (input === 'x') {
+        const before = cloneItem(item);
         toggleDone(item.id);
+        pushUndo(
+          before.status === 'open' ? `Marked done: ${before.title}` : `Marked open: ${before.title}`,
+          makeUndoToggleDone(before, onStatus),
+        );
         refresh();
         autoPush(item.id, onStatus);
         onStatus('Marked done');
         return;
       }
       if (input === 'd') {
-        deleteItem(item.id);
+        const victim = cloneItem(item);
+        deleteItem(victim.id);
+        pushUndo(`Deleted: ${victim.title}`, makeUndoDelete(victim, onStatus));
         setSelected((s) => Math.max(0, s - 1));
         refresh();
-        autoRemove(item, onStatus);
+        autoRemove(victim, onStatus);
         onStatus('Deleted');
         return;
       }
