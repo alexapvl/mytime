@@ -9,11 +9,11 @@ import { InputFocusProvider, useInputFocus } from './context/InputFocusContext.j
 import { useAppInput } from './hooks/useAppInput.js';
 import { TAB_ROW } from './lib/layout.js';
 
-type Tab = 'backlog' | 'today' | 'week';
+type Tab = 'backlog' | 'daily' | 'week';
 
 const TABS: { id: Tab; label: string; key: string }[] = [
   { id: 'backlog', label: 'Backlog', key: '1' },
-  { id: 'today', label: 'Daily', key: '2' },
+  { id: 'daily', label: 'Daily', key: '2' },
   { id: 'week', label: 'Week', key: '3' },
 ];
 
@@ -29,7 +29,7 @@ function AppShell() {
 
   useClickRegions('tabs', [
     { row: TAB_ROW, col: 1, endCol: 11, onClick: () => setTab('backlog') },
-    { row: TAB_ROW, col: 12, endCol: 22, onClick: () => setTab('today') },
+    { row: TAB_ROW, col: 12, endCol: 22, onClick: () => setTab('daily') },
     { row: TAB_ROW, col: 23, endCol: 33, onClick: () => setTab('week') },
   ]);
 
@@ -57,7 +57,7 @@ function AppShell() {
         return;
       }
       if (input === '1') setTab('backlog');
-      if (input === '2') setTab('today');
+      if (input === '2') setTab('daily');
       if (input === '3') setTab('week');
       if (input === 'r') void doSync();
     },
@@ -86,7 +86,7 @@ function AppShell() {
 
       <Box flexDirection="column" marginBottom={1} minHeight={10}>
         {tab === 'backlog' && <BacklogView onRefresh={refresh} onStatus={setStatus} />}
-        {tab === 'today' && <DayView onRefresh={refresh} onStatus={setStatus} />}
+        {tab === 'daily' && <DayView onRefresh={refresh} onStatus={setStatus} />}
         {tab === 'week' && <WeekView onRefresh={refresh} onStatus={setStatus} />}
       </Box>
 
