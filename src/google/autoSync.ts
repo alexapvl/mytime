@@ -18,7 +18,7 @@ export function autoPush(itemId: string, onStatus: Notify): void {
   void pushTask(item).catch((e) => onStatus(`Google sync failed: ${(e as Error).message}`));
 }
 
-/** Remove a task's event from Google in the background (delete, unschedule). */
+/** Remove a task's event from Google in the background after deletion. */
 export function autoRemove(item: Item, onStatus: Notify): void {
   if (!isAuthenticated()) return;
   if (item.source !== 'task' || !item.googleEventId) return;

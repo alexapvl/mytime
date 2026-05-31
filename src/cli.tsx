@@ -120,7 +120,7 @@ Usage:
   mytime help         Show this help
 
 TUI keys:
-  1/2/3     Switch Backlog / Today / Week
+  1/2/3     Switch Backlog / Daily / Week
   r         Sync with Google
   esc       Quit
 

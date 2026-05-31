@@ -14,7 +14,6 @@ import {
   scheduleAllDayItem,
   scheduleItem,
   toggleDone,
-  unscheduleItem,
   updateItem,
 } from '../db/items.js';
 import { parseQuickAdd } from '../lib/nlp.js';
@@ -299,23 +298,6 @@ function registerTools(server: McpServer): void {
       inputSchema: scheduleSchema,
     },
     scheduleHandler,
-  );
-
-  server.registerTool(
-    'unschedule_task',
-    {
-      description: 'Remove the scheduled time from a task and delete its Google event. Returns it to the backlog.',
-      inputSchema: { id: z.string() },
-    },
-    async ({ id }) => {
-      await ensureFresh();
-      const before = getItem(id);
-      if (!before) return toolError(`No item with id ${id}`);
-      const result = unscheduleItem(id);
-      if (!result) return toolError(`Cannot unschedule: ${id} is not a task (external events are read-only)`);
-      const note = await syncRemove(before);
-      return text({ message: `Unscheduled${note}`, item: view(result) });
-    },
   );
 
   server.registerTool(

@@ -12,7 +12,7 @@ export type ParsedItem = {
   priority: 0 | 1 | 2 | 3;
 };
 
-export function parseQuickAdd(input: string): ParsedItem {
+export function parseQuickAdd(input: string, referenceDate: Date = new Date()): ParsedItem {
   let text = input.trim();
   const tags: string[] = [];
   let project: string | undefined;
@@ -37,7 +37,7 @@ export function parseQuickAdd(input: string): ParsedItem {
     text = text.replace(/\bp[0-3]\b/i, '').replace(/\s+/g, ' ').trim();
   }
 
-  const results = chrono.parse(text, new Date(), { forwardDate: true });
+  const results = chrono.parse(text, referenceDate, { forwardDate: true });
   let start: string | undefined;
   let end: string | undefined;
   let allDay = false;

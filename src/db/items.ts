@@ -161,12 +161,6 @@ export function scheduleAllDayItem(id: string, start: string, end: string): Item
   return updateItem(id, { start, end, allDay: true, syncedAt: undefined });
 }
 
-export function unscheduleItem(id: string): Item | null {
-  const item = getItem(id);
-  if (!item || item.source !== 'task') return null;
-  return updateItem(id, { start: undefined, end: undefined, allDay: false, googleEventId: undefined, googleCalendarId: undefined, syncedAt: undefined });
-}
-
 export function markSynced(id: string, googleEventId?: string, googleCalendarId?: string): Item | null {
   const now = nowISO();
   const updates: Partial<Item> = { syncedAt: now };

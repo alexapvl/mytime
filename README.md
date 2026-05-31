@@ -60,13 +60,13 @@ mytime mcp                      # run the MCP server (stdio) for AI agents
 
 | Key | Action |
 |-----|--------|
-| `1` / `2` / `3` | Inbox / Today / Week |
+| `1` / `2` / `3` | Inbox / Daily / Week |
 | `r` | Sync with Google |
 | `esc` | Quit |
 
 **Inbox:** `←/→` priority · `↑/↓` navigate · `a` add · `q` quick-add (NLP) · `e` edit · `s` schedule · `x` done · `d` delete
 
-**Today / Week:** `←/→` prev/next · `t` jump to today/this week · `↑/↓` select · `shift+↑↓` move block · `+/-` resize · `u` unschedule
+**Daily / Week:** `←/→` prev/next · `t` jump to today/this week · `↑/↓` select · `⇧↑/↓` move selected task by 1h in Daily · `+/-` resize · `s` reschedule · `x` done · `d` delete
 
 ## MCP server
 
@@ -94,7 +94,6 @@ Register it in your client's MCP config (the global `mytime` command must be on 
 | `quick_add` | Add from natural language (`@tag #project pN`, dates) |
 | `update_task` | Update fields of a task |
 | `schedule_task` / `reschedule_task` | Set/change a task's start (and end or duration) |
-| `unschedule_task` | Return a task to the backlog |
 | `complete_task` | Mark done / not done (omit `done` to toggle) |
 | `delete_task` | Permanently delete a task |
 | `sync` | Full two-way Google Calendar sync |

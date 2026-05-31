@@ -89,16 +89,25 @@ export function InboxView({ onRefresh, onStatus }: Props) {
   const columnWidth = Math.max(16, Math.floor((viewWidth - COLUMN_GAP * (PRIORITIES.length - 1)) / PRIORITIES.length));
 
   const movePriority = (direction: -1 | 1, targetRow: 'same' | 'first' | 'last' = 'same') => {
-    const nextColumn = selectedColumnIndex + direction;
-    if (nextColumn < 0 || nextColumn >= columns.length) return;
+    if (targetRow === 'same') {
+      const nextColumn = selectedColumnIndex + direction;
+      if (nextColumn < 0 || nextColumn >= columns.length) return;
+      const targetColumn = columns[nextColumn] ?? [];
+      setSelectedPriority(PRIORITIES[nextColumn]!);
+      setSelected((row) => Math.min(row, Math.max(0, targetColumn.length - 1)));
+      return;
+    }
 
-    const targetColumn = columns[nextColumn] ?? [];
-    setSelectedPriority(PRIORITIES[nextColumn]!);
-    setSelected((row) => {
-      if (targetRow === 'first') return 0;
-      if (targetRow === 'last') return Math.max(0, targetColumn.length - 1);
-      return Math.min(row, Math.max(0, targetColumn.length - 1));
-    });
+    let nextColumn = selectedColumnIndex + direction;
+    while (nextColumn >= 0 && nextColumn < columns.length) {
+      const targetColumn = columns[nextColumn] ?? [];
+      if (targetColumn.length > 0) {
+        setSelectedPriority(PRIORITIES[nextColumn]!);
+        setSelected(targetRow === 'first' ? 0 : targetColumn.length - 1);
+        return;
+      }
+      nextColumn += direction;
+    }
   };
 
   const moveVertical = (direction: -1 | 1) => {
@@ -110,6 +119,20 @@ export function InboxView({ onRefresh, onStatus }: Props) {
 
     if (selected > 0) setSelected((s) => s - 1);
     else movePriority(-1, 'last');
+  };
+
+  const moveSelectedPriority = (direction: -1 | 1) => {
+    if (!selectedItem) return;
+    const nextColumn = selectedColumnIndex + direction;
+    if (nextColumn < 0 || nextColumn >= PRIORITIES.length) return;
+
+    const nextPriority = PRIORITIES[nextColumn]!;
+    updateItem(selectedItem.id, { priority: nextPriority });
+    refresh();
+    autoPush(selectedItem.id, onStatus);
+    setSelectedPriority(nextPriority);
+    setSelected((row) => Math.min(row, columns[nextColumn]?.length ?? 0));
+    onStatus(`Moved to P${nextPriority}`);
   };
 
   useEffect(() => {
@@ -167,6 +190,14 @@ export function InboxView({ onRefresh, onStatus }: Props) {
       }
       if (mode !== 'list') return;
 
+      if (input === 'H' || (key.shift && key.leftArrow)) {
+        moveSelectedPriority(-1);
+        return;
+      }
+      if (input === 'L' || (key.shift && key.rightArrow)) {
+        moveSelectedPriority(1);
+        return;
+      }
       if (input === 'j' || key.downArrow) moveVertical(1);
       if (input === 'k' || key.upArrow) moveVertical(-1);
       if (input === 'h' || key.leftArrow) movePriority(-1);
@@ -295,7 +326,7 @@ export function InboxView({ onRefresh, onStatus }: Props) {
   return (
     <Box flexDirection="column">
       <Text dimColor>
-        click to select · ←/→ priority · ↑/↓ navigate · a add · q quick-add · e edit · s {selectedItem?.start ? 're-schedule' : 'schedule'} · x done · d delete
+        click to select · ←/→ priority · ⇧←/→ move priority · ↑/↓ navigate · a add · q quick-add · e edit · s {selectedItem?.start ? 'reschedule' : 'schedule'} · x done · d delete
       </Text>
       <Box marginTop={1}>
         {columns.map((column, columnIndex) => {

@@ -13,7 +13,7 @@ type Tab = 'inbox' | 'today' | 'week';
 
 const TABS: { id: Tab; label: string; key: string }[] = [
   { id: 'inbox', label: 'Backlog', key: '1' },
-  { id: 'today', label: 'Today', key: '2' },
+  { id: 'today', label: 'Daily', key: '2' },
   { id: 'week', label: 'Week', key: '3' },
 ];
 

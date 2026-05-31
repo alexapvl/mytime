@@ -12,15 +12,19 @@ type Props = {
 };
 
 const VISIBLE = 9;
+const STEP_MINUTES = [15, 30, 60, 120, 240] as const;
+const DEFAULT_STEP_INDEX = 2;
 
 /** Hourly slots for a day. Today starts at the next full hour; future days span all 24h. */
-function buildSlots(date: DateTime): DateTime[] {
+function buildSlots(date: DateTime, stepMinutes: number): DateTime[] {
   const now = DateTime.local();
   const isToday = date.hasSame(now, 'day');
-  const startHour = isToday ? now.hour + (now.minute > 0 || now.second > 0 ? 1 : 0) : 0;
+  const dayStart = date.startOf('day');
+  const firstSlot = isToday ? now.plus({ minutes: stepMinutes }).startOf('minute') : dayStart;
+  const offsetMinutes = Math.ceil(firstSlot.diff(dayStart, 'minutes').minutes / stepMinutes) * stepMinutes;
   const slots: DateTime[] = [];
-  for (let h = startHour; h <= 23; h++) {
-    slots.push(date.set({ hour: h, minute: 0, second: 0, millisecond: 0 }));
+  for (let minute = Math.max(0, offsetMinutes); minute < 24 * 60; minute += stepMinutes) {
+    slots.push(dayStart.plus({ minutes: minute }));
   }
   return slots;
 }
@@ -48,11 +52,13 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
 
   const [date, setDate] = useState(initialDate);
   const [filter, setFilter] = useState('');
-  const [selected, setSelected] = useState(() => nearestIndexTo(buildSlots(initialDate), target.toMillis()));
+  const [stepIndex, setStepIndex] = useState(DEFAULT_STEP_INDEX);
+  const stepMinutes = STEP_MINUTES[stepIndex]!;
+  const [selected, setSelected] = useState(() => nearestIndexTo(buildSlots(initialDate, STEP_MINUTES[DEFAULT_STEP_INDEX]!), target.toMillis()));
 
   const filtered = useMemo(
-    () => buildSlots(date).filter((slot) => slot.toFormat('HH:mm').includes(filter)),
-    [date, filter],
+    () => buildSlots(date, stepMinutes).filter((slot) => slot.toFormat('HH:mm').includes(filter)),
+    [date, filter, stepMinutes],
   );
 
   const sel = Math.min(selected, Math.max(0, filtered.length - 1));
@@ -62,7 +68,12 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
     const clamped = next < today ? today : next;
     setDate(clamped);
     setFilter('');
-    setSelected(nearestIndexTo(buildSlots(clamped), DateTime.local().toMillis()));
+    setSelected(nearestIndexTo(buildSlots(clamped, stepMinutes), DateTime.local().toMillis()));
+  };
+
+  const changeStep = (direction: -1 | 1) => {
+    setStepIndex((i) => Math.max(0, Math.min(STEP_MINUTES.length - 1, i + direction)));
+    setSelected(0);
   };
 
   useAppInput((input, key) => {
@@ -72,7 +83,7 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
     }
     if (key.return) {
       const slot = filtered[sel];
-      if (slot) onSubmit(slot.toISO()!, slot.plus({ hours: 1 }).toISO()!, false);
+      if (slot) onSubmit(slot.toISO()!, slot.plus({ minutes: stepMinutes }).toISO()!, false);
       return;
     }
     if (input === 'a') {
@@ -86,6 +97,14 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
     }
     if (input === 'l' || key.rightArrow) {
       goToDate(date.plus({ days: 1 }));
+      return;
+    }
+    if (input === '-' || input === '_') {
+      changeStep(-1);
+      return;
+    }
+    if (input === '+' || input === '=') {
+      changeStep(1);
       return;
     }
     if (input === 'j' || key.downArrow) {
@@ -113,9 +132,9 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
   return (
     <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1}>
       <Text bold color="cyan">
-        {isReschedule ? 're-schedule' : 'schedule'}: {item.title}
+        {isReschedule ? 'reschedule' : 'schedule'}: {item.title}
       </Text>
-      <Text dimColor>←/→ change day · ↑/↓ pick time · a all day · type digits to filter · enter confirm · esc cancel</Text>
+      <Text dimColor>←/→ day · ↑/↓ time · +/- step · a all day · digits filter · enter confirm · esc cancel</Text>
 
       <Box marginTop={1}>
         <Text>date: </Text>
@@ -125,6 +144,10 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
       <Box>
         <Text>filter: </Text>
         <Text color="yellow">{filter || '—'}</Text>
+      </Box>
+      <Box>
+        <Text>step: </Text>
+        <Text color="yellow">{stepMinutes < 60 ? `${stepMinutes}m` : `${stepMinutes / 60}h`}</Text>
       </Box>
 
       <Box flexDirection="column" marginTop={1}>
@@ -137,7 +160,7 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
             return (
               <Text key={slot.toISO()} color={here ? 'cyan' : undefined} bold={here} underline={here}>
                 {here ? '▸ ' : '  '}
-                {slot.toFormat('HH:mm')}–{slot.plus({ hours: 1 }).toFormat('HH:mm')}
+                {slot.toFormat('HH:mm')}–{slot.plus({ minutes: stepMinutes }).toFormat('HH:mm')}
               </Text>
             );
           })
