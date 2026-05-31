@@ -78,6 +78,11 @@ export function deleteItem(id: string): boolean {
   return result.changes > 0;
 }
 
+export function deleteItemsByGoogleCalendar(calendarId: string): number {
+  const result = getDb().prepare('DELETE FROM items WHERE google_calendar_id = ?').run(calendarId);
+  return result.changes;
+}
+
 export function restoreItem(item: Item): Item {
   const row = itemToRow(item);
   getDb()

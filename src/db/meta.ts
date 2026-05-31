@@ -18,7 +18,24 @@ export function deleteMeta(key: string): void {
 export const META_KEYS = {
   googleCalendarId: 'google_calendar_id',
   googleSyncTokens: 'google_sync_tokens',
+  googleCalendarFetchPrefs: 'google_calendar_fetch_prefs',
 } as const;
+
+export function getCalendarFetchPrefs(): Record<string, boolean> {
+  const raw = getMeta(META_KEYS.googleCalendarFetchPrefs);
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) as Record<string, boolean>;
+  } catch {
+    return {};
+  }
+}
+
+export function setCalendarFetchPref(calendarId: string, enabled: boolean): void {
+  const prefs = getCalendarFetchPrefs();
+  prefs[calendarId] = enabled;
+  setMeta(META_KEYS.googleCalendarFetchPrefs, JSON.stringify(prefs));
+}
 
 export function getSyncTokens(): Record<string, string> {
   const raw = getMeta(META_KEYS.googleSyncTokens);

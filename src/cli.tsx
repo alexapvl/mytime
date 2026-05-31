@@ -71,6 +71,15 @@ async function main() {
       return;
     }
 
+    if (command === 'settings') {
+      if (!isAuthenticated()) {
+        console.error('Not authenticated. Run: mytime auth');
+        process.exit(1);
+      }
+      await runTui('settings');
+      return;
+    }
+
     if (command === 'help' || command === '--help' || command === '-h') {
       printHelp();
       process.exit(0);
@@ -86,7 +95,7 @@ async function main() {
 const ENTER_TUI = '\x1b[?1049h\x1b[2J\x1b[H\x1b[?1000h\x1b[?1006h';
 const EXIT_TUI = '\x1b[?1000l\x1b[?1006l\x1b[?1049l';
 
-async function runTui() {
+async function runTui(initialScreen: 'main' | 'settings' = 'main') {
   const tty = process.stdout.isTTY;
   let restored = false;
   const restore = () => {
@@ -99,7 +108,7 @@ async function runTui() {
   process.once('exit', restore);
 
   try {
-    const { waitUntilExit } = render(<App />);
+    const { waitUntilExit } = render(<App initialScreen={initialScreen} />);
     await waitUntilExit();
   } finally {
     restore();
@@ -115,6 +124,7 @@ Usage:
   mytime add "<text>" Quick-add with natural language
   mytime today        Print today's schedule
   mytime auth         Connect Google Calendar
+  mytime settings     Choose which Google calendars to fetch locally
   mytime sync         Sync with Google Calendar
   mytime mcp          Run the MCP server (stdio) for AI agents
   mytime help         Show this help

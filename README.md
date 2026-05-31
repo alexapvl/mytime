@@ -45,6 +45,14 @@ pnpm dev
 
    mytime creates a calendar named **"mytime"** and only writes to that calendar.
 
+9. Choose which calendars to fetch locally (requires auth):
+
+   ```bash
+   mytime settings
+   ```
+
+   Toggle external Google calendars on or off. Disabled calendars are not pulled during sync, and their events are removed from the local database. The dedicated **mytime** calendar is always enabled.
+
 ## Usage
 
 ```bash
@@ -53,6 +61,7 @@ mytime add "review PR tomorrow 3pm @work p2 #swe"
 mytime today                    # print today's blocks
 mytime sync                     # push/pull Google Calendar
 mytime auth                     # (re)connect Google
+mytime settings                 # choose which Google calendars to fetch locally
 mytime mcp                      # run the MCP server (stdio) for AI agents
 ```
 

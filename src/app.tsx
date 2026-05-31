@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Box, Text, useApp } from 'ink';
 import { BacklogView } from './views/Backlog.js';
 import { DayView, WeekView } from './views/Calendar.js';
+import { SettingsView } from './views/Settings.js';
 import { syncWithGoogle } from './google/sync.js';
 import { isAuthenticated } from './google/auth.js';
 import { MouseProvider, useClickRegions } from './components/Mouse.js';
@@ -11,6 +12,7 @@ import { useAppInput } from './hooks/useAppInput.js';
 import { TAB_ROW } from './lib/layout.js';
 
 type Tab = 'backlog' | 'daily' | 'week';
+type Screen = 'main' | 'settings';
 
 const TABS: { id: Tab; label: string; key: string }[] = [
   { id: 'backlog', label: 'Backlog', key: '1' },
@@ -18,7 +20,7 @@ const TABS: { id: Tab; label: string; key: string }[] = [
   { id: 'week', label: 'Week', key: '3' },
 ];
 
-function AppShell() {
+function AppShell({ screen }: { screen: Screen }) {
   const { exit } = useApp();
   const { inputFocused } = useInputFocus();
   const { undoLast } = useUndo();
@@ -58,17 +60,19 @@ function AppShell() {
         exit();
         return;
       }
-      if (input === '1') setTab('backlog');
-      if (input === '2') setTab('daily');
-      if (input === '3') setTab('week');
-      if (input === 'r') void doSync();
-      if (input === 'u') {
-        const label = undoLast();
-        if (label) {
-          refresh();
-          setStatus(`Undid: ${label}`);
-        } else {
-          setStatus('Nothing to undo');
+      if (screen === 'main') {
+        if (input === '1') setTab('backlog');
+        if (input === '2') setTab('daily');
+        if (input === '3') setTab('week');
+        if (input === 'r') void doSync();
+        if (input === 'u') {
+          const label = undoLast();
+          if (label) {
+            refresh();
+            setStatus(`Undid: ${label}`);
+          } else {
+            setStatus('Nothing to undo');
+          }
         }
       }
     },
@@ -81,24 +85,33 @@ function AppShell() {
         <Text bold color="magenta">
           mytime
         </Text>
-        <Text dimColor> — tasks + calendar</Text>
+        <Text dimColor> — {screen === 'settings' ? 'settings' : 'tasks + calendar'}</Text>
       </Box>
 
-      <Box marginBottom={1}>
-        {TABS.map((t) => (
-          <Box key={t.id} marginRight={2}>
-            <Text color={tab === t.id ? 'cyan' : 'gray'} bold={tab === t.id} underline={tab === t.id}>
-              [{t.key}] {t.label}
-            </Text>
-          </Box>
-        ))}
-        <Text dimColor> · r sync · u undo · esc quit</Text>
-      </Box>
+      {screen === 'main' && (
+        <Box marginBottom={1}>
+          {TABS.map((t) => (
+            <Box key={t.id} marginRight={2}>
+              <Text color={tab === t.id ? 'cyan' : 'gray'} bold={tab === t.id} underline={tab === t.id}>
+                [{t.key}] {t.label}
+              </Text>
+            </Box>
+          ))}
+          <Text dimColor> · r sync · u undo · esc quit</Text>
+        </Box>
+      )}
 
       <Box flexDirection="column" marginBottom={1} minHeight={10}>
-        {tab === 'backlog' && <BacklogView refreshToken={refreshToken} onRefresh={refresh} onStatus={setStatus} />}
-        {tab === 'daily' && <DayView refreshToken={refreshToken} onRefresh={refresh} onStatus={setStatus} />}
-        {tab === 'week' && <WeekView refreshToken={refreshToken} onRefresh={refresh} onStatus={setStatus} />}
+        {screen === 'settings' && <SettingsView onStatus={setStatus} />}
+        {screen === 'main' && tab === 'backlog' && (
+          <BacklogView refreshToken={refreshToken} onRefresh={refresh} onStatus={setStatus} />
+        )}
+        {screen === 'main' && tab === 'daily' && (
+          <DayView refreshToken={refreshToken} onRefresh={refresh} onStatus={setStatus} />
+        )}
+        {screen === 'main' && tab === 'week' && (
+          <WeekView refreshToken={refreshToken} onRefresh={refresh} onStatus={setStatus} />
+        )}
       </Box>
 
       <Box borderStyle="single" borderColor="gray" paddingX={1}>
@@ -112,12 +125,12 @@ function AppShell() {
   );
 }
 
-export function App() {
+export function App({ initialScreen = 'main' }: { initialScreen?: Screen }) {
   return (
     <InputFocusProvider>
       <UndoProvider>
         <MouseProvider>
-          <AppShell />
+          <AppShell screen={initialScreen} />
         </MouseProvider>
       </UndoProvider>
     </InputFocusProvider>

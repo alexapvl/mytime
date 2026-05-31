@@ -1,7 +1,14 @@
 import { DateTime } from 'luxon';
 import type { calendar_v3 } from 'googleapis';
 import { getCalendarClient } from './auth.js';
-import { META_KEYS, getMeta, setMeta } from '../db/meta.js';
+import {
+  META_KEYS,
+  clearSyncToken,
+  getCalendarFetchPrefs,
+  getMeta,
+  setCalendarFetchPref,
+  setMeta,
+} from '../db/meta.js';
 import { isSyncTokenExpired } from './errors.js';
 
 const CALENDAR_NAME = 'mytime';
@@ -11,7 +18,36 @@ export type CalendarInfo = {
   id: string;
   summary: string;
   primary?: boolean;
+  googleSelected?: boolean;
 };
+
+export function isCalendarFetchEnabled(
+  calendar: CalendarInfo,
+  mytimeCalendarId: string,
+  prefs: Record<string, boolean>,
+): boolean {
+  if (calendar.id === mytimeCalendarId) return true;
+  if (calendar.id in prefs) return prefs[calendar.id]!;
+  return calendar.googleSelected !== false;
+}
+
+export async function listAccountCalendars(): Promise<CalendarInfo[]> {
+  const calendar = getCalendarClient();
+  const list = await calendar.calendarList.list();
+  return (list.data.items ?? [])
+    .filter((c) => c.id)
+    .map((c) => ({
+      id: c.id!,
+      summary: c.summaryOverride ?? c.summary ?? c.id!,
+      primary: c.primary ?? false,
+      googleSelected: c.selected !== false,
+    }));
+}
+
+export function setCalendarEnabled(calendarId: string, enabled: boolean): void {
+  setCalendarFetchPref(calendarId, enabled);
+  if (!enabled) clearSyncToken(calendarId);
+}
 
 export async function getOrCreateMytimeCalendarId(): Promise<string> {
   const cached = getMeta(META_KEYS.googleCalendarId);
@@ -46,15 +82,10 @@ export async function getOrCreateMytimeCalendarId(): Promise<string> {
 }
 
 export async function listSelectedCalendars(): Promise<CalendarInfo[]> {
-  const calendar = getCalendarClient();
-  const list = await calendar.calendarList.list();
-  return (list.data.items ?? [])
-    .filter((c) => c.id && c.selected !== false)
-    .map((c) => ({
-      id: c.id!,
-      summary: c.summaryOverride ?? c.summary ?? c.id!,
-      primary: c.primary ?? false,
-    }));
+  const all = await listAccountCalendars();
+  const mytimeCalendarId = getMeta(META_KEYS.googleCalendarId) ?? (await getOrCreateMytimeCalendarId());
+  const prefs = getCalendarFetchPrefs();
+  return all.filter((c) => isCalendarFetchEnabled(c, mytimeCalendarId, prefs));
 }
 
 export type GoogleEventPayload = {
