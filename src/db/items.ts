@@ -96,7 +96,7 @@ export function getItemByGoogleEvent(calendarId: string, eventId: string): Item 
   return legacy ? rowToItem(legacy) : null;
 }
 
-export function listInbox(): Item[] {
+export function listBacklog(): Item[] {
   const rows = getDb()
     .prepare(
       `${SELECT} WHERE status = 'open' AND source = 'task'

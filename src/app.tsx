@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { Box, Text, useApp } from 'ink';
-import { InboxView } from './views/Inbox.js';
+import { BacklogView } from './views/Backlog.js';
 import { DayView, WeekView } from './views/Calendar.js';
 import { syncWithGoogle } from './google/sync.js';
 import { isAuthenticated } from './google/auth.js';
@@ -9,10 +9,10 @@ import { InputFocusProvider, useInputFocus } from './context/InputFocusContext.j
 import { useAppInput } from './hooks/useAppInput.js';
 import { TAB_ROW } from './lib/layout.js';
 
-type Tab = 'inbox' | 'today' | 'week';
+type Tab = 'backlog' | 'today' | 'week';
 
 const TABS: { id: Tab; label: string; key: string }[] = [
-  { id: 'inbox', label: 'Backlog', key: '1' },
+  { id: 'backlog', label: 'Backlog', key: '1' },
   { id: 'today', label: 'Daily', key: '2' },
   { id: 'week', label: 'Week', key: '3' },
 ];
@@ -20,7 +20,7 @@ const TABS: { id: Tab; label: string; key: string }[] = [
 function AppShell() {
   const { exit } = useApp();
   const { inputFocused } = useInputFocus();
-  const [tab, setTab] = useState<Tab>('inbox');
+  const [tab, setTab] = useState<Tab>('backlog');
   const [status, setStatus] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [, setTick] = useState(0);
@@ -28,7 +28,7 @@ function AppShell() {
   const refresh = useCallback(() => setTick((t) => t + 1), []);
 
   useClickRegions('tabs', [
-    { row: TAB_ROW, col: 1, endCol: 11, onClick: () => setTab('inbox') },
+    { row: TAB_ROW, col: 1, endCol: 11, onClick: () => setTab('backlog') },
     { row: TAB_ROW, col: 12, endCol: 22, onClick: () => setTab('today') },
     { row: TAB_ROW, col: 23, endCol: 33, onClick: () => setTab('week') },
   ]);
@@ -56,7 +56,7 @@ function AppShell() {
         exit();
         return;
       }
-      if (input === '1') setTab('inbox');
+      if (input === '1') setTab('backlog');
       if (input === '2') setTab('today');
       if (input === '3') setTab('week');
       if (input === 'r') void doSync();
@@ -85,7 +85,7 @@ function AppShell() {
       </Box>
 
       <Box flexDirection="column" marginBottom={1} minHeight={10}>
-        {tab === 'inbox' && <InboxView onRefresh={refresh} onStatus={setStatus} />}
+        {tab === 'backlog' && <BacklogView onRefresh={refresh} onStatus={setStatus} />}
         {tab === 'today' && <DayView onRefresh={refresh} onStatus={setStatus} />}
         {tab === 'week' && <WeekView onRefresh={refresh} onStatus={setStatus} />}
       </Box>

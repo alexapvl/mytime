@@ -10,7 +10,7 @@ import { useAppInput } from '../hooks/useAppInput.js';
 import type { ClickRegion } from '../lib/mouse.js';
 import { VIEW_ROW0 } from '../lib/layout.js';
 import type { Item } from '../db/types.js';
-import { createItem, deleteItem, listInbox, scheduleAllDayItem, scheduleItem, toggleDone, updateItem } from '../db/items.js';
+import { createItem, deleteItem, listBacklog, scheduleAllDayItem, scheduleItem, toggleDone, updateItem } from '../db/items.js';
 import { autoPush, autoRemove } from '../google/autoSync.js';
 import { formatDate, formatScheduleTime } from '../lib/time.js';
 import { parseQuickAdd } from '../lib/nlp.js';
@@ -59,10 +59,10 @@ function scheduleLabel(item: Item): string {
   return `${formatDate(item.start)} ${formatScheduleTime(item.start, item.end, item.allDay)}`;
 }
 
-export function InboxView({ onRefresh, onStatus }: Props) {
+export function BacklogView({ onRefresh, onStatus }: Props) {
   const { setInputFocused } = useInputFocus();
   const { stdout } = useStdout();
-  const [items, setItems] = useState<Item[]>(() => listInbox());
+  const [items, setItems] = useState<Item[]>(() => listBacklog());
   const [selected, setSelected] = useState(0);
   const [selectedPriority, setSelectedPriority] = useState<Item['priority']>(0);
   const [mode, setMode] = useState<Mode>('list');
@@ -74,7 +74,7 @@ export function InboxView({ onRefresh, onStatus }: Props) {
   }, [mode, setInputFocused]);
 
   const refresh = () => {
-    setItems(listInbox());
+    setItems(listBacklog());
     onRefresh();
   };
 
@@ -177,7 +177,7 @@ export function InboxView({ onRefresh, onStatus }: Props) {
       ],
     );
   }, [mode, columns, columnWidth]);
-  useClickRegions('inbox', regions);
+  useClickRegions('backlog', regions);
 
   useAppInput(
     (input, key) => {

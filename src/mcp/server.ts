@@ -9,7 +9,7 @@ import {
   deleteItem,
   getItem,
   listAllScheduled,
-  listInbox,
+  listBacklog,
   listScheduledInRange,
   scheduleAllDayItem,
   scheduleItem,
@@ -101,7 +101,7 @@ function registerTools(server: McpServer): void {
     },
     async () => {
       await ensureFresh();
-      return text(listInbox().map(view));
+      return text(listBacklog().map(view));
     },
   );
 
@@ -147,7 +147,7 @@ function registerTools(server: McpServer): void {
     async ({ query }) => {
       await ensureFresh();
       const all = new Map<string, Item>();
-      for (const item of listInbox()) all.set(item.id, item);
+      for (const item of listBacklog()) all.set(item.id, item);
       for (const item of listAllScheduled()) all.set(item.id, item);
       const q = query.toLowerCase();
       const matches = [...all.values()].filter(

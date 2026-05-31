@@ -1,6 +1,6 @@
 # mytime
 
-One terminal app for tasks and calendar. Unscheduled items live in your **Inbox**; schedule them and they sync to a dedicated **Google Calendar** so they show up on your phone.
+One terminal app for tasks and calendar. Open tasks live in your **Backlog**; schedule them and they sync to a dedicated **Google Calendar** so they show up on your phone.
 
 ## Install
 
@@ -60,11 +60,11 @@ mytime mcp                      # run the MCP server (stdio) for AI agents
 
 | Key | Action |
 |-----|--------|
-| `1` / `2` / `3` | Inbox / Daily / Week |
+| `1` / `2` / `3` | Backlog / Daily / Week |
 | `r` | Sync with Google |
 | `esc` | Quit |
 
-**Inbox:** `←/→` priority · `↑/↓` navigate · `a` add · `q` quick-add (NLP) · `e` edit · `s` schedule · `x` done · `d` delete
+**Backlog:** `←/→` priority · `↑/↓` navigate · `a` add · `q` quick-add (NLP) · `e` edit · `s` schedule · `x` done · `d` delete
 
 **Daily / Week:** `←/→` prev/next · `t` jump to today/this week · `↑/↓` select · `⇧↑/↓` move selected task by 1h in Daily · `+/-` resize · `s` reschedule · `x` done · `d` delete
 
@@ -102,7 +102,7 @@ Write tools sync to Google automatically when authenticated (no-ops otherwise). 
 
 ## Data
 
-Everything is stored locally at `~/.mytime/db.sqlite`. Scheduled items sync to Google; pure inbox tasks stay local until you schedule them.
+Everything is stored locally at `~/.mytime/db.sqlite`. Scheduled items sync to Google; unscheduled backlog tasks stay local until you schedule them.
 
 ## Quick-add syntax
 
