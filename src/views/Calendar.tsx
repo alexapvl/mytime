@@ -37,6 +37,11 @@ function nearestIndexToNow(items: Item[]): number {
   return upcoming === -1 ? items.length - 1 : upcoming;
 }
 
+function defaultDaySelectionIndex(items: Item[]): number {
+  const firstOpen = items.findIndex((item) => !isDoneTask(item));
+  return firstOpen >= 0 ? firstOpen : nearestIndexToNow(items);
+}
+
 function scheduledForDay(day: DateTime): Item[] {
   return listScheduledInRange(day.startOf('day').toISO()!, day.endOf('day').toISO()!).filter((i) => i.start);
 }
@@ -184,7 +189,7 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
     pendingSelectRef.current = 'nearest';
     if (anchor === 'first') setSelected(0);
     else if (anchor === 'last') setSelected(Math.max(0, dayItems.length - 1));
-    else setSelected(nearestIndexToNow(loaded));
+    else setSelected(defaultDaySelectionIndex(dayItems));
     onRefresh();
   }, [day.toISODate()]);
 
@@ -483,6 +488,9 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
         const target = select === 'last' ? dayItems[dayItems.length - 1]! : dayItems[0]!;
         setSelected(scheduledLoaded.indexOf(target));
       }
+    } else {
+      const dayItems = scheduledLoaded.filter((i) => i.start && isSameDay(i.start, focusedDayISO));
+      if (dayItems.length > 0) setSelected(scheduledLoaded.indexOf(dayItems[0]!));
     }
     onRefresh();
   }, [weekStart.toISODate()]);
