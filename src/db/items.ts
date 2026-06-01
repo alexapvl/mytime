@@ -1,3 +1,4 @@
+import { DateTime } from 'luxon';
 import { getDb } from './schema.js';
 import { Item, ItemRow, rowToItem, itemToRow } from './types.js';
 import { nowISO } from '../lib/time.js';
@@ -110,6 +111,26 @@ export function getItemByGoogleEvent(calendarId: string, eventId: string): Item 
     .prepare(`${SELECT} WHERE google_event_id = ? AND google_calendar_id IS NULL`)
     .get(eventId) as ItemRow | undefined;
   return legacy ? rowToItem(legacy) : null;
+}
+
+export function isPastDue(item: Item, now: DateTime = DateTime.local()): boolean {
+  if (item.status !== 'open' || item.source !== 'task' || !item.start) return false;
+
+  if (item.allDay || !item.start.includes('T')) {
+    return DateTime.fromISO(item.start).startOf('day') < now.startOf('day');
+  }
+
+  const deadline = item.end ? DateTime.fromISO(item.end) : DateTime.fromISO(item.start);
+  return deadline < now;
+}
+
+export function listPastDue(now: DateTime = DateTime.local()): Item[] {
+  const rows = getDb()
+    .prepare(
+      `${SELECT} WHERE status = 'open' AND source = 'task' AND start IS NOT NULL ORDER BY start ASC`,
+    )
+    .all() as ItemRow[];
+  return rows.map(rowToItem).filter((item) => isPastDue(item, now));
 }
 
 export function listBacklog(): Item[] {

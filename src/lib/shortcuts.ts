@@ -49,6 +49,14 @@ export const DAILY_SHORTCUTS: Shortcut<DailyHelpContext>[] = [
   { keys: 'd', label: 'delete', show: (ctx) => ctx.isTask },
 ];
 
+export const PAST_DUE_SHORTCUTS: Shortcut<Record<string, never>>[] = [
+  { keys: '↑/↓', label: 'navigate' },
+  { keys: 'e', label: 'edit' },
+  { keys: 's', label: 'reschedule' },
+  { keys: 'x', label: 'done' },
+  { keys: 'd', label: 'delete' },
+];
+
 export const WEEK_SHORTCUTS: Shortcut<WeekHelpContext>[] = [
   { keys: '←/→', label: 'day' },
   { keys: '⇧←/→', label: 'week' },
