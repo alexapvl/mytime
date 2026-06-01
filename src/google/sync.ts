@@ -18,6 +18,7 @@ import {
 import { META_KEYS, getMeta, getSyncTokens, setSyncTokens, clearSyncToken } from '../db/meta.js';
 import { errorMessage, isSyncTokenExpired } from './errors.js';
 import { nowISO } from '../lib/time.js';
+import { stripEmojis } from '../lib/textClean.js';
 import type { Item, ItemSource } from '../db/types.js';
 
 export type SyncResult = {
@@ -98,7 +99,7 @@ export async function syncWithGoogle(): Promise<SyncResult> {
 
           // The done marker lives only on Google; keep local titles clean.
           const rawSummary = event.summary ?? 'Untitled';
-          const title = isMytimeCalendar ? stripDonePrefix(rawSummary) : rawSummary;
+          const title = cleanPulledTitle(rawSummary, isMytimeCalendar);
 
           if (local) {
             const remoteUpdated = event.updated ? DateTime.fromISO(event.updated).toMillis() : 0;
@@ -164,6 +165,11 @@ const DONE_PREFIX = '✓ ';
 
 function stripDonePrefix(summary: string): string {
   return summary.replace(/^✓\s+/, '');
+}
+
+function cleanPulledTitle(summary: string, isMytimeCalendar: boolean): string {
+  const title = isMytimeCalendar ? stripDonePrefix(summary) : stripEmojis(summary);
+  return title || 'Untitled';
 }
 
 /**
