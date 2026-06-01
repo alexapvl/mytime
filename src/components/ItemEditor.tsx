@@ -13,6 +13,9 @@ type Props = {
 
 type Field = 'title' | 'notes' | 'project' | 'tags' | 'priority';
 
+const NOTES_LABEL = 'Notes: ';
+const NOTES_INDENT = ' '.repeat(NOTES_LABEL.length);
+
 function cleanTypedInput(value: string): string {
   return value.replace(/[\r\n]/g, '');
 }
@@ -20,10 +23,45 @@ function cleanTypedInput(value: string): string {
 function editableText(value: string) {
   if (!value) return <Text inverse> </Text>;
   return (
-    <>
-      <Text>{value}</Text>
+    <Text>
+      {value}
       <Text inverse> </Text>
-    </>
+    </Text>
+  );
+}
+
+function NotesField({ value, editing }: { value: string; editing: boolean }) {
+  if (!editing && !value) {
+    return (
+      <Box>
+        <Text>{NOTES_LABEL}</Text>
+        <Text>—</Text>
+      </Box>
+    );
+  }
+
+  const lines = editing && !value ? [''] : value.split('\n');
+
+  return (
+    <Box flexDirection="column">
+      {lines.map((line, i) => (
+        <Box key={i}>
+          {i === 0 ? (
+            <Text color={editing ? 'cyan' : undefined}>{NOTES_LABEL}</Text>
+          ) : (
+            <Text>{NOTES_INDENT}</Text>
+          )}
+          {editing ? (
+            <>
+              <Text>{line}</Text>
+              {i === lines.length - 1 ? <Text inverse> </Text> : null}
+            </>
+          ) : (
+            <Text>{line}</Text>
+          )}
+        </Box>
+      ))}
+    </Box>
   );
 }
 
@@ -81,6 +119,7 @@ export function ItemEditor({ item, mode, defaultPriority = 0, onSubmit, onCancel
     if (input === '\n' || (key.return && (key.shift || key.ctrl || key.meta))) {
       return;
     }
+
     if (key.upArrow) {
       prevField();
       return;
@@ -117,47 +156,24 @@ export function ItemEditor({ item, mode, defaultPriority = 0, onSubmit, onCancel
       <Text bold color="cyan">
         {mode === 'add' ? 'New task' : 'Edit task'}
       </Text>
-      <Text dimColor>type to edit · backspace delete · tab/enter/↓ next field · shift+tab/↑ prev · enter save (last) · esc cancel</Text>
+      <Text dimColor>type to edit · backspace delete · tab/enter/↓ next · shift+tab/↑ prev · enter save (last) · esc cancel</Text>
 
       <Box>
         <Text color={field === 'title' ? 'cyan' : undefined}>Title*: </Text>
-        {field === 'title' ? (
-          editableText(title)
-        ) : (
-          <Text>{title || '—'}</Text>
-        )}
+        {field === 'title' ? editableText(title) : <Text>{title || '—'}</Text>}
       </Box>
-      <Box>
-        <Text color={field === 'notes' ? 'cyan' : undefined}>Notes: </Text>
-        {field === 'notes' ? (
-          editableText(notes)
-        ) : (
-          <Text>{notes || '—'}</Text>
-        )}
-      </Box>
+      <NotesField value={notes} editing={field === 'notes'} />
       <Box>
         <Text color={field === 'project' ? 'cyan' : undefined}>Project: </Text>
-        {field === 'project' ? (
-          editableText(project)
-        ) : (
-          <Text>{project || '—'}</Text>
-        )}
+        {field === 'project' ? editableText(project) : <Text>{project || '—'}</Text>}
       </Box>
       <Box>
         <Text color={field === 'tags' ? 'cyan' : undefined}>Tags: </Text>
-        {field === 'tags' ? (
-          editableText(tags)
-        ) : (
-          <Text>{tags || '—'}</Text>
-        )}
+        {field === 'tags' ? editableText(tags) : <Text>{tags || '—'}</Text>}
       </Box>
       <Box>
         <Text color={field === 'priority' ? 'cyan' : undefined}>Priority (0-3): </Text>
-        {field === 'priority' ? (
-          editableText(priority)
-        ) : (
-          <Text>{priority}</Text>
-        )}
+        {field === 'priority' ? editableText(priority) : <Text>{priority}</Text>}
       </Box>
     </Box>
   );
