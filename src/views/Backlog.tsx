@@ -75,13 +75,25 @@ function selectedIndexInColumn(items: Item[], priority: Item['priority'], itemId
   return Math.max(0, index);
 }
 
+function defaultBacklogSelection(items: Item[]): { priority: Item['priority']; index: number } {
+  for (const priority of PRIORITIES) {
+    if (items.some((item) => item.priority === priority)) return { priority, index: 0 };
+  }
+  return { priority: 0, index: 0 };
+}
+
 export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
   const { setInputFocused } = useInputFocus();
   const { pushUndo } = useUndo();
   const { stdout } = useStdout();
-  const [items, setItems] = useState<Item[]>(() => listBacklog());
-  const [selected, setSelected] = useState(0);
-  const [selectedPriority, setSelectedPriority] = useState<Item['priority']>(0);
+  const [boot] = useState(() => {
+    const items = listBacklog();
+    const { priority, index } = defaultBacklogSelection(items);
+    return { items, index, priority };
+  });
+  const [items, setItems] = useState<Item[]>(boot.items);
+  const [selected, setSelected] = useState(boot.index);
+  const [selectedPriority, setSelectedPriority] = useState<Item['priority']>(boot.priority);
   const [mode, setMode] = useState<Mode>('list');
   const [quickInput, setQuickInput] = useState('');
 
