@@ -10,6 +10,7 @@ import {
   getItem,
   listAllScheduled,
   listBacklog,
+  listPastDue,
   listScheduledInRange,
   scheduleAllDayItem,
   scheduleItem,
@@ -17,6 +18,8 @@ import {
   updateItem,
 } from '../db/items.js';
 import { parseQuickAdd } from '../lib/nlp.js';
+import { overdueLabel } from '../lib/overdue.js';
+import { listFreeSlots } from '../lib/scheduleOverlap.js';
 import { allDayRange, defaultEnd, todayEnd, todayStart } from '../lib/time.js';
 import { isAuthenticated } from '../google/auth.js';
 import { pushTask, removeFromGoogle, syncWithGoogle } from '../google/sync.js';
@@ -122,6 +125,56 @@ function registerTools(server: McpServer): void {
       const start = from ?? todayStart();
       const end = to ?? todayEnd();
       return text(listScheduledInRange(start, end).map(view));
+    },
+  );
+
+  server.registerTool(
+    'list_past_due',
+    {
+      description:
+        'List open tasks that are past due (scheduled before now and not completed). Tasks only, not external calendar events.',
+      inputSchema: {},
+    },
+    async () => {
+      await ensureFresh();
+      return text(listPastDue().map((item) => ({ ...view(item), overdue: overdueLabel(item) })));
+    },
+  );
+
+  server.registerTool(
+    'list_free_slots',
+    {
+      description:
+        'List completely free timed slots on a day (no overlap with existing timed events). Returns all-day events separately. Use before schedule_task to pick an open time.',
+      inputSchema: {
+        date: z.string().optional().describe('ISO date or datetime for the day (default: today)'),
+        stepMinutes: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe('Slot step size in minutes (default: 60). Common values: 15, 30, 60, 120, 240.'),
+        timeFilter: z.string().optional().describe('Optional HH:mm digit filter, e.g. "09" matches 09:00, 09:30, …'),
+        excludeId: z.string().optional().describe('Item id to ignore when checking conflicts (use when rescheduling)'),
+      },
+    },
+    async ({ date, stepMinutes, timeFilter, excludeId }) => {
+      if (date && !DateTime.fromISO(date).isValid) return toolError(`Invalid date: ${date}`);
+      if (excludeId) {
+        const excluded = getItem(excludeId);
+        if (!excluded) return toolError(`No item with id ${excludeId}`);
+      }
+      await ensureFresh();
+      const day = date ? DateTime.fromISO(date).startOf('day') : DateTime.local().startOf('day');
+      const step = stepMinutes ?? 60;
+      const { allDayEvents, slots } = listFreeSlots(day, step, { excludeId, timeFilter });
+      return text({
+        date: day.toISODate(),
+        stepMinutes: step,
+        timeFilter: timeFilter ?? null,
+        allDayEvents: allDayEvents.map(view),
+        freeSlots: slots,
+      });
     },
   );
 
@@ -282,10 +335,12 @@ function registerTools(server: McpServer): void {
     durationMinutes: z.number().int().positive().optional().describe('Used when end is omitted (default 60)'),
   };
 
+  const scheduleHint = 'Call list_free_slots for the target day to see open times, or list_schedule to see all events.';
+
   server.registerTool(
     'schedule_task',
     {
-      description: 'Schedule a task at a given start date/time. Use allDay or an ISO date-only start for an all-day event.',
+      description: `Schedule a task at a given start date/time. Use allDay or an ISO date-only start for an all-day event. ${scheduleHint}`,
       inputSchema: scheduleSchema,
     },
     scheduleHandler,
@@ -294,7 +349,7 @@ function registerTools(server: McpServer): void {
   server.registerTool(
     'reschedule_task',
     {
-      description: 'Change the date/time of an already-scheduled task. Alias of schedule_task.',
+      description: `Change the date/time of an already-scheduled task. Alias of schedule_task. ${scheduleHint}`,
       inputSchema: scheduleSchema,
     },
     scheduleHandler,

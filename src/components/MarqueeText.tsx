@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Text, type TextProps } from 'ink';
+import { padToWidth, sliceByWidth, textWidth, truncateToWidth } from '../lib/textWidth.js';
 
 const SCROLL_MS = 50;
 const PAUSE_MS = 900;
@@ -12,23 +13,27 @@ type Props = Omit<TextProps, 'children'> & {
   active?: boolean;
 };
 
-function fitWidth(value: string, width: number): string {
-  if (value.length >= width) return value.slice(0, width);
-  return value.padEnd(width, ' ');
-}
-
 export function MarqueeText({ text, maxWidth, prefix = '', active = false, ...textProps }: Props) {
-  const slot = Math.max(1, maxWidth - prefix.length);
-  const overflows = text.length > slot;
+  const prefixWidth = textWidth(prefix);
+  const slot = Math.max(1, maxWidth - prefixWidth);
+  const overflows = textWidth(text) > slot;
   const [offset, setOffset] = useState(0);
+  const contentKey = `${maxWidth}\0${prefix}\0${text}`;
 
   useEffect(() => {
-    if (!active || !overflows) {
+    setOffset(0);
+  }, [contentKey]);
+
+  useEffect(() => {
+    if (!active) {
       setOffset(0);
       return;
     }
+    if (!overflows) return;
 
-    const maxOffset = text.length - slot;
+    const maxOffset = textWidth(text) - slot;
+    if (maxOffset <= 0) return;
+
     let scrollOffset = 0;
     let pauseTicks = Math.ceil(PAUSE_MS / SCROLL_MS);
 
@@ -41,7 +46,7 @@ export function MarqueeText({ text, maxWidth, prefix = '', active = false, ...te
       if (scrollOffset < maxOffset) {
         scrollOffset++;
         setOffset(scrollOffset);
-        if (scrollOffset === maxOffset) pauseTicks = Math.ceil(PAUSE_MS / SCROLL_MS);
+        if (scrollOffset >= maxOffset) pauseTicks = Math.ceil(PAUSE_MS / SCROLL_MS);
         return;
       }
 
@@ -51,16 +56,18 @@ export function MarqueeText({ text, maxWidth, prefix = '', active = false, ...te
     }, SCROLL_MS);
 
     return () => clearInterval(id);
-  }, [active, overflows, text, slot]);
+  }, [active, overflows, text, slot, contentKey]);
 
-  const start = overflows && active ? offset : 0;
-  const body = overflows ? fitWidth(text.slice(start, start + slot), slot) : text;
+  const body =
+    active && overflows ? sliceByWidth(text, offset, slot) : overflows ? truncateToWidth(text, slot) : text;
+
+  const raw = `${prefix}${body}`;
+  const line = active && overflows ? padToWidth(raw, maxWidth) : truncateToWidth(raw, maxWidth);
 
   return (
-    <Box width={maxWidth} overflow="hidden">
+    <Box height={1} overflow="hidden">
       <Text {...textProps} wrap="truncate">
-        {prefix}
-        {body}
+        {line}
       </Text>
     </Box>
   );

@@ -29,7 +29,6 @@ type Props = {
 type Mode = 'list' | 'add' | 'edit' | 'schedule' | 'quick';
 
 const PRIORITIES: Item['priority'][] = [0, 1, 2, 3];
-const COLUMN_GAP = 1;
 
 function itemSortValue(item: Item): number {
   return item.start ? DateTime.fromISO(item.start).toMillis() : Number.POSITIVE_INFINITY;
@@ -70,6 +69,12 @@ function scheduleLabel(item: Item): string {
   return `${formatDate(item.start)} ${formatScheduleTime(item.start, item.end, item.allDay)}`;
 }
 
+function selectedIndexInColumn(items: Item[], priority: Item['priority'], itemId: string): number {
+  const column = items.filter((item) => item.priority === priority).sort(compareItems);
+  const index = column.findIndex((item) => item.id === itemId);
+  return Math.max(0, index);
+}
+
 export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
   const { setInputFocused } = useInputFocus();
   const { pushUndo } = useUndo();
@@ -95,6 +100,12 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
     onRefresh();
   };
 
+  const focusItem = (item: Item) => {
+    const backlog = listBacklog();
+    setSelectedPriority(item.priority);
+    setSelected(selectedIndexInColumn(backlog, item.priority, item.id));
+  };
+
   const columns = useMemo(
     () => PRIORITIES.map((priority) => items.filter((item) => item.priority === priority).sort(compareItems)),
     [items],
@@ -103,7 +114,7 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
   const selectedColumn = columns[selectedColumnIndex] ?? [];
   const selectedItem = selectedColumn[selected];
   const viewWidth = Math.max(80, stdout.columns ?? 80) - 4;
-  const columnWidth = Math.max(16, Math.floor((viewWidth - COLUMN_GAP * (PRIORITIES.length - 1)) / PRIORITIES.length));
+  const columnWidth = Math.max(16, Math.floor(viewWidth / PRIORITIES.length));
 
   const movePriority = (direction: -1 | 1, targetRow: 'same' | 'first' | 'last' = 'same') => {
     if (targetRow === 'same') {
@@ -144,11 +155,13 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
     if (nextColumn < 0 || nextColumn >= PRIORITIES.length) return;
 
     const nextPriority = PRIORITIES[nextColumn]!;
-    updateItem(selectedItem.id, { priority: nextPriority });
-    refresh();
-    autoPush(selectedItem.id, onStatus);
+    const movedId = selectedItem.id;
+    updateItem(movedId, { priority: nextPriority });
+    const nextIndex = selectedIndexInColumn(listBacklog(), nextPriority, movedId);
     setSelectedPriority(nextPriority);
-    setSelected((row) => Math.min(row, columns[nextColumn]?.length ?? 0));
+    setSelected(nextIndex);
+    refresh();
+    autoPush(movedId, onStatus);
     onStatus(`Moved to P${nextPriority}`);
   };
 
@@ -163,8 +176,8 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
       [
         {
           row: VIEW_ROW0 + 2,
-          col: 2 + columnIndex * (columnWidth + COLUMN_GAP),
-          endCol: 2 + columnIndex * (columnWidth + COLUMN_GAP) + columnWidth - 1,
+          col: 2 + columnIndex * columnWidth,
+          endCol: 2 + columnIndex * columnWidth + columnWidth - 1,
           onClick: () => {
             setSelectedPriority(PRIORITIES[columnIndex]!);
             setSelected(0);
@@ -174,8 +187,8 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
           ? [
               {
                 row: VIEW_ROW0 + 3,
-                col: 2 + columnIndex * (columnWidth + COLUMN_GAP),
-                endCol: 2 + columnIndex * (columnWidth + COLUMN_GAP) + columnWidth - 1,
+                col: 2 + columnIndex * columnWidth,
+                endCol: 2 + columnIndex * columnWidth + columnWidth - 1,
                 onClick: () => {
                   setSelectedPriority(PRIORITIES[columnIndex]!);
                   setSelected(0);
@@ -184,8 +197,8 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
             ]
           : column.map((_, rowIndex) => ({
               row: VIEW_ROW0 + 3 + rowIndex,
-              col: 2 + columnIndex * (columnWidth + COLUMN_GAP),
-              endCol: 2 + columnIndex * (columnWidth + COLUMN_GAP) + columnWidth - 1,
+              col: 2 + columnIndex * columnWidth,
+              endCol: 2 + columnIndex * columnWidth + columnWidth - 1,
               onClick: () => {
                 setSelectedPriority(PRIORITIES[columnIndex]!);
                 setSelected(rowIndex);
@@ -270,6 +283,7 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
                 end: parsed.end,
                 allDay: parsed.allDay,
               });
+              focusItem(created);
               refresh();
               if (created.start) autoPush(created.id, onStatus);
               onStatus(`Added: ${parsed.title}`);
@@ -289,13 +303,14 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
         defaultPriority={selectedPriority}
         onCancel={() => setMode('list')}
         onSubmit={(data) => {
-          createItem({
+          const created = createItem({
             title: data.title,
             notes: data.notes,
             project: data.project,
             tags: data.tags,
             priority: data.priority,
           });
+          focusItem(created);
           refresh();
           onStatus('Task added');
           setMode('list');
@@ -349,12 +364,12 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
   return (
     <Box flexDirection="column">
       <ShortcutBar shortcuts={BACKLOG_SHORTCUTS} context={{ scheduled: Boolean(selectedItem?.start) }} />
-      <Box marginTop={1}>
+      <Box marginTop={1} flexDirection="row" width={viewWidth}>
         {columns.map((column, columnIndex) => {
           const columnSelected = columnIndex === selectedColumnIndex;
           return (
-          <Box key={PRIORITIES[columnIndex]} flexDirection="column" width={columnWidth} marginRight={COLUMN_GAP}>
-            <Text bold color={columnSelected ? 'cyan' : undefined} underline={columnSelected && column.length === 0}>
+          <Box key={PRIORITIES[columnIndex]} flexDirection="column" flexGrow={1} minWidth={0}>
+            <Text bold color={columnSelected ? 'cyan' : undefined}>
               P{PRIORITIES[columnIndex]}
             </Text>
             {column.length === 0 ? (
@@ -373,19 +388,24 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
                       active={selectedHere}
                       color={selectedHere ? 'cyan' : undefined}
                       bold={selectedHere}
-                      underline={selectedHere}
                     />
                     {selectedHere && item.start ? (
-                      <Text dimColor wrap="truncate">
-                        {'    ↳ '}
-                        {scheduleLabel(item)}
-                      </Text>
+                      <MarqueeText
+                        text={scheduleLabel(item)}
+                        maxWidth={columnWidth}
+                        prefix="    ↳ "
+                        active={selectedHere}
+                        dimColor
+                      />
                     ) : null}
                     {selectedHere && metaLabel(item) ? (
-                      <Text dimColor wrap="truncate">
-                        {'    ↳ '}
-                        {metaLabel(item)}
-                      </Text>
+                      <MarqueeText
+                        text={metaLabel(item)}
+                        maxWidth={columnWidth}
+                        prefix="    ↳ "
+                        active={selectedHere}
+                        dimColor
+                      />
                     ) : null}
                   </Box>
                 );

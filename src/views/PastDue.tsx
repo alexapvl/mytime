@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Text, useStdout } from 'ink';
-import { DateTime } from 'luxon';
 import { ItemEditor } from '../components/ItemEditor.js';
 import { ScheduleEditor } from '../components/ScheduleEditor.js';
 import { MarqueeText } from '../components/MarqueeText.js';
@@ -21,6 +20,7 @@ import {
   updateItem,
 } from '../db/items.js';
 import { autoPush, autoRemove } from '../google/autoSync.js';
+import { overdueLabel } from '../lib/overdue.js';
 import { formatDate, formatScheduleTime } from '../lib/time.js';
 import { PAST_DUE_SHORTCUTS } from '../lib/shortcuts.js';
 import { cloneItem, makeUndoDelete, makeUndoToggleDone } from '../lib/undoActions.js';
@@ -43,23 +43,6 @@ function metaLabel(item: Item): string {
 function scheduleLabel(item: Item): string {
   if (!item.start) return '';
   return `${formatDate(item.start)} ${formatScheduleTime(item.start, item.end, item.allDay)}`;
-}
-
-function overdueLabel(item: Item, now = DateTime.local()): string {
-  if (!item.start) return '';
-  const start = DateTime.fromISO(item.start);
-
-  if (item.allDay || !item.start.includes('T')) {
-    const days = Math.floor(now.startOf('day').diff(start.startOf('day'), 'days').days);
-    return days === 1 ? '1 day overdue' : `${days} days overdue`;
-  }
-
-  const deadline = item.end ? DateTime.fromISO(item.end) : start;
-  if (deadline.hasSame(now, 'day')) {
-    return deadline.toRelative({ base: now }) ?? 'overdue today';
-  }
-  const days = Math.floor(now.startOf('day').diff(deadline.startOf('day'), 'days').days);
-  return days === 1 ? '1 day overdue' : `${days} days overdue`;
 }
 
 export function PastDueView({ onRefresh, onStatus, refreshToken }: Props) {

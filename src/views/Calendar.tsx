@@ -4,6 +4,7 @@ import TextInput from 'ink-text-input';
 import { DateTime } from 'luxon';
 import type { Item } from '../db/types.js';
 import { createItem, deleteItem, listScheduledInRange, scheduleAllDayItem, scheduleItem, toggleDone, updateItem } from '../db/items.js';
+import { padToWidth } from '../lib/textWidth.js';
 import { addMinutes, allDayRange, formatScheduleTime, formatTime, hourLabels, isSameDay } from '../lib/time.js';
 import { autoPush, autoRemove } from '../google/autoSync.js';
 import { ItemEditor } from '../components/ItemEditor.js';
@@ -55,8 +56,17 @@ function findAdjacentDayItem(anchorDay: DateTime, dir: 1 | -1): { day: DateTime;
 const DAY_CONTENT_ROW = VIEW_ROW0 + 3;
 // WeekView: header help [blank] day-names(+3) events(+4 onward)
 const WEEK_EVENTS_ROW = VIEW_ROW0 + 4;
-const WEEK_COLUMN_GAP = 1;
+const WEEK_DIVIDER_WIDTH = 1;
 const WEEK_FOCUS_WEIGHT = 2;
+
+function weekRowFloor(weekKey: string, contentRows: number, weekKeyRef: React.MutableRefObject<string>, floorRef: React.MutableRefObject<number>): number {
+  if (weekKeyRef.current !== weekKey) {
+    floorRef.current = Math.max(floorRef.current, contentRows);
+    weekKeyRef.current = weekKey;
+  }
+  floorRef.current = Math.max(floorRef.current, contentRows);
+  return floorRef.current;
+}
 
 const DONE_PREFIX = '✓ ';
 
@@ -142,9 +152,18 @@ function CalendarTaskCreator({
 }
 
 
+const DAY_TIME_COL = 10;
+
+function dayLineTitle(item: Item, title: string): string {
+  return hasWeekTime(item) && item.end ? `${formatTime(item.end)} ${title}` : title;
+}
+
 export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
   const { setInputFocused } = useInputFocus();
   const { pushUndo } = useUndo();
+  const { stdout } = useStdout();
+  const viewWidth = Math.max(40, (stdout.columns ?? 80) - 6);
+  const titleWidth = Math.max(1, viewWidth - DAY_TIME_COL);
   const [day, setDay] = useState(() => DateTime.local().startOf('day'));
   const [items, setItems] = useState<Item[]>([]);
   const [selected, setSelected] = useState(0);
@@ -180,7 +199,7 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
   };
 
   const scheduled = items.filter((i) => i.start);
-  const hours = hourLabels();
+  const hours = useMemo(() => hourLabels(), []);
   const isToday = day.hasSame(DateTime.local(), 'day');
   const sel = Math.min(selected, Math.max(0, scheduled.length - 1));
   const selectedDayItem = scheduled[sel];
@@ -379,13 +398,15 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
           hasTime: selectedDayItem ? hasWeekTime(selectedDayItem) : false,
         }}
       />
-      <Box flexDirection="column" marginTop={1}>
+      <Box flexDirection="column" marginTop={1} width={viewWidth}>
         {lines.map((line) => {
           if (!line.item) {
             return (
-              <Text key={line.key} dimColor>
-                {line.hour} ·
-              </Text>
+              <Box key={line.key} width={viewWidth} height={1} overflow="hidden">
+                <Text dimColor wrap="truncate">
+                  {padToWidth(`${line.hour} ·`, viewWidth)}
+                </Text>
+              </Box>
             );
           }
           const item = line.item;
@@ -394,17 +415,30 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
           const external = item.source === 'external';
           const done = isDoneTask(item);
           const title = displayTitle(item);
+          const marker = selectedHere ? '▸' : '·';
+          const lineColor = selectedHere ? 'cyan' : external ? 'magenta' : 'white';
+          const lineDim = (external && !selectedHere) || (done && !selectedHere);
           return (
-            <Text
-              key={line.key}
-              color={selectedHere ? 'cyan' : external ? 'magenta' : 'white'}
-              bold={selectedHere}
-              dimColor={(external && !selectedHere) || (done && !selectedHere)}
-              underline={selectedHere}
-            >
-              {line.hour} {selectedHere ? '▸ ' : '· '}
-              {!hasWeekTime(item) ? title : `${formatTime(item.end!)} ${title}`}
-            </Text>
+            <Box key={line.key} width={viewWidth} height={1} flexDirection="row" overflow="hidden">
+              <Box width={DAY_TIME_COL} height={1} overflow="hidden">
+                <Text
+                  color={lineColor}
+                  bold={selectedHere}
+                  dimColor={lineDim}
+                  wrap="truncate"
+                >
+                  {padToWidth(`${line.hour} ${marker}`, DAY_TIME_COL)}
+                </Text>
+              </Box>
+              <MarqueeText
+                text={dayLineTitle(item, title)}
+                maxWidth={titleWidth}
+                active={selectedHere}
+                color={lineColor}
+                bold={selectedHere}
+                dimColor={lineDim}
+              />
+            </Box>
           );
         })}
       </Box>
@@ -424,6 +458,8 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
   const [editing, setEditing] = useState<Item | null>(null);
   const pendingItemIdRef = useRef<string | null>(null);
   const weekSelectIntentRef = useRef<{ dayISO: string; select: 'first' | 'last' } | null>(null);
+  const weekPaintKeyRef = useRef(weekStart.toISODate());
+  const weekRowFloorRef = useRef(1);
 
   useEffect(() => {
     setInputFocused(editing !== null || mode !== 'list');
@@ -469,7 +505,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
   const selectedWeekItem = selectedCandidate?.start && isSameDay(selectedCandidate.start, focusedDay.toISO()!) ? selectedCandidate : undefined;
   const selectedDayIndex = Math.max(0, days.findIndex((d) => d.hasSame(focusedDay, 'day')));
   const viewWidth = Math.max(80, stdout.columns ?? 80) - 4;
-  const availableWidth = viewWidth - WEEK_COLUMN_GAP * (days.length - 1);
+  const availableWidth = viewWidth - WEEK_DIVIDER_WIDTH * (days.length - 1);
   const totalWeight = days.length + WEEK_FOCUS_WEIGHT - 1;
   const dayWidths = days.map((_, dayIndex) =>
     Math.max(8, Math.floor((availableWidth * (dayIndex === selectedDayIndex ? WEEK_FOCUS_WEIGHT : 1)) / totalWeight)),
@@ -479,9 +515,17 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
     dayWidths[selectedDayIndex] += availableWidth - usedWidth;
   }
   const dayStarts = dayWidths.reduce<number[]>((starts, width, dayIndex) => {
-    starts.push(dayIndex === 0 ? 2 : starts[dayIndex - 1]! + dayWidths[dayIndex - 1]! + WEEK_COLUMN_GAP);
+    starts.push(dayIndex === 0 ? 2 : starts[dayIndex - 1]! + dayWidths[dayIndex - 1]! + WEEK_DIVIDER_WIDTH);
     return starts;
   }, []);
+
+  const itemsByDay = useMemo(
+    () => days.map((d) => scheduled.filter((i) => i.start && isSameDay(i.start, d.toISO()!))),
+    [days, scheduled],
+  );
+  const contentRows = useMemo(() => Math.max(1, ...itemsByDay.map((col) => col.length)), [itemsByDay]);
+  const weekKey = weekStart.toISODate();
+  const paintRows = weekRowFloor(weekKey, contentRows, weekPaintKeyRef, weekRowFloorRef);
 
   const regions = useMemo<ClickRegion[]>(() => {
     const out: ClickRegion[] = [];
@@ -498,20 +542,23 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
           if (dayItems.length > 0) setSelected(scheduled.indexOf(dayItems[0]!));
         },
       });
-      dayItems.forEach((item, ei) => {
+      for (let ei = 0; ei < paintRows; ei++) {
+        const item = dayItems[ei];
+        const isEmptyDay = dayItems.length === 0 && ei === 0;
+        if (!item && !isEmptyDay) continue;
         out.push({
           row: WEEK_EVENTS_ROW + ei,
           col: colStart,
           endCol: colStart + dayWidth - 1,
           onClick: () => {
             setFocusedDayISO(d.toISODate()!);
-            setSelected(scheduled.indexOf(item));
+            if (item) setSelected(scheduled.indexOf(item));
           },
         });
-      });
+      }
     });
     return out;
-  }, [scheduled, weekStart.toISODate(), dayStarts, dayWidths]);
+  }, [scheduled, weekStart.toISODate(), dayStarts, dayWidths, paintRows]);
   useClickRegions('week', editing ? [] : regions);
 
   useAppInput(
@@ -657,50 +704,85 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
         Week of {weekStart.toFormat('MMM d')} – {weekStart.endOf('week').toFormat('MMM d, yyyy')}
       </Text>
       <ShortcutBar shortcuts={WEEK_SHORTCUTS} context={{ isTask: selectedWeekItem?.source === 'task' }} />
-      <Box marginTop={1}>
-        {days.map((d) => {
-          const dayItems = scheduled.filter((i) => i.start && isSameDay(i.start, d.toISO()!));
-          const dayIndex = days.indexOf(d);
-          return (
-            <Box key={d.toISODate()} flexDirection="column" marginRight={WEEK_COLUMN_GAP} width={dayWidths[dayIndex]!}>
-              <Text
-                bold
-                color={dayIndex === selectedDayIndex || d.hasSame(DateTime.local(), 'day') ? 'cyan' : undefined}
-                underline={dayIndex === selectedDayIndex && dayItems.length === 0}
-              >
-                {d.toFormat('EEE d MMM')}
-                {d.hasSame(DateTime.local(), 'day') ? ' (today)' : ''}
-              </Text>
-              {dayItems.length === 0 ? (
-                <Text color={dayIndex === selectedDayIndex ? 'cyan' : undefined} dimColor={dayIndex !== selectedDayIndex}>
-                  {dayIndex === selectedDayIndex ? '▸ —' : '—'}
+      <Box key={weekKey} marginTop={1} flexDirection="column" width={viewWidth}>
+        <Box flexDirection="row">
+          {days.map((d, dayIndex) => (
+            <React.Fragment key={`week-head-${d.toISODate()}`}>
+              {dayIndex > 0 ? (
+                <Box width={WEEK_DIVIDER_WIDTH} height={1}>
+                  <Text dimColor wrap="truncate">
+                    {padToWidth('│', WEEK_DIVIDER_WIDTH)}
+                  </Text>
+                </Box>
+              ) : null}
+              <Box width={dayWidths[dayIndex]!} height={1}>
+                <Text bold wrap="truncate">
+                  {padToWidth(
+                    `${d.toFormat('EEE d MMM')}${d.hasSame(DateTime.local(), 'day') ? ' (today)' : ''}`,
+                    dayWidths[dayIndex]!,
+                  )}
                 </Text>
-              ) : (
-                dayItems.map((item) => {
-                  const idx = scheduled.indexOf(item);
-                  const external = item.source === 'external';
-                  const done = isDoneTask(item);
-                  const selectedHere = selectedWeekItem?.id === item.id;
-                  const showTime = dayIndex === selectedDayIndex;
-                  const prefix = showTime && hasWeekTime(item) ? `${formatScheduleTime(item.start!, item.end, item.allDay)} ` : '';
-                  return (
-                    <Box key={item.id} flexDirection="column">
+              </Box>
+            </React.Fragment>
+          ))}
+        </Box>
+        {Array.from({ length: paintRows }, (_, rowIndex) => (
+          <Box key={`week-row-${rowIndex}`} flexDirection="row">
+            {days.map((d, dayIndex) => {
+              const dayItems = itemsByDay[dayIndex]!;
+              const item = dayItems[rowIndex];
+              const colWidth = dayWidths[dayIndex]!;
+              return (
+                <React.Fragment key={`${d.toISODate()}-${rowIndex}`}>
+                  {dayIndex > 0 ? (
+                    <Box width={WEEK_DIVIDER_WIDTH} height={1}>
+                      <Text dimColor wrap="truncate">
+                        {padToWidth('│', WEEK_DIVIDER_WIDTH)}
+                      </Text>
+                    </Box>
+                  ) : null}
+                  <Box width={colWidth} height={1}>
+                    {!item ? (
+                      rowIndex === 0 && dayItems.length === 0 ? (
+                        <Text
+                          color={dayIndex === selectedDayIndex ? 'cyan' : undefined}
+                          dimColor={dayIndex !== selectedDayIndex}
+                          wrap="truncate"
+                        >
+                          {padToWidth(dayIndex === selectedDayIndex ? '▸ —' : '—', colWidth)}
+                        </Text>
+                      ) : (
+                        <Text wrap="truncate">{padToWidth('', colWidth)}</Text>
+                      )
+                    ) : (
                       <MarqueeText
                         text={displayTitle(item)}
-                        maxWidth={dayWidths[dayIndex]!}
-                        prefix={prefix}
-                        active={selectedHere}
-                        color={selectedHere ? 'cyan' : external ? 'magenta' : undefined}
-                        dimColor={(external && !selectedHere) || (done && !selectedHere)}
-                        underline={selectedHere}
+                        maxWidth={colWidth}
+                        prefix={
+                          dayIndex === selectedDayIndex && hasWeekTime(item)
+                            ? `${formatScheduleTime(item.start!, item.end, item.allDay)} `
+                            : ''
+                        }
+                        active={selectedWeekItem?.id === item.id}
+                        color={
+                          selectedWeekItem?.id === item.id
+                            ? 'cyan'
+                            : item.source === 'external'
+                              ? 'magenta'
+                              : undefined
+                        }
+                        dimColor={
+                          (item.source === 'external' && selectedWeekItem?.id !== item.id) ||
+                          (isDoneTask(item) && selectedWeekItem?.id !== item.id)
+                        }
                       />
-                    </Box>
-                  );
-                })
-              )}
-            </Box>
-          );
-        })}
+                    )}
+                  </Box>
+                </React.Fragment>
+              );
+            })}
+          </Box>
+        ))}
       </Box>
     </Box>
   );
