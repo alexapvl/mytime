@@ -1,6 +1,6 @@
 # mytime
 
-One terminal app for tasks and calendar. Open tasks live in your **Backlog**; schedule them and they sync to a dedicated **Google Calendar** so they show up on your phone.
+One terminal app for tasks and calendar. Open tasks live in your **Backlog**; schedule them and they sync to a dedicated **Google Calendar**.
 
 ## Install
 
@@ -63,19 +63,37 @@ mytime sync                     # push/pull Google Calendar
 mytime auth                     # (re)connect Google
 mytime settings                 # choose which Google calendars to fetch locally
 mytime mcp                      # run the MCP server (stdio) for AI agents
+mytime help                     # show CLI help
 ```
 
 ### TUI
 
 | Key | Action |
 |-----|--------|
-| `1` / `2` / `3` | Backlog / Daily / Week |
+| `1` / `2` / `3` / `4` | Backlog / Daily / Week / Past Due |
 | `r` | Sync with Google |
+| `u` | Undo last delete or done toggle |
 | `esc` | Quit |
 
-**Backlog:** `←/→` priority · `↑/↓` navigate · `a` add · `q` quick-add (NLP) · `e` edit · `s` schedule · `x` done · `d` delete
+Mouse clicks work in supported terminals (tabs, items, calendar cells).
 
-**Daily / Week:** `←/→` prev/next · `t` jump to today/this week · `↑/↓` select · `⇧↑/↓` move selected task by 1h in Daily · `+/-` resize · `s` reschedule · `x` done · `d` delete
+**Backlog:** `←/→` priority column · `⇧←/→` move task between priorities · `↑/↓` navigate · `a` add · `q` quick-add (NLP) · `e` edit · `s` schedule/reschedule · `x` done · `d` delete
+
+Opens on the lowest non-empty priority column (P0 first, then P1, P2, P3).
+
+**Past Due:** open tasks that missed their scheduled time · `↑/↓` navigate · `e` edit · `s` reschedule · `x` done · `d` delete
+
+**Daily:** `←/→` prev/next day · `t` today · `↑/↓` select · `a`/`q` add · `⇧↑/↓` move selected task by 1h · `+/-` resize · `s` reschedule · `x` done · `d` delete
+
+Defaults to the first open (not done) item for the day, including all-day tasks.
+
+**Week:** `←/→` prev/next day · `⇧←/→` prev/next week · `t` this week/today · `↑/↓` select · `a`/`q` add · `s` reschedule · `x` done · `d` delete
+
+Defaults to today with the first event on that day selected.
+
+**Schedule editor** (when you press `s`): shows existing events on the chosen day · `←/→` change day · `↑/↓` pick slot · type digits to filter times · `f` free slots only · `+/-` slot step (15–240 min) · `a` all-day · `enter` confirm · `esc` cancel
+
+External Google events appear in Daily/Week but are read-only (`s`/`x`/`d` only apply to your tasks).
 
 ## MCP server
 
@@ -97,6 +115,8 @@ Register it in your client's MCP config (the global `mytime` command must be on 
 |------|-------------|
 | `list_backlog` | List all open tasks (scheduled and unscheduled) |
 | `list_schedule` | List scheduled items in a time range (defaults to today) |
+| `list_past_due` | List open overdue tasks with an `overdue` label |
+| `list_free_slots` | List free timed slots on a day (all-day events listed separately) |
 | `get_item` | Get a single item by id |
 | `search_tasks` | Search by title / project / tags |
 | `add_task` | Create an unscheduled task |
@@ -107,11 +127,13 @@ Register it in your client's MCP config (the global `mytime` command must be on 
 | `delete_task` | Permanently delete a task |
 | `sync` | Full two-way Google Calendar sync |
 
-Write tools sync to Google automatically when authenticated (no-ops otherwise). Google Calendar events (`source: external`) are read-only via MCP. Note: if the TUI is open at the same time, it won't reflect MCP changes until you navigate or sync.
+Write tools sync to Google automatically when authenticated (no-ops otherwise). Google Calendar events (`source: external`) are read-only via MCP. Call `list_free_slots` before scheduling to find open times. If the TUI is open at the same time, it won't reflect MCP changes until you navigate or sync.
 
 ## Data
 
 Everything is stored locally at `~/.mytime/db.sqlite`. Scheduled items sync to Google; unscheduled backlog tasks stay local until you schedule them.
+
+External calendar events are pulled into the local DB for display. Their titles are stored without emoji so terminal layout stays aligned. Tasks you create in mytime are never modified this way.
 
 ## Quick-add syntax
 
