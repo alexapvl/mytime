@@ -58,6 +58,16 @@ const WEEK_EVENTS_ROW = VIEW_ROW0 + 4;
 const WEEK_COLUMN_GAP = 1;
 const WEEK_FOCUS_WEIGHT = 2;
 
+const DONE_PREFIX = '✓ ';
+
+function displayTitle(item: Item): string {
+  return item.status === 'done' && item.source === 'task' ? `${DONE_PREFIX}${item.title}` : item.title;
+}
+
+function isDoneTask(item: Item): boolean {
+  return item.status === 'done' && item.source === 'task';
+}
+
 function hasWeekTime(item: Item): boolean {
   if (item.allDay || !item.start || !item.end) return false;
   const start = DateTime.fromISO(item.start);
@@ -382,16 +392,18 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
           const idx = scheduled.indexOf(item);
           const selectedHere = idx === sel;
           const external = item.source === 'external';
+          const done = isDoneTask(item);
+          const title = displayTitle(item);
           return (
             <Text
               key={line.key}
               color={selectedHere ? 'cyan' : external ? 'magenta' : 'white'}
               bold={selectedHere}
-              dimColor={external && !selectedHere}
+              dimColor={(external && !selectedHere) || (done && !selectedHere)}
               underline={selectedHere}
             >
               {line.hour} {selectedHere ? '▸ ' : '· '}
-              {!hasWeekTime(item) ? item.title : `${formatTime(item.end!)} ${item.title}`}
+              {!hasWeekTime(item) ? title : `${formatTime(item.end!)} ${title}`}
             </Text>
           );
         })}
@@ -667,18 +679,19 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
                 dayItems.map((item) => {
                   const idx = scheduled.indexOf(item);
                   const external = item.source === 'external';
+                  const done = isDoneTask(item);
                   const selectedHere = selectedWeekItem?.id === item.id;
                   const showTime = dayIndex === selectedDayIndex;
                   const prefix = showTime && hasWeekTime(item) ? `${formatScheduleTime(item.start!, item.end, item.allDay)} ` : '';
                   return (
                     <Box key={item.id} flexDirection="column">
                       <MarqueeText
-                        text={item.title}
+                        text={displayTitle(item)}
                         maxWidth={dayWidths[dayIndex]!}
                         prefix={prefix}
                         active={selectedHere}
                         color={selectedHere ? 'cyan' : external ? 'magenta' : undefined}
-                        dimColor={external && !selectedHere}
+                        dimColor={(external && !selectedHere) || (done && !selectedHere)}
                         underline={selectedHere}
                       />
                     </Box>

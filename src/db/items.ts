@@ -126,8 +126,7 @@ export function listScheduledInRange(start: string, end: string): Item[] {
   const rows = getDb()
     .prepare(
       `${SELECT}
-       WHERE status = 'open'
-         AND start IS NOT NULL
+       WHERE start IS NOT NULL
          AND (
            (all_day = 1 AND start <= date(?) AND (end IS NULL OR end > date(?)))
            OR (all_day = 0 AND start < ? AND (end IS NULL OR end > ?))
