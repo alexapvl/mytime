@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import { DateTime } from 'luxon';
 import { ensureMytimeDir, DB_PATH } from '../lib/config.js';
+import { cleanTitle } from '../lib/textClean.js';
 
 let db: Database.Database | null = null;
 
@@ -65,6 +66,16 @@ function migrateSchema(database: Database.Database): void {
     database.exec('ALTER TABLE items ADD COLUMN all_day INTEGER NOT NULL DEFAULT 0');
   }
   normalizeAllDayDates(database);
+  stripEmojiFromStoredTitles(database);
+}
+
+function stripEmojiFromStoredTitles(database: Database.Database): void {
+  const rows = database.prepare('SELECT id, title FROM items').all() as { id: string; title: string }[];
+  const update = database.prepare('UPDATE items SET title = ? WHERE id = ?');
+  for (const row of rows) {
+    const title = cleanTitle(row.title);
+    if (title !== row.title) update.run(title, row.id);
+  }
 }
 
 function normalizeAllDayDates(database: Database.Database): void {

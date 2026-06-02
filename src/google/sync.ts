@@ -18,7 +18,7 @@ import {
 import { META_KEYS, getMeta, getSyncTokens, setSyncTokens, clearSyncToken } from '../db/meta.js';
 import { errorMessage, isSyncTokenExpired } from './errors.js';
 import { nowISO } from '../lib/time.js';
-import { stripEmojis } from '../lib/textClean.js';
+import { cleanTitle } from '../lib/textClean.js';
 import type { Item, ItemSource } from '../db/types.js';
 
 export type SyncResult = {
@@ -168,8 +168,8 @@ function stripDonePrefix(summary: string): string {
 }
 
 function cleanPulledTitle(summary: string, isMytimeCalendar: boolean): string {
-  const title = isMytimeCalendar ? stripDonePrefix(summary) : stripEmojis(summary);
-  return title || 'Untitled';
+  const withoutDone = isMytimeCalendar ? stripDonePrefix(summary) : summary;
+  return cleanTitle(withoutDone);
 }
 
 /**

@@ -2,6 +2,7 @@ import { DateTime } from 'luxon';
 import { getDb } from './schema.js';
 import { Item, ItemRow, rowToItem, itemToRow } from './types.js';
 import { nowISO } from '../lib/time.js';
+import { cleanTitle } from '../lib/textClean.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const SELECT = `
@@ -20,7 +21,7 @@ export function createItem(
   const now = nowISO();
   const item: Item = {
     id: uuidv4(),
-    title: partial.title,
+    title: cleanTitle(partial.title),
     notes: partial.notes,
     project: partial.project,
     tags: partial.tags ?? [],
@@ -59,6 +60,7 @@ export function updateItem(id: string, updates: Partial<Item>): Item | null {
     id: existing.id,
     createdAt: existing.createdAt,
     updatedAt: nowISO(),
+    ...(updates.title !== undefined ? { title: cleanTitle(updates.title) } : {}),
   };
 
   const row = itemToRow(item);
