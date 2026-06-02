@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Text, useStdout } from 'ink';
+import { Box, Text } from 'ink';
 import { ItemEditor } from '../components/ItemEditor.js';
 import { ScheduleEditor } from '../components/ScheduleEditor.js';
 import { MarqueeText } from '../components/MarqueeText.js';
@@ -9,7 +9,8 @@ import { useInputFocus } from '../context/InputFocusContext.js';
 import { useUndo } from '../context/UndoContext.js';
 import { useAppInput } from '../hooks/useAppInput.js';
 import type { ClickRegion } from '../lib/mouse.js';
-import { VIEW_ROW0 } from '../lib/layout.js';
+import { useViewport } from '../context/ViewportContext.js';
+import { PAST_DUE_VIEW_HEADER_ROWS, VIEW_ROW0 } from '../lib/layout.js';
 import type { Item } from '../db/types.js';
 import {
   deleteItem,
@@ -48,7 +49,7 @@ function scheduleLabel(item: Item): string {
 export function PastDueView({ onRefresh, onStatus, refreshToken }: Props) {
   const { setInputFocused } = useInputFocus();
   const { pushUndo } = useUndo();
-  const { stdout } = useStdout();
+  const { columns, contentRows } = useViewport();
   const [items, setItems] = useState<Item[]>(() => listPastDue());
   const [selected, setSelected] = useState(0);
   const [mode, setMode] = useState<Mode>('list');
@@ -70,7 +71,9 @@ export function PastDueView({ onRefresh, onStatus, refreshToken }: Props) {
 
   const sel = Math.min(selected, Math.max(0, items.length - 1));
   const selectedItem = items[sel];
-  const viewWidth = Math.max(80, stdout.columns ?? 80) - 4;
+  const viewWidth = Math.max(80, columns) - 4;
+  const maxVisibleItems = Math.max(1, contentRows - PAST_DUE_VIEW_HEADER_ROWS);
+  const visibleItems = items.slice(0, maxVisibleItems);
 
   useEffect(() => {
     setSelected((s) => Math.min(s, Math.max(0, items.length - 1)));
@@ -78,13 +81,13 @@ export function PastDueView({ onRefresh, onStatus, refreshToken }: Props) {
 
   const regions = useMemo<ClickRegion[]>(() => {
     if (mode !== 'list') return [];
-    return items.map((_, rowIndex) => ({
+    return visibleItems.map((_, rowIndex) => ({
       row: VIEW_ROW0 + 2 + rowIndex,
       col: 2,
       endCol: viewWidth,
       onClick: () => setSelected(rowIndex),
     }));
-  }, [mode, items, viewWidth]);
+  }, [mode, visibleItems, viewWidth]);
   useClickRegions('past-due', regions);
 
   useAppInput(
@@ -169,7 +172,7 @@ export function PastDueView({ onRefresh, onStatus, refreshToken }: Props) {
         {items.length === 0 ? (
           <Text dimColor>No past due tasks</Text>
         ) : (
-          items.map((item, rowIndex) => {
+          visibleItems.map((item, rowIndex) => {
             const selectedHere = rowIndex === sel;
             return (
               <Box key={item.id} flexDirection="column">

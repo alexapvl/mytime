@@ -10,6 +10,7 @@ import { MouseProvider, useClickRegions } from './components/Mouse.js';
 import { InputFocusProvider, useInputFocus } from './context/InputFocusContext.js';
 import { UndoProvider, useUndo } from './context/UndoContext.js';
 import { useAppInput } from './hooks/useAppInput.js';
+import { ViewportProvider, useViewport } from './context/ViewportContext.js';
 import { TAB_ROW } from './lib/layout.js';
 
 type Tab = 'backlog' | 'daily' | 'week' | 'pastdue';
@@ -23,6 +24,7 @@ const TABS: { id: Tab; label: string; key: string }[] = [
 ];
 
 function AppShell({ screen }: { screen: Screen }) {
+  const { rows } = useViewport();
   const { exit } = useApp();
   const { inputFocused } = useInputFocus();
   const { undoLast } = useUndo();
@@ -84,8 +86,8 @@ function AppShell({ screen }: { screen: Screen }) {
   );
 
   return (
-    <Box flexDirection="column" padding={1}>
-      <Box marginBottom={1}>
+    <Box flexDirection="column" height={rows} overflow="hidden" padding={1}>
+      <Box flexShrink={0} marginBottom={1}>
         <Text bold color="magenta">
           mytime
         </Text>
@@ -93,7 +95,7 @@ function AppShell({ screen }: { screen: Screen }) {
       </Box>
 
       {screen === 'main' && (
-        <Box marginBottom={1}>
+        <Box flexShrink={0} marginBottom={1}>
           {TABS.map((t) => (
             <Box key={t.id} marginRight={2}>
               <Text color={tab === t.id ? 'cyan' : 'gray'} bold={tab === t.id} underline={tab === t.id}>
@@ -105,7 +107,7 @@ function AppShell({ screen }: { screen: Screen }) {
         </Box>
       )}
 
-      <Box flexDirection="column" marginBottom={1} minHeight={10}>
+      <Box flexDirection="column" flexGrow={1} overflow="hidden">
         {screen === 'settings' && <SettingsView onStatus={setStatus} />}
         {screen === 'main' && tab === 'backlog' && (
           <BacklogView refreshToken={refreshToken} onRefresh={refresh} onStatus={setStatus} />
@@ -121,7 +123,7 @@ function AppShell({ screen }: { screen: Screen }) {
         )}
       </Box>
 
-      <Box borderStyle="single" borderColor="gray" paddingX={1}>
+      <Box flexShrink={0} borderStyle="single" borderColor="gray" paddingX={1}>
         <Text dimColor>
           {syncing
             ? 'Syncing with Google...'
@@ -137,7 +139,9 @@ export function App({ initialScreen = 'main' }: { initialScreen?: Screen }) {
     <InputFocusProvider>
       <UndoProvider>
         <MouseProvider>
-          <AppShell screen={initialScreen} />
+          <ViewportProvider screen={initialScreen}>
+            <AppShell screen={initialScreen} />
+          </ViewportProvider>
         </MouseProvider>
       </UndoProvider>
     </InputFocusProvider>

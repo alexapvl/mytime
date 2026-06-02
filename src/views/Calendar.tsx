@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useStdout } from 'ink';
+import { Box, Text } from 'ink';
 import TextInput from 'ink-text-input';
 import { DateTime } from 'luxon';
 import type { Item } from '../db/types.js';
@@ -16,7 +16,8 @@ import { useInputFocus } from '../context/InputFocusContext.js';
 import { useUndo } from '../context/UndoContext.js';
 import { useAppInput } from '../hooks/useAppInput.js';
 import type { ClickRegion } from '../lib/mouse.js';
-import { VIEW_ROW0 } from '../lib/layout.js';
+import { useViewport } from '../context/ViewportContext.js';
+import { DAY_VIEW_HEADER_ROWS, VIEW_ROW0, WEEK_VIEW_HEADER_ROWS } from '../lib/layout.js';
 import { parseQuickAdd } from '../lib/nlp.js';
 import { DAILY_SHORTCUTS, WEEK_SHORTCUTS } from '../lib/shortcuts.js';
 import { cloneItem, makeUndoDelete, makeUndoToggleDone } from '../lib/undoActions.js';
@@ -63,15 +64,6 @@ const DAY_CONTENT_ROW = VIEW_ROW0 + 3;
 const WEEK_EVENTS_ROW = VIEW_ROW0 + 4;
 const WEEK_DIVIDER_WIDTH = 1;
 const WEEK_FOCUS_WEIGHT = 2;
-
-function weekRowFloor(weekKey: string, contentRows: number, weekKeyRef: React.MutableRefObject<string>, floorRef: React.MutableRefObject<number>): number {
-  if (weekKeyRef.current !== weekKey) {
-    floorRef.current = Math.max(floorRef.current, contentRows);
-    weekKeyRef.current = weekKey;
-  }
-  floorRef.current = Math.max(floorRef.current, contentRows);
-  return floorRef.current;
-}
 
 const DONE_PREFIX = '✓ ';
 
@@ -166,8 +158,8 @@ function dayLineTitle(item: Item, title: string): string {
 export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
   const { setInputFocused } = useInputFocus();
   const { pushUndo } = useUndo();
-  const { stdout } = useStdout();
-  const viewWidth = Math.max(40, (stdout.columns ?? 80) - 6);
+  const { contentRows, columns } = useViewport();
+  const viewWidth = Math.max(40, columns - 6);
   const titleWidth = Math.max(1, viewWidth - DAY_TIME_COL);
   const [day, setDay] = useState(() => DateTime.local().startOf('day'));
   const [items, setItems] = useState<Item[]>([]);
@@ -224,16 +216,19 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
     return out;
   }, [scheduled, hours]);
 
+  const maxLines = Math.max(1, contentRows - DAY_VIEW_HEADER_ROWS);
+  const visibleLines = lines.slice(0, maxLines);
+
   const regions = useMemo<ClickRegion[]>(
     () =>
-      lines
+      visibleLines
         .map((line, idx) =>
           line.item
             ? { row: DAY_CONTENT_ROW + idx, onClick: () => setSelected(scheduled.indexOf(line.item!)) }
             : null,
         )
         .filter((r): r is ClickRegion => r !== null),
-    [lines, scheduled],
+    [visibleLines, scheduled],
   );
   useClickRegions('day', editing ? [] : regions);
 
@@ -404,7 +399,7 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
         }}
       />
       <Box flexDirection="column" marginTop={1} width={viewWidth}>
-        {lines.map((line) => {
+        {visibleLines.map((line) => {
           if (!line.item) {
             return (
               <Box key={line.key} width={viewWidth} height={1} overflow="hidden">
@@ -454,7 +449,7 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
 export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
   const { setInputFocused } = useInputFocus();
   const { pushUndo } = useUndo();
-  const { stdout } = useStdout();
+  const { contentRows, columns } = useViewport();
   const [weekStart, setWeekStart] = useState(() => DateTime.local().startOf('week'));
   const [focusedDayISO, setFocusedDayISO] = useState(() => DateTime.local().toISODate()!);
   const [items, setItems] = useState<Item[]>([]);
@@ -463,9 +458,6 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
   const [editing, setEditing] = useState<Item | null>(null);
   const pendingItemIdRef = useRef<string | null>(null);
   const weekSelectIntentRef = useRef<{ dayISO: string; select: 'first' | 'last' } | null>(null);
-  const weekPaintKeyRef = useRef(weekStart.toISODate());
-  const weekRowFloorRef = useRef(1);
-
   useEffect(() => {
     setInputFocused(editing !== null || mode !== 'list');
     return () => setInputFocused(false);
@@ -512,7 +504,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
   const selectedCandidate = scheduled[sel];
   const selectedWeekItem = selectedCandidate?.start && isSameDay(selectedCandidate.start, focusedDay.toISO()!) ? selectedCandidate : undefined;
   const selectedDayIndex = Math.max(0, days.findIndex((d) => d.hasSame(focusedDay, 'day')));
-  const viewWidth = Math.max(80, stdout.columns ?? 80) - 4;
+  const viewWidth = Math.max(80, columns) - 4;
   const availableWidth = viewWidth - WEEK_DIVIDER_WIDTH * (days.length - 1);
   const totalWeight = days.length + WEEK_FOCUS_WEIGHT - 1;
   const dayWidths = days.map((_, dayIndex) =>
@@ -531,9 +523,10 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
     () => days.map((d) => scheduled.filter((i) => i.start && isSameDay(i.start, d.toISO()!))),
     [days, scheduled],
   );
-  const contentRows = useMemo(() => Math.max(1, ...itemsByDay.map((col) => col.length)), [itemsByDay]);
+  const itemRows = useMemo(() => Math.max(1, ...itemsByDay.map((col) => col.length)), [itemsByDay]);
   const weekKey = weekStart.toISODate();
-  const paintRows = weekRowFloor(weekKey, contentRows, weekPaintKeyRef, weekRowFloorRef);
+  const maxPaintRows = Math.max(1, contentRows - WEEK_VIEW_HEADER_ROWS);
+  const paintRows = Math.min(maxPaintRows, itemRows);
 
   const regions = useMemo<ClickRegion[]>(() => {
     const out: ClickRegion[] = [];

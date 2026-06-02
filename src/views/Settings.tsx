@@ -9,7 +9,9 @@ import {
   setCalendarEnabled,
   type CalendarInfo,
 } from '../google/calendar.js';
+import { useViewport } from '../context/ViewportContext.js';
 import { useAppInput } from '../hooks/useAppInput.js';
+import { SETTINGS_VIEW_HEADER_ROWS } from '../lib/layout.js';
 
 type Props = {
   onStatus: (msg: string) => void;
@@ -22,6 +24,7 @@ type CalendarRow = CalendarInfo & {
 
 export function SettingsView({ onStatus }: Props) {
   const { exit } = useApp();
+  const { contentRows } = useViewport();
   const [calendars, setCalendars] = useState<CalendarRow[]>([]);
   const [selected, setSelected] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -120,7 +123,7 @@ export function SettingsView({ onStatus }: Props) {
         {!loading && !error && calendars.length === 0 && <Text dimColor>No calendars found.</Text>}
         {!loading &&
           !error &&
-          calendars.map((cal, idx) => {
+          calendars.slice(0, Math.max(1, contentRows - SETTINGS_VIEW_HEADER_ROWS)).map((cal, idx) => {
             const active = idx === selected;
             const check = cal.enabled ? '[x]' : '[ ]';
             const suffix = cal.locked ? ' (always on)' : cal.primary ? ' (primary)' : '';

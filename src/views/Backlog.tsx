@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Text, useStdout } from 'ink';
+import { Box, Text } from 'ink';
 import TextInput from 'ink-text-input';
 import { DateTime } from 'luxon';
 import { ItemEditor } from '../components/ItemEditor.js';
@@ -11,7 +11,8 @@ import { useInputFocus } from '../context/InputFocusContext.js';
 import { useUndo } from '../context/UndoContext.js';
 import { useAppInput } from '../hooks/useAppInput.js';
 import type { ClickRegion } from '../lib/mouse.js';
-import { VIEW_ROW0 } from '../lib/layout.js';
+import { useViewport } from '../context/ViewportContext.js';
+import { BACKLOG_VIEW_HEADER_ROWS, VIEW_ROW0 } from '../lib/layout.js';
 import type { Item } from '../db/types.js';
 import { createItem, deleteItem, listBacklog, scheduleAllDayItem, scheduleItem, toggleDone, updateItem } from '../db/items.js';
 import { autoPush, autoRemove } from '../google/autoSync.js';
@@ -85,7 +86,7 @@ function defaultBacklogSelection(items: Item[]): { priority: Item['priority']; i
 export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
   const { setInputFocused } = useInputFocus();
   const { pushUndo } = useUndo();
-  const { stdout } = useStdout();
+  const { columns: terminalColumns, contentRows } = useViewport();
   const [boot] = useState(() => {
     const items = listBacklog();
     const { priority, index } = defaultBacklogSelection(items);
@@ -118,29 +119,30 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
     setSelected(selectedIndexInColumn(backlog, item.priority, item.id));
   };
 
-  const columns = useMemo(
+  const priorityColumns = useMemo(
     () => PRIORITIES.map((priority) => items.filter((item) => item.priority === priority).sort(compareItems)),
     [items],
   );
   const selectedColumnIndex = PRIORITIES.indexOf(selectedPriority);
-  const selectedColumn = columns[selectedColumnIndex] ?? [];
+  const selectedColumn = priorityColumns[selectedColumnIndex] ?? [];
   const selectedItem = selectedColumn[selected];
-  const viewWidth = Math.max(80, stdout.columns ?? 80) - 4;
+  const viewWidth = Math.max(80, terminalColumns) - 4;
   const columnWidth = Math.max(16, Math.floor(viewWidth / PRIORITIES.length));
+  const maxItemsPerColumn = Math.max(1, contentRows - BACKLOG_VIEW_HEADER_ROWS - 1);
 
   const movePriority = (direction: -1 | 1, targetRow: 'same' | 'first' | 'last' = 'same') => {
     if (targetRow === 'same') {
       const nextColumn = selectedColumnIndex + direction;
-      if (nextColumn < 0 || nextColumn >= columns.length) return;
-      const targetColumn = columns[nextColumn] ?? [];
+      if (nextColumn < 0 || nextColumn >= priorityColumns.length) return;
+      const targetColumn = priorityColumns[nextColumn] ?? [];
       setSelectedPriority(PRIORITIES[nextColumn]!);
       setSelected((row) => Math.min(row, Math.max(0, targetColumn.length - 1)));
       return;
     }
 
     let nextColumn = selectedColumnIndex + direction;
-    while (nextColumn >= 0 && nextColumn < columns.length) {
-      const targetColumn = columns[nextColumn] ?? [];
+    while (nextColumn >= 0 && nextColumn < priorityColumns.length) {
+      const targetColumn = priorityColumns[nextColumn] ?? [];
       if (targetColumn.length > 0) {
         setSelectedPriority(PRIORITIES[nextColumn]!);
         setSelected(targetRow === 'first' ? 0 : targetColumn.length - 1);
@@ -184,7 +186,9 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
   // The help line sits on VIEW_ROW0; headers and items follow on subsequent rows.
   const regions = useMemo<ClickRegion[]>(() => {
     if (mode !== 'list') return [];
-    return columns.flatMap((column, columnIndex) =>
+    return priorityColumns.flatMap((column, columnIndex) => {
+      const visible = column.slice(0, maxItemsPerColumn);
+      return (
       [
         {
           row: VIEW_ROW0 + 2,
@@ -195,7 +199,7 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
             setSelected(0);
           },
         },
-        ...(column.length === 0
+        ...(visible.length === 0
           ? [
               {
                 row: VIEW_ROW0 + 3,
@@ -207,7 +211,7 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
                 },
               },
             ]
-          : column.map((_, rowIndex) => ({
+          : visible.map((_, rowIndex) => ({
               row: VIEW_ROW0 + 3 + rowIndex,
               col: 2 + columnIndex * columnWidth,
               endCol: 2 + columnIndex * columnWidth + columnWidth - 1,
@@ -216,9 +220,9 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
                 setSelected(rowIndex);
               },
             }))),
-      ],
-    );
-  }, [mode, columns, columnWidth]);
+      ]);
+    });
+  }, [mode, priorityColumns, columnWidth, maxItemsPerColumn]);
   useClickRegions('backlog', regions);
 
   useAppInput(
@@ -377,19 +381,20 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
     <Box flexDirection="column">
       <ShortcutBar shortcuts={BACKLOG_SHORTCUTS} context={{ scheduled: Boolean(selectedItem?.start) }} />
       <Box marginTop={1} flexDirection="row" width={viewWidth}>
-        {columns.map((column, columnIndex) => {
+        {priorityColumns.map((column, columnIndex) => {
+          const visible = column.slice(0, maxItemsPerColumn);
           const columnSelected = columnIndex === selectedColumnIndex;
           return (
           <Box key={PRIORITIES[columnIndex]} flexDirection="column" flexGrow={1} minWidth={0}>
             <Text bold color={columnSelected ? 'cyan' : undefined}>
               P{PRIORITIES[columnIndex]}
             </Text>
-            {column.length === 0 ? (
+            {visible.length === 0 ? (
               <Text color={columnSelected ? 'cyan' : undefined} dimColor={!columnSelected}>
                 {columnSelected ? '▸ —' : '—'}
               </Text>
             ) : (
-              column.map((item, rowIndex) => {
+              visible.map((item, rowIndex) => {
                 const selectedHere = columnSelected && rowIndex === selected;
                 return (
                   <Box key={item.id} flexDirection="column">
