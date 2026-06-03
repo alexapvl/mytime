@@ -401,10 +401,10 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
                     <MarqueeText
                       text={itemLabel(item)}
                       maxWidth={columnWidth}
-                      prefix={selectedHere ? '▸ ' : '  '}
                       active={selectedHere}
                       color={selectedHere ? 'cyan' : undefined}
                       bold={selectedHere}
+                      underline={selectedHere}
                     />
                     {selectedHere && item.start ? (
                       <MarqueeText

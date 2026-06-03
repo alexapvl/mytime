@@ -415,6 +415,7 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
               item={item}
               rowWidth={viewWidth}
               selected={selectedHere}
+              underline={selectedHere}
             />
           );
         })}
@@ -688,13 +689,13 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
             <React.Fragment key={`week-head-${d.toISODate()}`}>
               {dayIndex > 0 ? (
                 <Box width={WEEK_DIVIDER_WIDTH} height={1}>
-                  <Text dimColor wrap="truncate">
+                  <Text color="gray" wrap="truncate">
                     {padToWidth('│', WEEK_DIVIDER_WIDTH)}
                   </Text>
                 </Box>
               ) : null}
               <Box width={dayWidths[dayIndex]!} height={1}>
-                <Text bold wrap="truncate">
+                <Text bold color={dayIndex === selectedDayIndex ? 'cyanBright' : undefined} wrap="truncate">
                   {padToWidth(
                     `${d.toFormat('EEE d MMM')}${d.hasSame(DateTime.local(), 'day') ? ' (today)' : ''}`,
                     dayWidths[dayIndex]!,
@@ -714,7 +715,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
                 <React.Fragment key={`${d.toISODate()}-${rowIndex}`}>
                   {dayIndex > 0 ? (
                     <Box width={WEEK_DIVIDER_WIDTH} height={1}>
-                      <Text dimColor wrap="truncate">
+                      <Text color="gray" wrap="truncate">
                         {padToWidth('│', WEEK_DIVIDER_WIDTH)}
                       </Text>
                     </Box>
@@ -723,7 +724,8 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
                     {!item ? (
                       rowIndex === 0 && dayItems.length === 0 ? (
                         <Text
-                          color={dayIndex === selectedDayIndex ? 'cyan' : undefined}
+                          color={dayIndex === selectedDayIndex ? 'cyanBright' : undefined}
+                          bold={dayIndex === selectedDayIndex}
                           dimColor={dayIndex !== selectedDayIndex}
                           wrap="truncate"
                         >
@@ -737,6 +739,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
                         item={item}
                         rowWidth={colWidth}
                         selected={selectedWeekItem?.id === item.id}
+                        underline={selectedWeekItem?.id === item.id}
                       />
                     )}
                   </Box>

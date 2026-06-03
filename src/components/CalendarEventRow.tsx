@@ -60,8 +60,9 @@ export function CalendarEventRow({
   const done = isDoneTask(item);
   const title = displayTitle(item) + titleSuffix;
   const timed = showTime && hasWeekTime(item);
-  const lineColor = color ?? (selected ? 'cyan' : external ? 'magenta' : 'white');
-  const lineDim = dimColor ?? ((external && !selected) || (done && !selected));
+  const lineColor = color ?? (selected ? 'cyanBright' : external ? 'magenta' : undefined);
+  const lineDim = selected ? false : (dimColor ?? (external || done));
+  const lineUnderline = underline ?? selected;
 
   if (!timed) {
     return (
@@ -73,7 +74,7 @@ export function CalendarEventRow({
           color={lineColor}
           bold={selected}
           dimColor={lineDim}
-          underline={underline}
+          underline={lineUnderline}
         />
       </Box>
     );
@@ -102,7 +103,7 @@ export function CalendarEventRow({
         color={lineColor}
         bold={selected}
         dimColor={lineDim}
-        underline={underline}
+        underline={lineUnderline}
       />
     </Box>
   );
