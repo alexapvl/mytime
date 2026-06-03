@@ -11,6 +11,7 @@ import { ItemEditor } from '../components/ItemEditor.js';
 import { useClickRegions } from '../components/Mouse.js';
 import { ScheduleEditor } from '../components/ScheduleEditor.js';
 import { CalendarEventRow, CALENDAR_PREFIX_COL, hasWeekTime } from '../components/CalendarEventRow.js';
+import { ItemDetailLines } from '../components/ItemDetailLines.js';
 import { ShortcutBar } from '../components/ShortcutBar.js';
 import { useInputFocus } from '../context/InputFocusContext.js';
 import { useUndo } from '../context/UndoContext.js';
@@ -410,13 +411,17 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
           const idx = scheduled.indexOf(item);
           const selectedHere = idx === sel;
           return (
-            <CalendarEventRow
-              key={line.key}
-              item={item}
-              rowWidth={viewWidth}
-              selected={selectedHere}
-              underline={selectedHere}
-            />
+            <Box key={line.key} flexDirection="column">
+              <CalendarEventRow
+                item={item}
+                rowWidth={viewWidth}
+                selected={selectedHere}
+                underline={selectedHere}
+              />
+              {selectedHere ? (
+                <ItemDetailLines item={item} maxWidth={viewWidth} showSchedule={false} />
+              ) : null}
+            </Box>
           );
         })}
       </Box>
@@ -720,27 +725,36 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
                       </Text>
                     </Box>
                   ) : null}
-                  <Box width={colWidth} height={1}>
+                  <Box width={colWidth} flexDirection="column">
                     {!item ? (
-                      rowIndex === 0 && dayItems.length === 0 ? (
-                        <Text
-                          color={dayIndex === selectedDayIndex ? 'cyanBright' : undefined}
-                          bold={dayIndex === selectedDayIndex}
-                          dimColor={dayIndex !== selectedDayIndex}
-                          wrap="truncate"
-                        >
-                          {padToWidth(dayIndex === selectedDayIndex ? '▸ —' : '—', colWidth)}
-                        </Text>
-                      ) : (
-                        <Text wrap="truncate">{padToWidth('', colWidth)}</Text>
-                      )
+                      <Box height={1}>
+                        {rowIndex === 0 && dayItems.length === 0 ? (
+                          <Text
+                            color={dayIndex === selectedDayIndex ? 'cyanBright' : undefined}
+                            bold={dayIndex === selectedDayIndex}
+                            dimColor={dayIndex !== selectedDayIndex}
+                            wrap="truncate"
+                          >
+                            {padToWidth(dayIndex === selectedDayIndex ? '▸ —' : '—', colWidth)}
+                          </Text>
+                        ) : (
+                          <Text wrap="truncate">{padToWidth('', colWidth)}</Text>
+                        )}
+                      </Box>
                     ) : (
-                      <CalendarEventRow
-                        item={item}
-                        rowWidth={colWidth}
-                        selected={selectedWeekItem?.id === item.id}
-                        underline={selectedWeekItem?.id === item.id}
-                      />
+                      <>
+                        <Box height={1}>
+                          <CalendarEventRow
+                            item={item}
+                            rowWidth={colWidth}
+                            selected={selectedWeekItem?.id === item.id}
+                            underline={selectedWeekItem?.id === item.id}
+                          />
+                        </Box>
+                        {selectedWeekItem?.id === item.id ? (
+                          <ItemDetailLines item={item} maxWidth={colWidth} showSchedule={false} />
+                        ) : null}
+                      </>
                     )}
                   </Box>
                 </React.Fragment>

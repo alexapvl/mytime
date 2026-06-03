@@ -4,6 +4,7 @@ import TextInput from 'ink-text-input';
 import { DateTime } from 'luxon';
 import { ItemEditor } from '../components/ItemEditor.js';
 import { ScheduleEditor } from '../components/ScheduleEditor.js';
+import { ItemDetailLines } from '../components/ItemDetailLines.js';
 import { MarqueeText } from '../components/MarqueeText.js';
 import { ShortcutBar } from '../components/ShortcutBar.js';
 import { useClickRegions } from '../components/Mouse.js';
@@ -16,7 +17,6 @@ import { BACKLOG_VIEW_HEADER_ROWS, VIEW_ROW0 } from '../lib/layout.js';
 import type { Item } from '../db/types.js';
 import { createItem, deleteItem, listBacklog, scheduleAllDayItem, scheduleItem, toggleDone, updateItem } from '../db/items.js';
 import { autoPush, autoRemove } from '../google/autoSync.js';
-import { formatDate, formatScheduleTime } from '../lib/time.js';
 import { parseQuickAdd } from '../lib/nlp.js';
 import { BACKLOG_SHORTCUTS } from '../lib/shortcuts.js';
 import { cloneItem, makeUndoDelete, makeUndoToggleDone } from '../lib/undoActions.js';
@@ -56,18 +56,6 @@ function compareItems(a: Item, b: Item): number {
 
 function itemLabel(item: Item): string {
   return item.title;
-}
-
-function metaLabel(item: Item): string {
-  const parts: string[] = [];
-  if (item.project) parts.push(`@${item.project.replace(/^@/, '')}`);
-  if (item.tags.length) parts.push(...item.tags);
-  return parts.join(' ');
-}
-
-function scheduleLabel(item: Item): string {
-  if (!item.start) return '';
-  return `${formatDate(item.start)} ${formatScheduleTime(item.start, item.end, item.allDay)}`;
 }
 
 function selectedIndexInColumn(items: Item[], priority: Item['priority'], itemId: string): number {
@@ -406,24 +394,7 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
                       bold={selectedHere}
                       underline={selectedHere}
                     />
-                    {selectedHere && item.start ? (
-                      <MarqueeText
-                        text={scheduleLabel(item)}
-                        maxWidth={columnWidth}
-                        prefix="  ↳ "
-                        active={selectedHere}
-                        dimColor
-                      />
-                    ) : null}
-                    {selectedHere && metaLabel(item) ? (
-                      <MarqueeText
-                        text={metaLabel(item)}
-                        maxWidth={columnWidth}
-                        prefix="  ↳ "
-                        active={selectedHere}
-                        dimColor
-                      />
-                    ) : null}
+                    {selectedHere ? <ItemDetailLines item={item} maxWidth={columnWidth} /> : null}
                   </Box>
                 );
               })

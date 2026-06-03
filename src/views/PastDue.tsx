@@ -3,6 +3,7 @@ import { Box, Text } from 'ink';
 import { ItemEditor } from '../components/ItemEditor.js';
 import { ScheduleEditor } from '../components/ScheduleEditor.js';
 import { CalendarEventRow } from '../components/CalendarEventRow.js';
+import { ItemDetailLines } from '../components/ItemDetailLines.js';
 import { ShortcutBar } from '../components/ShortcutBar.js';
 import { useClickRegions } from '../components/Mouse.js';
 import { useInputFocus } from '../context/InputFocusContext.js';
@@ -22,7 +23,7 @@ import {
 } from '../db/items.js';
 import { autoPush, autoRemove } from '../google/autoSync.js';
 import { overdueLabel } from '../lib/overdue.js';
-import { formatDate, formatScheduleTime, isAllDaySchedule } from '../lib/time.js';
+import { formatDate, formatScheduleTime } from '../lib/time.js';
 import { PAST_DUE_SHORTCUTS } from '../lib/shortcuts.js';
 import { cloneItem, makeUndoDelete, makeUndoToggleDone } from '../lib/undoActions.js';
 
@@ -33,22 +34,6 @@ type Props = {
 };
 
 type Mode = 'list' | 'edit' | 'schedule';
-
-const DETAIL_INDENT = '  ';
-
-function metaLabel(item: Item): string {
-  const parts: string[] = [];
-  if (item.project) parts.push(`@${item.project.replace(/^@/, '')}`);
-  if (item.tags.length) parts.push(...item.tags);
-  return parts.join(' ');
-}
-
-function scheduleLabel(item: Item): string {
-  if (!item.start) return '';
-  const date = formatDate(item.start);
-  if (isAllDaySchedule(item.start, item.end ?? undefined, item.allDay)) return date;
-  return `${date} ${formatScheduleTime(item.start, item.end, item.allDay)}`;
-}
 
 export function PastDueView({ onRefresh, onStatus, refreshToken }: Props) {
   const { setInputFocused } = useInputFocus();
@@ -190,18 +175,7 @@ export function PastDueView({ onRefresh, onStatus, refreshToken }: Props) {
                   showTime={false}
                   titleSuffix={overdueLabel(item) ? ` (${overdueLabel(item)})` : ''}
                 />
-                {selectedHere ? (
-                  <>
-                    <Text dimColor wrap="truncate">
-                      {DETAIL_INDENT}↳ {scheduleLabel(item)}
-                    </Text>
-                    {metaLabel(item) ? (
-                      <Text dimColor wrap="truncate">
-                        {DETAIL_INDENT}↳ {metaLabel(item)}
-                      </Text>
-                    ) : null}
-                  </>
-                ) : null}
+                {selectedHere ? <ItemDetailLines item={item} maxWidth={viewWidth} /> : null}
               </Box>
             );
           })
