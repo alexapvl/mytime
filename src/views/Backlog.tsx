@@ -4,7 +4,8 @@ import TextInput from 'ink-text-input';
 import { DateTime } from 'luxon';
 import { ItemEditor } from '../components/ItemEditor.js';
 import { ScheduleEditor } from '../components/ScheduleEditor.js';
-import { ItemDetailLines } from '../components/ItemDetailLines.js';
+import { COLUMN_DIVIDER_WIDTH, ColumnDivider } from '../components/ColumnDivider.js';
+import { ItemDetailLines, itemDetailLineCount } from '../components/ItemDetailLines.js';
 import { MarqueeText } from '../components/MarqueeText.js';
 import { ShortcutBar } from '../components/ShortcutBar.js';
 import { useClickRegions } from '../components/Mouse.js';
@@ -19,6 +20,8 @@ import { createItem, deleteItem, listBacklog, scheduleAllDayItem, scheduleItem, 
 import { autoPush, autoRemove } from '../google/autoSync.js';
 import { parseQuickAdd } from '../lib/nlp.js';
 import { BACKLOG_SHORTCUTS } from '../lib/shortcuts.js';
+import { padToWidth } from '../lib/textWidth.js';
+import { formatDate, formatScheduleTime } from '../lib/time.js';
 import { cloneItem, makeUndoDelete, makeUndoToggleDone } from '../lib/undoActions.js';
 
 type Props = {
@@ -115,8 +118,29 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
   const selectedColumn = priorityColumns[selectedColumnIndex] ?? [];
   const selectedItem = selectedColumn[selected];
   const viewWidth = Math.max(80, terminalColumns) - 4;
-  const columnWidth = Math.max(16, Math.floor(viewWidth / PRIORITIES.length));
+  const availableWidth = viewWidth - COLUMN_DIVIDER_WIDTH * (PRIORITIES.length - 1);
+  const columnWidth = Math.max(16, Math.floor(availableWidth / PRIORITIES.length));
+  const columnStarts = PRIORITIES.map(
+    (_, columnIndex) => 2 + columnIndex * (columnWidth + COLUMN_DIVIDER_WIDTH),
+  );
   const maxItemsPerColumn = Math.max(1, contentRows - BACKLOG_VIEW_HEADER_ROWS - 1);
+  const backlogBodyLines = useMemo(
+    () =>
+      priorityColumns.map((column, columnIndex) => {
+        const visible = column.slice(0, maxItemsPerColumn);
+        if (visible.length === 0) return 1;
+        let lines = 0;
+        visible.forEach((item, rowIndex) => {
+          lines += 1;
+          if (columnIndex === selectedColumnIndex && rowIndex === selected) {
+            lines += itemDetailLineCount(item);
+          }
+        });
+        return lines;
+      }),
+    [priorityColumns, maxItemsPerColumn, selectedColumnIndex, selected],
+  );
+  const maxBodyLines = Math.max(1, ...backlogBodyLines);
 
   const movePriority = (direction: -1 | 1, targetRow: 'same' | 'first' | 'last' = 'same') => {
     if (targetRow === 'same') {
@@ -175,42 +199,54 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
   const regions = useMemo<ClickRegion[]>(() => {
     if (mode !== 'list') return [];
     return priorityColumns.flatMap((column, columnIndex) => {
+      const colStart = columnStarts[columnIndex]!;
+      const colEnd = colStart + columnWidth - 1;
       const visible = column.slice(0, maxItemsPerColumn);
-      return (
-      [
-        {
-          row: VIEW_ROW0 + 2,
-          col: 2 + columnIndex * columnWidth,
-          endCol: 2 + columnIndex * columnWidth + columnWidth - 1,
-          onClick: () => {
-            setSelectedPriority(PRIORITIES[columnIndex]!);
-            setSelected(0);
-          },
+      const header = {
+        row: VIEW_ROW0 + 2,
+        col: colStart,
+        endCol: colEnd,
+        onClick: () => {
+          setSelectedPriority(PRIORITIES[columnIndex]!);
+          setSelected(0);
         },
-        ...(visible.length === 0
-          ? [
-              {
-                row: VIEW_ROW0 + 3,
-                col: 2 + columnIndex * columnWidth,
-                endCol: 2 + columnIndex * columnWidth + columnWidth - 1,
-                onClick: () => {
-                  setSelectedPriority(PRIORITIES[columnIndex]!);
-                  setSelected(0);
-                },
-              },
-            ]
-          : visible.map((_, rowIndex) => ({
-              row: VIEW_ROW0 + 3 + rowIndex,
-              col: 2 + columnIndex * columnWidth,
-              endCol: 2 + columnIndex * columnWidth + columnWidth - 1,
-              onClick: () => {
-                setSelectedPriority(PRIORITIES[columnIndex]!);
-                setSelected(rowIndex);
-              },
-            }))),
-      ]);
+      };
+      let row = VIEW_ROW0 + 3;
+      if (visible.length === 0) {
+        return [
+          header,
+          {
+            row,
+            col: colStart,
+            endCol: colEnd,
+            onClick: () => {
+              setSelectedPriority(PRIORITIES[columnIndex]!);
+              setSelected(0);
+            },
+          },
+        ];
+      }
+      return [
+        header,
+        ...visible.map((item, rowIndex) => {
+          const region = {
+            row,
+            col: colStart,
+            endCol: colEnd,
+            onClick: () => {
+              setSelectedPriority(PRIORITIES[columnIndex]!);
+              setSelected(rowIndex);
+            },
+          };
+          row += 1;
+          if (columnIndex === selectedColumnIndex && rowIndex === selected) {
+            row += itemDetailLineCount(item);
+          }
+          return region;
+        }),
+      ];
     });
-  }, [mode, priorityColumns, columnWidth, maxItemsPerColumn]);
+  }, [mode, priorityColumns, columnStarts, columnWidth, maxItemsPerColumn, selectedColumnIndex, selected]);
   useClickRegions('backlog', regions);
 
   useAppInput(
@@ -368,40 +404,67 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
   return (
     <Box flexDirection="column">
       <ShortcutBar shortcuts={BACKLOG_SHORTCUTS} context={{ scheduled: Boolean(selectedItem?.start) }} />
-      <Box marginTop={1} flexDirection="row" width={viewWidth}>
-        {priorityColumns.map((column, columnIndex) => {
-          const visible = column.slice(0, maxItemsPerColumn);
-          const columnSelected = columnIndex === selectedColumnIndex;
-          return (
-          <Box key={PRIORITIES[columnIndex]} flexDirection="column" flexGrow={1} minWidth={0}>
-            <Text bold color={columnSelected ? 'cyan' : undefined}>
-              P{PRIORITIES[columnIndex]}
-            </Text>
-            {visible.length === 0 ? (
-              <Text color={columnSelected ? 'cyan' : undefined} dimColor={!columnSelected}>
-                {columnSelected ? '▸ —' : '—'}
-              </Text>
-            ) : (
-              visible.map((item, rowIndex) => {
-                const selectedHere = columnSelected && rowIndex === selected;
-                return (
-                  <Box key={item.id} flexDirection="column">
-                    <MarqueeText
-                      text={itemLabel(item)}
-                      maxWidth={columnWidth}
-                      active={selectedHere}
-                      color={selectedHere ? 'cyan' : undefined}
-                      bold={selectedHere}
-                      underline={selectedHere}
-                    />
-                    {selectedHere ? <ItemDetailLines item={item} maxWidth={columnWidth} /> : null}
+      <Box marginTop={1} flexDirection="column" width={viewWidth}>
+        <Box flexDirection="row">
+          {PRIORITIES.map((priority, columnIndex) => {
+            const columnSelected = columnIndex === selectedColumnIndex;
+            return (
+              <React.Fragment key={`backlog-head-${priority}`}>
+                {columnIndex > 0 ? (
+                  <Box width={COLUMN_DIVIDER_WIDTH} height={1}>
+                    <Text color="gray" wrap="truncate">
+                      {padToWidth('│', COLUMN_DIVIDER_WIDTH)}
+                    </Text>
                   </Box>
-                );
-              })
-            )}
-          </Box>
-        );
-        })}
+                ) : null}
+                <Box width={columnWidth} height={1}>
+                  <Text bold color={columnSelected ? 'cyan' : undefined} wrap="truncate">
+                    {padToWidth(`P${priority}`, columnWidth)}
+                  </Text>
+                </Box>
+              </React.Fragment>
+            );
+          })}
+        </Box>
+        <Box flexDirection="row" alignItems="flex-start">
+          {priorityColumns.map((column, columnIndex) => {
+            const visible = column.slice(0, maxItemsPerColumn);
+            const columnSelected = columnIndex === selectedColumnIndex;
+            return (
+              <React.Fragment key={`backlog-col-${PRIORITIES[columnIndex]}`}>
+                {columnIndex > 0 ? <ColumnDivider lines={maxBodyLines} /> : null}
+                <Box flexDirection="column" width={columnWidth}>
+                  {visible.length === 0 ? (
+                    <Box height={1}>
+                      <Text color={columnSelected ? 'cyan' : undefined} dimColor={!columnSelected} wrap="truncate">
+                        {padToWidth(columnSelected ? '▸ —' : '—', columnWidth)}
+                      </Text>
+                    </Box>
+                  ) : (
+                    visible.map((item, rowIndex) => {
+                      const selectedHere = columnSelected && rowIndex === selected;
+                      return (
+                        <Box key={item.id} flexDirection="column">
+                          <Box height={1}>
+                            <MarqueeText
+                              text={itemLabel(item)}
+                              maxWidth={columnWidth}
+                              active={selectedHere}
+                              color={selectedHere ? 'cyan' : undefined}
+                              bold={selectedHere}
+                              underline={selectedHere}
+                            />
+                          </Box>
+                          {selectedHere ? <ItemDetailLines item={item} maxWidth={columnWidth} /> : null}
+                        </Box>
+                      );
+                    })
+                  )}
+                </Box>
+              </React.Fragment>
+            );
+          })}
+        </Box>
       </Box>
     </Box>
   );

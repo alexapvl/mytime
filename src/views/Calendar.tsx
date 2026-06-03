@@ -11,6 +11,7 @@ import { ItemEditor } from '../components/ItemEditor.js';
 import { useClickRegions } from '../components/Mouse.js';
 import { ScheduleEditor } from '../components/ScheduleEditor.js';
 import { CalendarEventRow, CALENDAR_PREFIX_COL, hasWeekTime } from '../components/CalendarEventRow.js';
+import { COLUMN_DIVIDER_WIDTH, ColumnDivider } from '../components/ColumnDivider.js';
 import { ItemDetailLines, itemDetailLineCount } from '../components/ItemDetailLines.js';
 import { ShortcutBar } from '../components/ShortcutBar.js';
 import { useInputFocus } from '../context/InputFocusContext.js';
@@ -63,23 +64,8 @@ function findAdjacentDayItem(anchorDay: DateTime, dir: 1 | -1): { day: DateTime;
 const DAY_CONTENT_ROW = VIEW_ROW0 + 3;
 // WeekView: header help [blank] day-names(+3) events(+4 onward)
 const WEEK_EVENTS_ROW = VIEW_ROW0 + 4;
-const WEEK_DIVIDER_WIDTH = 1;
 const WEEK_FOCUS_WEIGHT = 2;
 const WEEK_DETAIL_OPTS = { showSchedule: false, showMeta: true } as const;
-
-function WeekColumnDivider({ lines }: { lines: number }) {
-  return (
-    <Box flexDirection="column" width={WEEK_DIVIDER_WIDTH}>
-      {Array.from({ length: lines }, (_, i) => (
-        <Box key={i} height={1}>
-          <Text color="gray" wrap="truncate">
-            {padToWidth('│', WEEK_DIVIDER_WIDTH)}
-          </Text>
-        </Box>
-      ))}
-    </Box>
-  );
-}
 
 function isDoneTask(item: Item): boolean {
   return item.status === 'done' && item.source === 'task';
@@ -503,7 +489,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
   const selectedWeekItem = selectedCandidate?.start && isSameDay(selectedCandidate.start, focusedDay.toISO()!) ? selectedCandidate : undefined;
   const selectedDayIndex = Math.max(0, days.findIndex((d) => d.hasSame(focusedDay, 'day')));
   const viewWidth = Math.max(80, columns) - 4;
-  const availableWidth = viewWidth - WEEK_DIVIDER_WIDTH * (days.length - 1);
+  const availableWidth = viewWidth - COLUMN_DIVIDER_WIDTH * (days.length - 1);
   const totalWeight = days.length + WEEK_FOCUS_WEIGHT - 1;
   const dayWidths = days.map((_, dayIndex) =>
     Math.max(CALENDAR_PREFIX_COL + 4, Math.floor((availableWidth * (dayIndex === selectedDayIndex ? WEEK_FOCUS_WEIGHT : 1)) / totalWeight)),
@@ -513,7 +499,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
     dayWidths[selectedDayIndex] += availableWidth - usedWidth;
   }
   const dayStarts = dayWidths.reduce<number[]>((starts, width, dayIndex) => {
-    starts.push(dayIndex === 0 ? 2 : starts[dayIndex - 1]! + dayWidths[dayIndex - 1]! + WEEK_DIVIDER_WIDTH);
+    starts.push(dayIndex === 0 ? 2 : starts[dayIndex - 1]! + dayWidths[dayIndex - 1]! + COLUMN_DIVIDER_WIDTH);
     return starts;
   }, []);
 
@@ -734,9 +720,9 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
           {days.map((d, dayIndex) => (
             <React.Fragment key={`week-head-${d.toISODate()}`}>
               {dayIndex > 0 ? (
-                <Box width={WEEK_DIVIDER_WIDTH} height={1}>
+                <Box width={COLUMN_DIVIDER_WIDTH} height={1}>
                   <Text color="gray" wrap="truncate">
-                    {padToWidth('│', WEEK_DIVIDER_WIDTH)}
+                    {padToWidth('│', COLUMN_DIVIDER_WIDTH)}
                   </Text>
                 </Box>
               ) : null}
@@ -758,7 +744,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
             const visible = dayItems.slice(0, paintRows);
             return (
               <React.Fragment key={`week-col-${d.toISODate()}`}>
-                {dayIndex > 0 ? <WeekColumnDivider lines={maxBodyLines} /> : null}
+                {dayIndex > 0 ? <ColumnDivider lines={maxBodyLines} /> : null}
                 <Box flexDirection="column" width={colWidth}>
                   {visible.length === 0 ? (
                     <Box height={1}>
