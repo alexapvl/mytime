@@ -12,6 +12,16 @@ type Props = {
   showMeta?: boolean;
 };
 
+export function itemDetailLineCount(
+  item: Item,
+  { showSchedule = true, showMeta = true }: { showSchedule?: boolean; showMeta?: boolean } = {},
+): number {
+  let n = 0;
+  if (showSchedule && scheduleLabel(item)) n++;
+  if (showMeta && metaLabel(item)) n++;
+  return n;
+}
+
 export function ItemDetailLines({
   item,
   maxWidth,

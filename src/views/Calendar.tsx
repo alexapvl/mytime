@@ -11,7 +11,7 @@ import { ItemEditor } from '../components/ItemEditor.js';
 import { useClickRegions } from '../components/Mouse.js';
 import { ScheduleEditor } from '../components/ScheduleEditor.js';
 import { CalendarEventRow, CALENDAR_PREFIX_COL, hasWeekTime } from '../components/CalendarEventRow.js';
-import { ItemDetailLines } from '../components/ItemDetailLines.js';
+import { ItemDetailLines, itemDetailLineCount } from '../components/ItemDetailLines.js';
 import { ShortcutBar } from '../components/ShortcutBar.js';
 import { useInputFocus } from '../context/InputFocusContext.js';
 import { useUndo } from '../context/UndoContext.js';
@@ -65,6 +65,21 @@ const DAY_CONTENT_ROW = VIEW_ROW0 + 3;
 const WEEK_EVENTS_ROW = VIEW_ROW0 + 4;
 const WEEK_DIVIDER_WIDTH = 1;
 const WEEK_FOCUS_WEIGHT = 2;
+const WEEK_DETAIL_OPTS = { showSchedule: false, showMeta: true } as const;
+
+function WeekColumnDivider({ lines }: { lines: number }) {
+  return (
+    <Box flexDirection="column" width={WEEK_DIVIDER_WIDTH}>
+      {Array.from({ length: lines }, (_, i) => (
+        <Box key={i} height={1}>
+          <Text color="gray" wrap="truncate">
+            {padToWidth('│', WEEK_DIVIDER_WIDTH)}
+          </Text>
+        </Box>
+      ))}
+    </Box>
+  );
+}
 
 function isDoneTask(item: Item): boolean {
   return item.status === 'done' && item.source === 'task';
@@ -510,13 +525,29 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
   const weekKey = weekStart.toISODate();
   const maxPaintRows = Math.max(1, contentRows - WEEK_VIEW_HEADER_ROWS);
   const paintRows = Math.min(maxPaintRows, itemRows);
+  const weekBodyLines = useMemo(
+    () =>
+      days.map((_, dayIndex) => {
+        const dayItems = itemsByDay[dayIndex]!;
+        const visible = dayItems.slice(0, paintRows);
+        if (visible.length === 0) return 1;
+        let lines = 0;
+        for (const item of visible) {
+          lines += 1;
+          if (selectedWeekItem?.id === item.id) lines += itemDetailLineCount(item, WEEK_DETAIL_OPTS);
+        }
+        return lines;
+      }),
+    [days, itemsByDay, paintRows, selectedWeekItem?.id],
+  );
+  const maxBodyLines = Math.max(1, ...weekBodyLines);
 
   const regions = useMemo<ClickRegion[]>(() => {
     const out: ClickRegion[] = [];
     days.forEach((d, dayIndex) => {
       const colStart = dayStarts[dayIndex]!;
       const dayWidth = dayWidths[dayIndex]!;
-      const dayItems = scheduled.filter((i) => i.start && isSameDay(i.start, d.toISO()!));
+      const dayItems = itemsByDay[dayIndex]!;
       out.push({
         row: WEEK_EVENTS_ROW - 1,
         col: colStart,
@@ -526,23 +557,33 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
           if (dayItems.length > 0) setSelected(scheduled.indexOf(dayItems[0]!));
         },
       });
-      for (let ei = 0; ei < paintRows; ei++) {
-        const item = dayItems[ei];
-        const isEmptyDay = dayItems.length === 0 && ei === 0;
-        if (!item && !isEmptyDay) continue;
+      let row = WEEK_EVENTS_ROW;
+      const visible = dayItems.slice(0, paintRows);
+      if (visible.length === 0) {
         out.push({
-          row: WEEK_EVENTS_ROW + ei,
+          row,
+          col: colStart,
+          endCol: colStart + dayWidth - 1,
+          onClick: () => setFocusedDayISO(d.toISODate()!),
+        });
+        return;
+      }
+      for (const item of visible) {
+        out.push({
+          row,
           col: colStart,
           endCol: colStart + dayWidth - 1,
           onClick: () => {
             setFocusedDayISO(d.toISODate()!);
-            if (item) setSelected(scheduled.indexOf(item));
+            setSelected(scheduled.indexOf(item));
           },
         });
+        row += 1;
+        if (selectedWeekItem?.id === item.id) row += itemDetailLineCount(item, WEEK_DETAIL_OPTS);
       }
     });
     return out;
-  }, [scheduled, weekStart.toISODate(), dayStarts, dayWidths, paintRows]);
+  }, [scheduled, weekStart.toISODate(), dayStarts, dayWidths, paintRows, itemsByDay, selectedWeekItem?.id, focusedDayISO]);
   useClickRegions('week', editing ? [] : regions);
 
   useAppInput(
@@ -710,39 +751,29 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
             </React.Fragment>
           ))}
         </Box>
-        {Array.from({ length: paintRows }, (_, rowIndex) => (
-          <Box key={`week-row-${rowIndex}`} flexDirection="row">
-            {days.map((d, dayIndex) => {
-              const dayItems = itemsByDay[dayIndex]!;
-              const item = dayItems[rowIndex];
-              const colWidth = dayWidths[dayIndex]!;
-              return (
-                <React.Fragment key={`${d.toISODate()}-${rowIndex}`}>
-                  {dayIndex > 0 ? (
-                    <Box width={WEEK_DIVIDER_WIDTH} height={1}>
-                      <Text color="gray" wrap="truncate">
-                        {padToWidth('│', WEEK_DIVIDER_WIDTH)}
+        <Box flexDirection="row" alignItems="flex-start">
+          {days.map((d, dayIndex) => {
+            const dayItems = itemsByDay[dayIndex]!;
+            const colWidth = dayWidths[dayIndex]!;
+            const visible = dayItems.slice(0, paintRows);
+            return (
+              <React.Fragment key={`week-col-${d.toISODate()}`}>
+                {dayIndex > 0 ? <WeekColumnDivider lines={maxBodyLines} /> : null}
+                <Box flexDirection="column" width={colWidth}>
+                  {visible.length === 0 ? (
+                    <Box height={1}>
+                      <Text
+                        color={dayIndex === selectedDayIndex ? 'cyanBright' : undefined}
+                        bold={dayIndex === selectedDayIndex}
+                        dimColor={dayIndex !== selectedDayIndex}
+                        wrap="truncate"
+                      >
+                        {padToWidth(dayIndex === selectedDayIndex ? '▸ —' : '—', colWidth)}
                       </Text>
                     </Box>
-                  ) : null}
-                  <Box width={colWidth} flexDirection="column">
-                    {!item ? (
-                      <Box height={1}>
-                        {rowIndex === 0 && dayItems.length === 0 ? (
-                          <Text
-                            color={dayIndex === selectedDayIndex ? 'cyanBright' : undefined}
-                            bold={dayIndex === selectedDayIndex}
-                            dimColor={dayIndex !== selectedDayIndex}
-                            wrap="truncate"
-                          >
-                            {padToWidth(dayIndex === selectedDayIndex ? '▸ —' : '—', colWidth)}
-                          </Text>
-                        ) : (
-                          <Text wrap="truncate">{padToWidth('', colWidth)}</Text>
-                        )}
-                      </Box>
-                    ) : (
-                      <>
+                  ) : (
+                    visible.map((item) => (
+                      <Box key={item.id} flexDirection="column">
                         <Box height={1}>
                           <CalendarEventRow
                             item={item}
@@ -754,14 +785,14 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
                         {selectedWeekItem?.id === item.id ? (
                           <ItemDetailLines item={item} maxWidth={colWidth} showSchedule={false} />
                         ) : null}
-                      </>
-                    )}
-                  </Box>
-                </React.Fragment>
-              );
-            })}
-          </Box>
-        ))}
+                      </Box>
+                    ))
+                  )}
+                </Box>
+              </React.Fragment>
+            );
+          })}
+        </Box>
       </Box>
     </Box>
   );
