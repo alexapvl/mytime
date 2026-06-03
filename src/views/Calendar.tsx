@@ -5,12 +5,12 @@ import { DateTime } from 'luxon';
 import type { Item } from '../db/types.js';
 import { createItem, deleteItem, listScheduledInRange, scheduleAllDayItem, scheduleItem, toggleDone, updateItem } from '../db/items.js';
 import { padToWidth } from '../lib/textWidth.js';
-import { addMinutes, allDayRange, formatScheduleTime, formatTime, hourLabels, isSameDay } from '../lib/time.js';
+import { addMinutes, allDayRange, hourLabels, isSameDay } from '../lib/time.js';
 import { autoPush, autoRemove } from '../google/autoSync.js';
 import { ItemEditor } from '../components/ItemEditor.js';
 import { useClickRegions } from '../components/Mouse.js';
 import { ScheduleEditor } from '../components/ScheduleEditor.js';
-import { MarqueeText } from '../components/MarqueeText.js';
+import { CalendarEventRow, CALENDAR_PREFIX_COL, hasWeekTime } from '../components/CalendarEventRow.js';
 import { ShortcutBar } from '../components/ShortcutBar.js';
 import { useInputFocus } from '../context/InputFocusContext.js';
 import { useUndo } from '../context/UndoContext.js';
@@ -65,21 +65,8 @@ const WEEK_EVENTS_ROW = VIEW_ROW0 + 4;
 const WEEK_DIVIDER_WIDTH = 1;
 const WEEK_FOCUS_WEIGHT = 2;
 
-const DONE_PREFIX = '✓ ';
-
-function displayTitle(item: Item): string {
-  return item.status === 'done' && item.source === 'task' ? `${DONE_PREFIX}${item.title}` : item.title;
-}
-
 function isDoneTask(item: Item): boolean {
   return item.status === 'done' && item.source === 'task';
-}
-
-function hasWeekTime(item: Item): boolean {
-  if (item.allDay || !item.start || !item.end) return false;
-  const start = DateTime.fromISO(item.start);
-  const end = DateTime.fromISO(item.end);
-  return !(start.hour === 0 && start.minute === 0 && end.hour === 0 && end.minute === 0);
 }
 
 function allDayFields(day: DateTime): { start: string; end: string; allDay: true } {
@@ -149,10 +136,10 @@ function CalendarTaskCreator({
 }
 
 
-const DAY_TIME_COL = 10;
+type DayLine = { key: string; hour: string; item?: Item; separator?: false } | { key: string; separator: true };
 
-function dayLineTitle(item: Item, title: string): string {
-  return hasWeekTime(item) && item.end ? `${formatTime(item.end)} ${title}` : title;
+function rowDivider(width: number): string {
+  return '─'.repeat(Math.max(1, width));
 }
 
 export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
@@ -160,7 +147,6 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
   const { pushUndo } = useUndo();
   const { contentRows, columns } = useViewport();
   const viewWidth = Math.max(40, columns - 6);
-  const titleWidth = Math.max(1, viewWidth - DAY_TIME_COL);
   const [day, setDay] = useState(() => DateTime.local().startOf('day'));
   const [items, setItems] = useState<Item[]>([]);
   const [selected, setSelected] = useState(0);
@@ -203,8 +189,10 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
 
   // Build the rendered line list so click rows stay in sync with the layout.
   const lines = useMemo(() => {
-    const out: { key: string; hour: string; item?: Item }[] = [];
-    scheduled.filter((item) => !hasWeekTime(item)).forEach((item) => out.push({ key: item.id, hour: 'all day', item }));
+    const out: DayLine[] = [];
+    const allDay = scheduled.filter((item) => !hasWeekTime(item));
+    allDay.forEach((item) => out.push({ key: item.id, hour: 'all day', item }));
+    if (allDay.length > 0) out.push({ key: 'all-day-separator', separator: true });
     hours.forEach((hour, hi) => {
       const blocks = scheduled.filter((item) => hasWeekTime(item) && item.start && DateTime.fromISO(item.start).hour === hi);
       if (blocks.length === 0) {
@@ -400,6 +388,15 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
       />
       <Box flexDirection="column" marginTop={1} width={viewWidth}>
         {visibleLines.map((line) => {
+          if ('separator' in line && line.separator) {
+            return (
+              <Box key={line.key} width={viewWidth} height={1} overflow="hidden">
+                <Text dimColor wrap="truncate">
+                  {padToWidth(rowDivider(viewWidth), viewWidth)}
+                </Text>
+              </Box>
+            );
+          }
           if (!line.item) {
             return (
               <Box key={line.key} width={viewWidth} height={1} overflow="hidden">
@@ -412,33 +409,13 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
           const item = line.item;
           const idx = scheduled.indexOf(item);
           const selectedHere = idx === sel;
-          const external = item.source === 'external';
-          const done = isDoneTask(item);
-          const title = displayTitle(item);
-          const marker = selectedHere ? '▸' : '·';
-          const lineColor = selectedHere ? 'cyan' : external ? 'magenta' : 'white';
-          const lineDim = (external && !selectedHere) || (done && !selectedHere);
           return (
-            <Box key={line.key} width={viewWidth} height={1} flexDirection="row" overflow="hidden">
-              <Box width={DAY_TIME_COL} height={1} overflow="hidden">
-                <Text
-                  color={lineColor}
-                  bold={selectedHere}
-                  dimColor={lineDim}
-                  wrap="truncate"
-                >
-                  {padToWidth(`${line.hour} ${marker}`, DAY_TIME_COL)}
-                </Text>
-              </Box>
-              <MarqueeText
-                text={dayLineTitle(item, title)}
-                maxWidth={titleWidth}
-                active={selectedHere}
-                color={lineColor}
-                bold={selectedHere}
-                dimColor={lineDim}
-              />
-            </Box>
+            <CalendarEventRow
+              key={line.key}
+              item={item}
+              rowWidth={viewWidth}
+              selected={selectedHere}
+            />
           );
         })}
       </Box>
@@ -508,7 +485,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
   const availableWidth = viewWidth - WEEK_DIVIDER_WIDTH * (days.length - 1);
   const totalWeight = days.length + WEEK_FOCUS_WEIGHT - 1;
   const dayWidths = days.map((_, dayIndex) =>
-    Math.max(8, Math.floor((availableWidth * (dayIndex === selectedDayIndex ? WEEK_FOCUS_WEIGHT : 1)) / totalWeight)),
+    Math.max(CALENDAR_PREFIX_COL + 4, Math.floor((availableWidth * (dayIndex === selectedDayIndex ? WEEK_FOCUS_WEIGHT : 1)) / totalWeight)),
   );
   const usedWidth = dayWidths.reduce((sum, width) => sum + width, 0);
   if (usedWidth < availableWidth) {
@@ -756,26 +733,10 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
                         <Text wrap="truncate">{padToWidth('', colWidth)}</Text>
                       )
                     ) : (
-                      <MarqueeText
-                        text={displayTitle(item)}
-                        maxWidth={colWidth}
-                        prefix={
-                          dayIndex === selectedDayIndex && hasWeekTime(item)
-                            ? `${formatScheduleTime(item.start!, item.end, item.allDay)} `
-                            : ''
-                        }
-                        active={selectedWeekItem?.id === item.id}
-                        color={
-                          selectedWeekItem?.id === item.id
-                            ? 'cyan'
-                            : item.source === 'external'
-                              ? 'magenta'
-                              : undefined
-                        }
-                        dimColor={
-                          (item.source === 'external' && selectedWeekItem?.id !== item.id) ||
-                          (isDoneTask(item) && selectedWeekItem?.id !== item.id)
-                        }
+                      <CalendarEventRow
+                        item={item}
+                        rowWidth={colWidth}
+                        selected={selectedWeekItem?.id === item.id}
                       />
                     )}
                   </Box>

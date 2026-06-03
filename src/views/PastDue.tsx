@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Text } from 'ink';
 import { ItemEditor } from '../components/ItemEditor.js';
 import { ScheduleEditor } from '../components/ScheduleEditor.js';
-import { MarqueeText } from '../components/MarqueeText.js';
+import { CalendarEventRow } from '../components/CalendarEventRow.js';
 import { ShortcutBar } from '../components/ShortcutBar.js';
 import { useClickRegions } from '../components/Mouse.js';
 import { useInputFocus } from '../context/InputFocusContext.js';
@@ -22,7 +22,7 @@ import {
 } from '../db/items.js';
 import { autoPush, autoRemove } from '../google/autoSync.js';
 import { overdueLabel } from '../lib/overdue.js';
-import { formatDate, formatScheduleTime } from '../lib/time.js';
+import { formatDate, formatScheduleTime, isAllDaySchedule } from '../lib/time.js';
 import { PAST_DUE_SHORTCUTS } from '../lib/shortcuts.js';
 import { cloneItem, makeUndoDelete, makeUndoToggleDone } from '../lib/undoActions.js';
 
@@ -34,6 +34,8 @@ type Props = {
 
 type Mode = 'list' | 'edit' | 'schedule';
 
+const DETAIL_INDENT = '  ';
+
 function metaLabel(item: Item): string {
   const parts: string[] = [];
   if (item.project) parts.push(`@${item.project.replace(/^@/, '')}`);
@@ -43,7 +45,9 @@ function metaLabel(item: Item): string {
 
 function scheduleLabel(item: Item): string {
   if (!item.start) return '';
-  return `${formatDate(item.start)} ${formatScheduleTime(item.start, item.end, item.allDay)}`;
+  const date = formatDate(item.start);
+  if (isAllDaySchedule(item.start, item.end ?? undefined, item.allDay)) return date;
+  return `${date} ${formatScheduleTime(item.start, item.end, item.allDay)}`;
 }
 
 export function PastDueView({ onRefresh, onStatus, refreshToken }: Props) {
@@ -176,38 +180,28 @@ export function PastDueView({ onRefresh, onStatus, refreshToken }: Props) {
             const selectedHere = rowIndex === sel;
             return (
               <Box key={item.id} flexDirection="column">
-                <MarqueeText
-                  text={item.title}
-                  maxWidth={viewWidth}
-                  prefix={selectedHere ? '▸ ' : '  '}
-                  active={selectedHere}
-                  color={selectedHere ? 'cyan' : 'red'}
-                  bold={selectedHere}
+                <CalendarEventRow
+                  item={item}
+                  rowWidth={viewWidth}
+                  selected={selectedHere}
+                  color={selectedHere ? 'cyan' : 'white'}
+                  dimColor={!selectedHere}
                   underline={selectedHere}
+                  showTime={false}
+                  titleSuffix={overdueLabel(item) ? ` (${overdueLabel(item)})` : ''}
                 />
                 {selectedHere ? (
                   <>
-                    <Text color="red" wrap="truncate">
-                      {'    ↳ '}
-                      {overdueLabel(item)}
-                    </Text>
                     <Text dimColor wrap="truncate">
-                      {'    ↳ '}
-                      {scheduleLabel(item)}
+                      {DETAIL_INDENT}↳ {scheduleLabel(item)}
                     </Text>
                     {metaLabel(item) ? (
                       <Text dimColor wrap="truncate">
-                        {'    ↳ '}
-                        {metaLabel(item)}
+                        {DETAIL_INDENT}↳ {metaLabel(item)}
                       </Text>
                     ) : null}
                   </>
-                ) : (
-                  <Text color="red" dimColor={!selectedHere} wrap="truncate">
-                    {'  '}
-                    {overdueLabel(item)} · {scheduleLabel(item)}
-                  </Text>
-                )}
+                ) : null}
               </Box>
             );
           })
