@@ -410,7 +410,7 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
                       <MarqueeText
                         text={scheduleLabel(item)}
                         maxWidth={columnWidth}
-                        prefix="    ↳ "
+                        prefix="  ↳ "
                         active={selectedHere}
                         dimColor
                       />
@@ -419,7 +419,7 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
                       <MarqueeText
                         text={metaLabel(item)}
                         maxWidth={columnWidth}
-                        prefix="    ↳ "
+                        prefix="  ↳ "
                         active={selectedHere}
                         dimColor
                       />
