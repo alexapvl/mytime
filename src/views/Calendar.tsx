@@ -29,7 +29,7 @@ type Props = {
   onStatus: (msg: string) => void;
   refreshToken?: number;
 };
-type CalendarMode = 'list' | 'add' | 'quick';
+type CalendarMode = 'list' | 'add' | 'quick' | 'edit' | 'schedule';
 
 /** Index of the next upcoming item (start >= now). Items are sorted ascending by start. */
 function nearestIndexToNow(items: Item[]): number {
@@ -153,13 +153,12 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
   const [items, setItems] = useState<Item[]>([]);
   const [selected, setSelected] = useState(0);
   const [mode, setMode] = useState<CalendarMode>('list');
-  const [editing, setEditing] = useState<Item | null>(null);
   const pendingSelectRef = useRef<'first' | 'last' | 'nearest'>('nearest');
 
   useEffect(() => {
-    setInputFocused(editing !== null || mode !== 'list');
+    setInputFocused(mode !== 'list');
     return () => setInputFocused(false);
-  }, [editing, mode, setInputFocused]);
+  }, [mode, setInputFocused]);
 
   useEffect(() => {
     const loaded = listScheduledInRange(day.startOf('day').toISO()!, day.endOf('day').toISO()!);
@@ -220,7 +219,7 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
         .filter((r): r is ClickRegion => r !== null),
     [visibleLines, scheduled],
   );
-  useClickRegions('day', editing ? [] : regions);
+  useClickRegions('day', mode !== 'list' ? [] : regions);
 
   useAppInput(
     (input, key) => {
@@ -298,8 +297,12 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
 
       if (!item?.start || !item.end || item.source === 'external') return;
 
+      if (input === 'e') {
+        setMode('edit');
+        return;
+      }
       if (input === 's') {
-        setEditing(item);
+        setMode('schedule');
         return;
       }
       if (input === 'x') {
@@ -339,10 +342,10 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
         }
       }
     },
-    { isActive: editing === null && mode === 'list' },
+    { isActive: mode === 'list' },
   );
 
-  if (mode !== 'list') {
+  if (mode === 'add' || mode === 'quick') {
     return (
       <CalendarTaskCreator
         mode={mode}
@@ -358,19 +361,43 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
     );
   }
 
-  if (editing) {
-    const target = editing;
+  if (mode === 'edit' && selectedDayItem?.source === 'task') {
+    const item = selectedDayItem;
+    return (
+      <ItemEditor
+        mode="edit"
+        item={item}
+        onCancel={() => setMode('list')}
+        onSubmit={(data) => {
+          updateItem(item.id, {
+            title: data.title,
+            notes: data.notes,
+            project: data.project,
+            tags: data.tags,
+            priority: data.priority,
+          });
+          refresh();
+          autoPush(item.id, onStatus);
+          onStatus('Task updated');
+          setMode('list');
+        }}
+      />
+    );
+  }
+
+  if (mode === 'schedule' && selectedDayItem?.source === 'task') {
+    const item = selectedDayItem;
     return (
       <ScheduleEditor
-        item={target}
-        onCancel={() => setEditing(null)}
+        item={item}
+        onCancel={() => setMode('list')}
         onSubmit={(start, end, allDay) => {
-          if (allDay) scheduleAllDayItem(target.id, start, end);
-          else scheduleItem(target.id, start, end);
-          setEditing(null);
+          if (allDay) scheduleAllDayItem(item.id, start, end);
+          else scheduleItem(item.id, start, end);
           refresh();
-          autoPush(target.id, onStatus);
+          autoPush(item.id, onStatus);
           onStatus('Rescheduled');
+          setMode('list');
         }}
       />
     );
@@ -439,13 +466,12 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
   const [items, setItems] = useState<Item[]>([]);
   const [selected, setSelected] = useState(0);
   const [mode, setMode] = useState<CalendarMode>('list');
-  const [editing, setEditing] = useState<Item | null>(null);
   const pendingItemIdRef = useRef<string | null>(null);
   const weekSelectIntentRef = useRef<{ dayISO: string; select: 'first' | 'last' } | null>(null);
   useEffect(() => {
-    setInputFocused(editing !== null || mode !== 'list');
+    setInputFocused(mode !== 'list');
     return () => setInputFocused(false);
-  }, [editing, mode, setInputFocused]);
+  }, [mode, setInputFocused]);
 
   useEffect(() => {
     const loaded = listScheduledInRange(weekStart.toISO()!, weekStart.endOf('week').toISO()!);
@@ -570,7 +596,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
     });
     return out;
   }, [scheduled, weekStart.toISODate(), dayStarts, dayWidths, paintRows, itemsByDay, selectedWeekItem?.id, focusedDayISO]);
-  useClickRegions('week', editing ? [] : regions);
+  useClickRegions('week', mode !== 'list' ? [] : regions);
 
   useAppInput(
     (input, key) => {
@@ -645,8 +671,12 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
       const item = selectedWeekItem;
       if (!item?.start || !item.end || item.source === 'external') return;
 
+      if (input === 'e') {
+        setMode('edit');
+        return;
+      }
       if (input === 's') {
-        setEditing(item);
+        setMode('schedule');
         return;
       }
       if (input === 'x') {
@@ -672,10 +702,10 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
         return;
       }
     },
-    { isActive: editing === null && mode === 'list' },
+    { isActive: mode === 'list' },
   );
 
-  if (mode !== 'list') {
+  if (mode === 'add' || mode === 'quick') {
     return (
       <CalendarTaskCreator
         mode={mode}
@@ -691,19 +721,43 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
     );
   }
 
-  if (editing) {
-    const target = editing;
+  if (mode === 'edit' && selectedWeekItem?.source === 'task') {
+    const item = selectedWeekItem;
+    return (
+      <ItemEditor
+        mode="edit"
+        item={item}
+        onCancel={() => setMode('list')}
+        onSubmit={(data) => {
+          updateItem(item.id, {
+            title: data.title,
+            notes: data.notes,
+            project: data.project,
+            tags: data.tags,
+            priority: data.priority,
+          });
+          refresh();
+          autoPush(item.id, onStatus);
+          onStatus('Task updated');
+          setMode('list');
+        }}
+      />
+    );
+  }
+
+  if (mode === 'schedule' && selectedWeekItem?.source === 'task') {
+    const item = selectedWeekItem;
     return (
       <ScheduleEditor
-        item={target}
-        onCancel={() => setEditing(null)}
+        item={item}
+        onCancel={() => setMode('list')}
         onSubmit={(start, end, allDay) => {
-          if (allDay) scheduleAllDayItem(target.id, start, end);
-          else scheduleItem(target.id, start, end);
-          setEditing(null);
+          if (allDay) scheduleAllDayItem(item.id, start, end);
+          else scheduleItem(item.id, start, end);
           refresh();
-          autoPush(target.id, onStatus);
+          autoPush(item.id, onStatus);
           onStatus('Rescheduled');
+          setMode('list');
         }}
       />
     );
