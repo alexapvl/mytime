@@ -304,7 +304,7 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
   if (mode === 'quick') {
     return (
       <Box flexDirection="column">
-        <Text color="cyan">Quick add (NLP):</Text>
+        <Text color="cyanBright">Quick add (NLP):</Text>
         <Text dimColor>e.g. "review PR tomorrow 3pm @work p2 #swe"</Text>
         <Box marginTop={1}>
           <Text>&gt; </Text>
@@ -418,7 +418,7 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
                   </Box>
                 ) : null}
                 <Box width={columnWidth} height={1}>
-                  <Text bold color={columnSelected ? 'cyan' : undefined} wrap="truncate">
+                  <Text bold color={columnSelected ? 'cyanBright' : undefined} wrap="truncate">
                     {padToWidth(`P${priority}`, columnWidth)}
                   </Text>
                 </Box>
@@ -436,7 +436,7 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
                 <Box flexDirection="column" width={columnWidth}>
                   {visible.length === 0 ? (
                     <Box height={1}>
-                      <Text color={columnSelected ? 'cyan' : undefined} dimColor={!columnSelected} wrap="truncate">
+                      <Text color={columnSelected ? 'cyanBright' : undefined} dimColor={!columnSelected} wrap="truncate">
                         {padToWidth(columnSelected ? '▸ —' : '—', columnWidth)}
                       </Text>
                     </Box>
@@ -450,9 +450,8 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
                               text={itemLabel(item)}
                               maxWidth={columnWidth}
                               active={selectedHere}
-                              color={selectedHere ? 'cyan' : undefined}
+                              color={selectedHere ? 'cyanBright' : undefined}
                               bold={selectedHere}
-                              underline={selectedHere}
                             />
                           </Box>
                           {selectedHere ? <ItemDetailLines item={item} maxWidth={columnWidth} /> : null}

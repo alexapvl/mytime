@@ -139,14 +139,14 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
   const windowSlots = filtered.slice(windowStart, windowStart + VISIBLE);
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1} width={viewWidth + 2}>
+    <Box flexDirection="column" borderStyle="round" borderColor="cyanBright" paddingX={1} width={viewWidth + 2}>
       <MarqueeText
         text={item.title}
         maxWidth={viewWidth}
         prefix={headerPrefix}
         active={false}
         bold
-        color="cyan"
+        color="cyanBright"
       />
       <MarqueeText
         text="←/→ day · ↑/↓ time · +/- step · f free slots · a all day · digits filter · enter confirm · esc cancel"
@@ -174,7 +174,7 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
 
       <Box width={viewWidth}>
         <Text>date: </Text>
-        <Text color="cyan">◂ {date.toFormat('EEE MMM d')} ▸</Text>
+        <Text color="cyanBright">◂ {date.toFormat('EEE MMM d')} ▸</Text>
         {isToday ? <Text dimColor> (today)</Text> : null}
       </Box>
       <Box flexDirection="column" width={viewWidth}>
@@ -202,7 +202,7 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
             const busy = overlaps.length > 0;
             return (
               <Box key={slot.toISO()} flexDirection="column">
-                <Text color={here ? 'cyan' : undefined} bold={here} dimColor={busy && !here}>
+                <Text color={here ? 'cyanBright' : undefined} bold={here} dimColor={busy && !here}>
                   {here ? '▸ ' : '  '}
                   {slot.toFormat('HH:mm')}–{slot.plus({ minutes: stepMinutes }).toFormat('HH:mm')}
                 </Text>

@@ -169,9 +169,7 @@ export function PastDueView({ onRefresh, onStatus, refreshToken }: Props) {
                   item={item}
                   rowWidth={viewWidth}
                   selected={selectedHere}
-                  color={selectedHere ? 'cyan' : 'white'}
                   dimColor={!selectedHere}
-                  underline={selectedHere}
                   showTime={false}
                   titleSuffix={overdueLabel(item) ? ` (${overdueLabel(item)})` : ''}
                 />

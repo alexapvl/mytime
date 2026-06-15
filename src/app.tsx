@@ -88,7 +88,7 @@ function AppShell({ screen }: { screen: Screen }) {
   return (
     <Box flexDirection="column" height={rows} overflow="hidden" padding={1}>
       <Box flexShrink={0} marginBottom={1}>
-        <Text bold color="magenta">
+        <Text bold color="cyanBright">
           mytime
         </Text>
         <Text dimColor> — {screen === 'settings' ? 'settings' : 'tasks + calendar'}</Text>
@@ -98,7 +98,11 @@ function AppShell({ screen }: { screen: Screen }) {
         <Box flexShrink={0} marginBottom={1}>
           {TABS.map((t) => (
             <Box key={t.id} marginRight={2}>
-              <Text color={tab === t.id ? 'cyan' : 'gray'} bold={tab === t.id} underline={tab === t.id}>
+              <Text
+                color={tab === t.id ? 'cyanBright' : undefined}
+                bold={tab === t.id}
+                dimColor={tab !== t.id}
+              >
                 [{t.key}] {t.label}
               </Text>
             </Box>

@@ -60,9 +60,9 @@ export function CalendarEventRow({
   const done = isDoneTask(item);
   const title = displayTitle(item) + titleSuffix;
   const timed = showTime && hasWeekTime(item);
-  const lineColor = color ?? (selected ? 'cyanBright' : external ? 'magenta' : undefined);
+  const lineColor = color ?? (selected ? 'cyanBright' : undefined);
   const lineDim = selected ? false : (dimColor ?? (external || done));
-  const lineUnderline = underline ?? selected;
+  const lineUnderline = underline ?? false;
 
   if (!timed) {
     return (

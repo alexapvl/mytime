@@ -47,7 +47,7 @@ function NotesField({ value, editing }: { value: string; editing: boolean }) {
       {lines.map((line, i) => (
         <Box key={i}>
           {i === 0 ? (
-            <Text color={editing ? 'cyan' : undefined}>{NOTES_LABEL}</Text>
+            <Text color={editing ? 'cyanBright' : undefined}>{NOTES_LABEL}</Text>
           ) : (
             <Text>{NOTES_INDENT}</Text>
           )}
@@ -152,27 +152,27 @@ export function ItemEditor({ item, mode, defaultPriority = 0, onSubmit, onCancel
   });
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1}>
-      <Text bold color="cyan">
+    <Box flexDirection="column" borderStyle="round" borderColor="cyanBright" paddingX={1}>
+      <Text bold color="cyanBright">
         {mode === 'add' ? 'New task' : 'Edit task'}
       </Text>
       <Text dimColor>type to edit · backspace delete · tab/enter/↓ next · shift+tab/↑ prev · enter save (last) · esc cancel</Text>
 
       <Box>
-        <Text color={field === 'title' ? 'cyan' : undefined}>Title*: </Text>
+        <Text color={field === 'title' ? 'cyanBright' : undefined}>Title*: </Text>
         {field === 'title' ? editableText(title) : <Text>{title || '—'}</Text>}
       </Box>
       <NotesField value={notes} editing={field === 'notes'} />
       <Box>
-        <Text color={field === 'project' ? 'cyan' : undefined}>Project: </Text>
+        <Text color={field === 'project' ? 'cyanBright' : undefined}>Project: </Text>
         {field === 'project' ? editableText(project) : <Text>{project || '—'}</Text>}
       </Box>
       <Box>
-        <Text color={field === 'tags' ? 'cyan' : undefined}>Tags: </Text>
+        <Text color={field === 'tags' ? 'cyanBright' : undefined}>Tags: </Text>
         {field === 'tags' ? editableText(tags) : <Text>{tags || '—'}</Text>}
       </Box>
       <Box>
-        <Text color={field === 'priority' ? 'cyan' : undefined}>Priority (0-3): </Text>
+        <Text color={field === 'priority' ? 'cyanBright' : undefined}>Priority (0-3): </Text>
         {field === 'priority' ? editableText(priority) : <Text>{priority}</Text>}
       </Box>
     </Box>

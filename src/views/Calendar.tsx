@@ -109,7 +109,7 @@ function CalendarTaskCreator({
   if (mode === 'quick') {
     return (
       <Box flexDirection="column">
-        <Text color="cyan">Quick add for {day.toFormat('EEE d MMM')}:</Text>
+        <Text color="cyanBright">Quick add for {day.toFormat('EEE d MMM')}:</Text>
         <Text dimColor>Time-only input uses this day. No time makes an all-day task.</Text>
         <Box marginTop={1}>
           <Text>&gt; </Text>
@@ -444,7 +444,6 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
                 item={item}
                 rowWidth={viewWidth}
                 selected={selectedHere}
-                underline={selectedHere}
               />
               {selectedHere ? (
                 <ItemDetailLines item={item} maxWidth={viewWidth} showSchedule={false} />
@@ -819,7 +818,6 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
                             item={item}
                             rowWidth={colWidth}
                             selected={selectedWeekItem?.id === item.id}
-                            underline={selectedWeekItem?.id === item.id}
                           />
                         </Box>
                         {selectedWeekItem?.id === item.id ? (

@@ -34,10 +34,10 @@ export function ItemDetailLines({
   return (
     <>
       {schedule ? (
-        <MarqueeText text={schedule} maxWidth={maxWidth} prefix={ITEM_DETAIL_PREFIX} dimColor />
+        <MarqueeText text={schedule} maxWidth={maxWidth} prefix={ITEM_DETAIL_PREFIX} color="cyanBright" />
       ) : null}
       {meta ? (
-        <MarqueeText text={meta} maxWidth={maxWidth} prefix={ITEM_DETAIL_PREFIX} dimColor />
+        <MarqueeText text={meta} maxWidth={maxWidth} prefix={ITEM_DETAIL_PREFIX} color="cyanBright" />
       ) : null}
     </>
   );

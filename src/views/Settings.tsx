@@ -129,7 +129,7 @@ export function SettingsView({ onStatus }: Props) {
             const suffix = cal.locked ? ' (always on)' : cal.primary ? ' (primary)' : '';
             return (
               <Box key={cal.id}>
-                <Text color={active ? 'cyan' : undefined} bold={active}>
+                <Text color={active ? 'cyanBright' : undefined} bold={active}>
                   {active ? '> ' : '  '}
                   {check} {cal.summary}
                   {suffix}
