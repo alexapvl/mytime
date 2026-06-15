@@ -73,6 +73,26 @@ function migrateSchema(database: Database.Database): void {
   }
   normalizeAllDayDates(database);
   stripEmojiFromStoredTitles(database);
+  normalizeEventTaskFields(database);
+}
+
+function normalizeEventTaskFields(database: Database.Database): void {
+  database.exec(`
+    UPDATE items SET
+      status = 'open',
+      completed_at = NULL,
+      project = NULL,
+      priority = 0,
+      tags = '[]'
+    WHERE source = 'event'
+      AND (
+        status != 'open'
+        OR completed_at IS NOT NULL
+        OR project IS NOT NULL
+        OR priority != 0
+        OR tags != '[]'
+      )
+  `);
 }
 
 function stripEmojiFromStoredTitles(database: Database.Database): void {

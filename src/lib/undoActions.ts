@@ -20,6 +20,7 @@ export function makeUndoDelete(snapshot: Item, onStatus: (msg: string) => void):
 
 export function makeUndoToggleDone(before: Item, onStatus: (msg: string) => void): () => void {
   return () => {
+    if (before.source !== 'task') return;
     updateItem(before.id, {
       status: before.status,
       completedAt: before.completedAt,

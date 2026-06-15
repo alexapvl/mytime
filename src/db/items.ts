@@ -64,24 +64,46 @@ export function createEvent(
   return createItem({
     ...partial,
     source: 'event',
+    status: 'open',
     tags: [],
     priority: 0,
     reminders: partial.reminders ?? defaultReminders(),
   });
 }
 
+function eventSafeUpdates(updates: Partial<Item>): Partial<Item> {
+  const { status: _status, completedAt: _completedAt, project: _project, priority: _priority, tags: _tags, ...rest } =
+    updates;
+  return rest;
+}
+
+function normalizeEventFields(item: Item): Item {
+  return {
+    ...item,
+    status: 'open',
+    completedAt: undefined,
+    project: undefined,
+    priority: 0,
+    tags: [],
+  };
+}
+
 export function updateItem(id: string, updates: Partial<Item>): Item | null {
   const existing = getItem(id);
   if (!existing) return null;
 
-  const item: Item = {
+  const safeUpdates = existing.source === 'event' ? eventSafeUpdates(updates) : updates;
+
+  let item: Item = {
     ...existing,
-    ...updates,
+    ...safeUpdates,
     id: existing.id,
     createdAt: existing.createdAt,
     updatedAt: nowISO(),
-    ...(updates.title !== undefined ? { title: cleanTitle(updates.title) } : {}),
+    ...(safeUpdates.title !== undefined ? { title: cleanTitle(safeUpdates.title) } : {}),
   };
+
+  if (item.source === 'event') item = normalizeEventFields(item);
 
   getDb().prepare(UPDATE_SQL).run(itemToRow(item));
   return item;

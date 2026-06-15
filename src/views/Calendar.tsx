@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
+import type { Key } from 'ink';
 import TextInput from 'ink-text-input';
 import { DateTime } from 'luxon';
 import type { Item, Reminder } from '../db/types.js';
@@ -122,11 +123,51 @@ function draftScheduleItem(title: string): Item {
 
 function calendarHelpContext(item: Item | undefined) {
   return {
-    isTask: item?.source === 'task',
-    isEvent: item?.source === 'event',
+    item,
     isLocal: !!item && isLocalItem(item),
     hasTime: item ? hasWeekTime(item) : false,
   };
+}
+
+/** +/_ adjust start; =/- adjust end. Terminals rarely set key.shift for shifted +/- keys. */
+function timedResizeInput(item: Item, input: string, key: Key): { updates: Partial<Item>; message: string } | null {
+  if (!item.start || !item.end || !hasWeekTime(item)) return null;
+
+  if (input === '+' || (key.shift && input === '=')) {
+    const newStart = addMinutes(item.start, 15);
+    if (DateTime.fromISO(newStart) >= DateTime.fromISO(item.end)) return null;
+    return { updates: { start: newStart }, message: 'Start 15m later' };
+  }
+  if (input === '_' || (key.shift && input === '-')) {
+    const newStart = addMinutes(item.start, -15);
+    if (DateTime.fromISO(newStart) >= DateTime.fromISO(item.end)) return null;
+    return { updates: { start: newStart }, message: 'Start 15m earlier' };
+  }
+  if (input === '=') {
+    return { updates: { end: addMinutes(item.end, 15) }, message: 'End 15m later' };
+  }
+  if (input === '-') {
+    const newEnd = addMinutes(item.end, -15);
+    if (DateTime.fromISO(newEnd) <= DateTime.fromISO(item.start)) return null;
+    return { updates: { end: newEnd }, message: 'End 15m earlier' };
+  }
+  return null;
+}
+
+function applyTimedResize(
+  item: Item,
+  input: string,
+  key: Key,
+  onStatus: (msg: string) => void,
+  refresh: () => void,
+): boolean {
+  const resize = timedResizeInput(item, input, key);
+  if (!resize) return false;
+  updateItem(item.id, resize.updates);
+  refresh();
+  autoPush(item.id, onStatus);
+  onStatus(resize.message);
+  return true;
 }
 
 function CalendarItemCreator({
@@ -218,7 +259,8 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
   const orderedItems = useMemo(() => orderedDayItems(scheduled), [scheduled]);
   const hours = useMemo(() => hourLabels(), []);
   const isToday = day.hasSame(DateTime.local(), 'day');
-  const sel = Math.min(selected, Math.max(0, orderedItems.length - 1));
+  const sel =
+    orderedItems.length === 0 ? 0 : Math.max(0, Math.min(selected, orderedItems.length - 1));
   const selectedDayItem = orderedItems[sel];
 
   // Build the rendered line list so click rows stay in sync with the layout.
@@ -316,7 +358,7 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
 
       if (orderedItems.length === 0) return;
 
-      const item = scheduled[sel];
+      const item = orderedItems[sel];
       if (input === 'J' || (key.shift && key.downArrow)) {
         if (item?.start && item.end && isLocalItem(item) && hasWeekTime(item)) {
           updateItem(item.id, { start: addMinutes(item.start, 60), end: addMinutes(item.end, 60) });
@@ -368,40 +410,7 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
         onStatus('Deleted');
         return;
       }
-      if (!hasWeekTime(item)) return;
-      if ((input === '+' || input === '=') && key.shift) {
-        const newStart = addMinutes(item.start, 15);
-        if (DateTime.fromISO(newStart) < DateTime.fromISO(item.end)) {
-          updateItem(item.id, { start: newStart });
-          refresh();
-          autoPush(item.id, onStatus);
-          onStatus('Start 15m later');
-        }
-        return;
-      }
-      if (input === '-' && key.shift) {
-        const newStart = addMinutes(item.start, -15);
-        if (DateTime.fromISO(newStart) < DateTime.fromISO(item.end)) {
-          updateItem(item.id, { start: newStart });
-          refresh();
-          autoPush(item.id, onStatus);
-          onStatus('Start 15m earlier');
-        }
-        return;
-      }
-      if (input === '+' || input === '=') {
-        updateItem(item.id, { end: addMinutes(item.end, 15) });
-        refresh();
-        autoPush(item.id, onStatus);
-      }
-      if (input === '-') {
-        const newEnd = addMinutes(item.end, -15);
-        if (DateTime.fromISO(newEnd) > DateTime.fromISO(item.start)) {
-          updateItem(item.id, { end: newEnd });
-          refresh();
-          autoPush(item.id, onStatus);
-        }
-      }
+      if (applyTimedResize(item, input, key, onStatus, refresh)) return;
     },
     { isActive: mode === 'list' },
   );
@@ -865,40 +874,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
         onStatus('Deleted');
         return;
       }
-      if (!hasWeekTime(item)) return;
-      if ((input === '+' || input === '=') && key.shift) {
-        const newStart = addMinutes(item.start, 15);
-        if (DateTime.fromISO(newStart) < DateTime.fromISO(item.end)) {
-          updateItem(item.id, { start: newStart });
-          refresh();
-          autoPush(item.id, onStatus);
-          onStatus('Start 15m later');
-        }
-        return;
-      }
-      if (input === '-' && key.shift) {
-        const newStart = addMinutes(item.start, -15);
-        if (DateTime.fromISO(newStart) < DateTime.fromISO(item.end)) {
-          updateItem(item.id, { start: newStart });
-          refresh();
-          autoPush(item.id, onStatus);
-          onStatus('Start 15m earlier');
-        }
-        return;
-      }
-      if (input === '+' || input === '=') {
-        updateItem(item.id, { end: addMinutes(item.end, 15) });
-        refresh();
-        autoPush(item.id, onStatus);
-      }
-      if (input === '-') {
-        const newEnd = addMinutes(item.end, -15);
-        if (DateTime.fromISO(newEnd) > DateTime.fromISO(item.start)) {
-          updateItem(item.id, { end: newEnd });
-          refresh();
-          autoPush(item.id, onStatus);
-        }
-      }
+      if (applyTimedResize(item, input, key, onStatus, refresh)) return;
     },
     { isActive: mode === 'list' },
   );

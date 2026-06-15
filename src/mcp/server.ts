@@ -40,6 +40,19 @@ function toolError(message: string): CallToolResult {
 
 /** Compact, agent-friendly view of an item. */
 function view(item: Item) {
+  if (item.source === 'event') {
+    return {
+      id: item.id,
+      title: item.title,
+      source: item.source,
+      location: item.location,
+      reminders: item.reminders,
+      start: item.start,
+      end: item.end,
+      allDay: item.allDay,
+      notes: item.notes,
+    };
+  }
   return {
     id: item.id,
     title: item.title,
@@ -48,10 +61,9 @@ function view(item: Item) {
     priority: item.priority,
     project: item.project,
     tags: item.tags,
-    location: item.location,
-    reminders: item.reminders,
     start: item.start,
     end: item.end,
+    allDay: item.allDay,
     notes: item.notes,
   };
 }

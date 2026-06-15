@@ -9,8 +9,7 @@ export type BacklogHelpContext = {
 };
 
 export type CalendarHelpContext = {
-  isTask: boolean;
-  isEvent: boolean;
+  item?: { source: string };
   isLocal: boolean;
   hasTime: boolean;
 };
@@ -47,7 +46,7 @@ export const DAILY_SHORTCUTS: Shortcut<CalendarHelpContext>[] = [
   { keys: '⇧↑/↓', label: 'move 1h', show: (ctx) => ctx.isLocal && ctx.hasTime },
   { keys: '+/-', label: 'end ±15m', show: (ctx) => ctx.isLocal && ctx.hasTime },
   { keys: '⇧+/-', label: 'start ±15m', show: (ctx) => ctx.isLocal && ctx.hasTime },
-  { keys: 'x', label: 'done', show: (ctx) => ctx.isTask },
+  { keys: 'x', label: 'done', show: (ctx) => ctx.item?.source === 'task' },
   { keys: 'd', label: 'delete', show: (ctx) => ctx.isLocal },
 ];
 
@@ -73,6 +72,6 @@ export const WEEK_SHORTCUTS: Shortcut<CalendarHelpContext>[] = [
   { keys: '⇧↑/↓', label: 'move 1h', show: (ctx) => ctx.isLocal && ctx.hasTime },
   { keys: '+/-', label: 'end ±15m', show: (ctx) => ctx.isLocal && ctx.hasTime },
   { keys: '⇧+/-', label: 'start ±15m', show: (ctx) => ctx.isLocal && ctx.hasTime },
-  { keys: 'x', label: 'done', show: (ctx) => ctx.isTask },
+  { keys: 'x', label: 'done', show: (ctx) => ctx.item?.source === 'task' },
   { keys: 'd', label: 'delete', show: (ctx) => ctx.isLocal },
 ];
