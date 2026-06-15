@@ -26,7 +26,7 @@ export const DAY_VIEW_HEADER_ROWS = 3;
 export const WEEK_VIEW_HEADER_ROWS = 4;
 export const BACKLOG_VIEW_HEADER_ROWS = 2;
 export const PAST_DUE_VIEW_HEADER_ROWS = 2;
-export const SETTINGS_VIEW_HEADER_ROWS = 6;
+export const SETTINGS_VIEW_HEADER_ROWS = 7;
 
 /** Per-day column geometry in the week grid (Box width 18 + marginRight 2, left padding 1). */
 export const WEEK_COL_WIDTH = 20;

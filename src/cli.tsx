@@ -2,7 +2,7 @@ import React from 'react';
 import { render } from 'ink';
 import { App } from './app.js';
 import { closeDb } from './db/schema.js';
-import { createItem } from './db/items.js';
+import { createItem, createEvent } from './db/items.js';
 import { parseQuickAdd } from './lib/nlp.js';
 import { authenticate, isAuthenticated } from './google/auth.js';
 import { syncWithGoogle } from './google/sync.js';
@@ -48,6 +48,31 @@ async function main() {
       });
       console.log(`Added: ${item.title}${item.start ? ` @ ${item.allDay ? 'all day ' : ''}${item.start}` : ''}`);
       if (isAuthenticated() && item.start) {
+        const result = await syncWithGoogle();
+        if (result.errors.length) console.warn(result.errors.join('\n'));
+      }
+      process.exit(0);
+    }
+
+    if (command === 'event') {
+      const text = args.slice(1).join(' ');
+      if (!text) {
+        console.error('Usage: mytime event "meeting tomorrow 3pm"');
+        process.exit(1);
+      }
+      const parsed = parseQuickAdd(text);
+      if (!parsed.start) {
+        console.error('Events require a date/time. Example: mytime event "dentist tomorrow 2pm"');
+        process.exit(1);
+      }
+      const item = createEvent({
+        title: parsed.title,
+        start: parsed.start,
+        end: parsed.end,
+        allDay: parsed.allDay,
+      });
+      console.log(`Added event: ${item.title} @ ${parsed.allDay ? 'all day ' : ''}${item.start}`);
+      if (isAuthenticated()) {
         const result = await syncWithGoogle();
         if (result.errors.length) console.warn(result.errors.join('\n'));
       }
@@ -119,7 +144,8 @@ mytime — unified tasks + calendar
 
 Usage:
   mytime              Launch interactive TUI
-  mytime add "<text>" Quick-add with natural language
+  mytime add "<text>"   Quick-add task with natural language
+  mytime event "<text>" Quick-add calendar event (requires date/time)
   mytime today        Print today's schedule
   mytime auth         Connect Google Calendar
   mytime settings     Choose which Google calendars to fetch locally

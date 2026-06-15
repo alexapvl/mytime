@@ -1,21 +1,31 @@
 import { DateTime } from 'luxon';
 import { getDb } from './schema.js';
-import { Item, ItemRow, rowToItem, itemToRow } from './types.js';
+import { Item, ItemRow, Reminder, rowToItem, itemToRow } from './types.js';
 import { nowISO } from '../lib/time.js';
 import { cleanTitle } from '../lib/textClean.js';
+import { defaultReminders } from '../lib/reminders.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const SELECT = `
-  SELECT id, title, notes, project, tags, priority, status, source, all_day,
+  SELECT id, title, notes, project, tags, priority, status, source, location, reminders, all_day,
          start, end, google_event_id, google_calendar_id, synced_at, updated_at, created_at, completed_at
   FROM items
 `;
 
+const INSERT_SQL = `INSERT INTO items (id, title, notes, project, tags, priority, status, source, location, reminders, start, end, all_day, google_event_id, google_calendar_id, synced_at, updated_at, created_at, completed_at)
+       VALUES (@id, @title, @notes, @project, @tags, @priority, @status, @source, @location, @reminders, @start, @end, @all_day, @google_event_id, @google_calendar_id, @synced_at, @updated_at, @created_at, @completed_at)`;
+
+const UPDATE_SQL = `UPDATE items SET title=@title, notes=@notes, project=@project, tags=@tags, priority=@priority,
+       status=@status, source=@source, location=@location, reminders=@reminders, start=@start, end=@end, all_day=@all_day, google_event_id=@google_event_id,
+       google_calendar_id=@google_calendar_id, synced_at=@synced_at, updated_at=@updated_at, completed_at=@completed_at
+       WHERE id=@id`;
+
 export function createItem(
-  partial: Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'source' | 'allDay'> & {
+  partial: Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'source' | 'allDay' | 'reminders'> & {
     status?: Item['status'];
     source?: Item['source'];
     allDay?: boolean;
+    reminders?: Reminder[];
   },
 ): Item {
   const now = nowISO();
@@ -28,6 +38,8 @@ export function createItem(
     priority: partial.priority ?? 0,
     status: partial.status ?? 'open',
     source: partial.source ?? 'task',
+    location: partial.location,
+    reminders: partial.reminders ?? [],
     start: partial.start,
     end: partial.end,
     allDay: partial.allDay ?? false,
@@ -39,15 +51,23 @@ export function createItem(
     completedAt: partial.completedAt,
   };
 
-  const row = itemToRow(item);
-  getDb()
-    .prepare(
-      `INSERT INTO items (id, title, notes, project, tags, priority, status, source, start, end, all_day, google_event_id, google_calendar_id, synced_at, updated_at, created_at, completed_at)
-       VALUES (@id, @title, @notes, @project, @tags, @priority, @status, @source, @start, @end, @all_day, @google_event_id, @google_calendar_id, @synced_at, @updated_at, @created_at, @completed_at)`,
-    )
-    .run(row);
-
+  getDb().prepare(INSERT_SQL).run(itemToRow(item));
   return item;
+}
+
+export function createEvent(
+  partial: Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'source' | 'allDay' | 'reminders' | 'priority' | 'project' | 'tags'> & {
+    allDay?: boolean;
+    reminders?: Reminder[];
+  },
+): Item {
+  return createItem({
+    ...partial,
+    source: 'event',
+    tags: [],
+    priority: 0,
+    reminders: partial.reminders ?? defaultReminders(),
+  });
 }
 
 export function updateItem(id: string, updates: Partial<Item>): Item | null {
@@ -63,16 +83,7 @@ export function updateItem(id: string, updates: Partial<Item>): Item | null {
     ...(updates.title !== undefined ? { title: cleanTitle(updates.title) } : {}),
   };
 
-  const row = itemToRow(item);
-  getDb()
-    .prepare(
-      `UPDATE items SET title=@title, notes=@notes, project=@project, tags=@tags, priority=@priority,
-       status=@status, source=@source, start=@start, end=@end, all_day=@all_day, google_event_id=@google_event_id,
-       google_calendar_id=@google_calendar_id, synced_at=@synced_at, updated_at=@updated_at, completed_at=@completed_at
-       WHERE id=@id`,
-    )
-    .run(row);
-
+  getDb().prepare(UPDATE_SQL).run(itemToRow(item));
   return item;
 }
 
@@ -87,13 +98,7 @@ export function deleteItemsByGoogleCalendar(calendarId: string): number {
 }
 
 export function restoreItem(item: Item): Item {
-  const row = itemToRow(item);
-  getDb()
-    .prepare(
-      `INSERT INTO items (id, title, notes, project, tags, priority, status, source, start, end, all_day, google_event_id, google_calendar_id, synced_at, updated_at, created_at, completed_at)
-       VALUES (@id, @title, @notes, @project, @tags, @priority, @status, @source, @start, @end, @all_day, @google_event_id, @google_calendar_id, @synced_at, @updated_at, @created_at, @completed_at)`,
-    )
-    .run(row);
+  getDb().prepare(INSERT_SQL).run(itemToRow(item));
   return item;
 }
 
@@ -108,7 +113,6 @@ export function getItemByGoogleEvent(calendarId: string, eventId: string): Item 
     .get(calendarId, eventId) as ItemRow | undefined;
   if (row) return rowToItem(row);
 
-  // Legacy rows before google_calendar_id existed
   const legacy = getDb()
     .prepare(`${SELECT} WHERE google_event_id = ? AND google_calendar_id IS NULL`)
     .get(eventId) as ItemRow | undefined;
@@ -170,7 +174,12 @@ export function listAllScheduled(): Item[] {
 export function listNeedsSync(): Item[] {
   const rows = getDb()
     .prepare(
-      `${SELECT} WHERE source = 'task' AND start IS NOT NULL AND status = 'open' AND (synced_at IS NULL OR updated_at > synced_at)`,
+      `${SELECT}
+       WHERE start IS NOT NULL AND (synced_at IS NULL OR updated_at > synced_at)
+         AND (
+           (source = 'task' AND status = 'open')
+           OR source = 'event'
+         )`,
     )
     .all() as ItemRow[];
   return rows.map(rowToItem);
@@ -197,6 +206,12 @@ export function scheduleAllDayItem(id: string, start: string, end: string): Item
   const item = getItem(id);
   if (!item || item.source !== 'task') return null;
   return updateItem(id, { start, end, allDay: true, syncedAt: undefined });
+}
+
+export function rescheduleLocalItem(id: string, start: string, end: string, allDay: boolean): Item | null {
+  const item = getItem(id);
+  if (!item || item.source === 'external') return null;
+  return updateItem(id, { start, end, allDay, syncedAt: undefined });
 }
 
 export function markSynced(id: string, googleEventId?: string, googleCalendarId?: string): Item | null {

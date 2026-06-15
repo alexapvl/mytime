@@ -19,6 +19,8 @@ export const META_KEYS = {
   googleCalendarId: 'google_calendar_id',
   googleSyncTokens: 'google_sync_tokens',
   googleCalendarFetchPrefs: 'google_calendar_fetch_prefs',
+  defaultEventReminders: 'default_event_reminders',
+  customEventReminderPresets: 'custom_event_reminder_presets',
 } as const;
 
 export function getCalendarFetchPrefs(): Record<string, boolean> {
@@ -55,4 +57,34 @@ export function clearSyncToken(calendarId: string): void {
   const tokens = getSyncTokens();
   delete tokens[calendarId];
   setSyncTokens(tokens);
+}
+
+export function getDefaultEventReminders(): number[] {
+  const raw = getMeta(META_KEYS.defaultEventReminders);
+  if (!raw) return [1440, 60];
+  try {
+    const parsed = JSON.parse(raw) as number[];
+    return Array.isArray(parsed) ? parsed : [1440, 60];
+  } catch {
+    return [1440, 60];
+  }
+}
+
+export function setDefaultEventReminders(minutes: number[]): void {
+  setMeta(META_KEYS.defaultEventReminders, JSON.stringify(minutes));
+}
+
+export function getCustomEventReminderPresets(): number[] {
+  const raw = getMeta(META_KEYS.customEventReminderPresets);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as number[];
+    return Array.isArray(parsed) ? parsed.filter((m) => Number.isFinite(m) && m > 0) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function setCustomEventReminderPresets(minutes: number[]): void {
+  setMeta(META_KEYS.customEventReminderPresets, JSON.stringify(minutes));
 }

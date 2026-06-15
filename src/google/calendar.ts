@@ -10,6 +10,8 @@ import {
   setMeta,
 } from '../db/meta.js';
 import { isSyncTokenExpired } from './errors.js';
+import type { Reminder } from '../db/types.js';
+import { remindersToGoogle } from '../lib/reminders.js';
 
 const CALENDAR_NAME = 'mytime';
 const CALENDAR_COLOR = '#4285F4';
@@ -92,9 +94,12 @@ export type GoogleEventPayload = {
   id?: string;
   summary: string;
   description?: string;
+  location?: string;
   start: string;
   end: string;
   allDay?: boolean;
+  reminders?: Reminder[];
+  mytimeType?: 'task' | 'event';
 };
 
 export async function upsertEvent(calendarId: string, event: GoogleEventPayload, eventId?: string) {
@@ -105,12 +110,21 @@ export async function upsertEvent(calendarId: string, event: GoogleEventPayload,
   const end = event.allDay
     ? { date: event.end }
     : { dateTime: event.end };
-  const body = {
+  const body: calendar_v3.Schema$Event = {
     summary: event.summary,
     description: event.description,
+    location: event.location,
     start,
     end,
   };
+
+  if (event.mytimeType) {
+    body.extendedProperties = { private: { mytime_type: event.mytimeType } };
+  }
+
+  if (event.reminders !== undefined) {
+    body.reminders = remindersToGoogle(event.reminders);
+  }
 
   if (eventId) {
     return calendar.events.update({ calendarId, eventId, requestBody: body });

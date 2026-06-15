@@ -65,6 +65,12 @@ function migrateSchema(database: Database.Database): void {
   if (!names.has('all_day')) {
     database.exec('ALTER TABLE items ADD COLUMN all_day INTEGER NOT NULL DEFAULT 0');
   }
+  if (!names.has('location')) {
+    database.exec('ALTER TABLE items ADD COLUMN location TEXT');
+  }
+  if (!names.has('reminders')) {
+    database.exec('ALTER TABLE items ADD COLUMN reminders TEXT');
+  }
   normalizeAllDayDates(database);
   stripEmojiFromStoredTitles(database);
 }

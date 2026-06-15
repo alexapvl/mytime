@@ -1,7 +1,14 @@
 export type ItemStatus = 'open' | 'done';
 export type ItemPriority = 0 | 1 | 2 | 3;
 
-export type ItemSource = 'task' | 'external';
+export type ItemSource = 'task' | 'event' | 'external';
+
+export type ReminderMethod = 'popup';
+
+export type Reminder = {
+  method: ReminderMethod;
+  minutes: number;
+};
 
 export type Item = {
   id: string;
@@ -12,6 +19,8 @@ export type Item = {
   priority: ItemPriority;
   status: ItemStatus;
   source: ItemSource;
+  location?: string;
+  reminders: Reminder[];
   start?: string;
   end?: string;
   allDay: boolean;
@@ -32,6 +41,8 @@ export type ItemRow = {
   priority: number;
   status: string;
   source: string;
+  location: string | null;
+  reminders: string | null;
   start: string | null;
   end: string | null;
   all_day: number;
@@ -43,6 +54,16 @@ export type ItemRow = {
   completed_at: string | null;
 };
 
+function parseReminders(raw: string | null): Reminder[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as Reminder[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 export function rowToItem(row: ItemRow): Item {
   return {
     id: row.id,
@@ -53,6 +74,8 @@ export function rowToItem(row: ItemRow): Item {
     priority: row.priority as ItemPriority,
     status: row.status as ItemStatus,
     source: (row.source as ItemSource) || 'task',
+    location: row.location ?? undefined,
+    reminders: parseReminders(row.reminders),
     start: row.start ?? undefined,
     end: row.end ?? undefined,
     allDay: Boolean(row.all_day),
@@ -75,6 +98,8 @@ export function itemToRow(item: Item): ItemRow {
     priority: item.priority,
     status: item.status,
     source: item.source,
+    location: item.location ?? null,
+    reminders: item.reminders.length ? JSON.stringify(item.reminders) : null,
     start: item.start ?? null,
     end: item.end ?? null,
     all_day: item.allDay ? 1 : 0,
@@ -85,4 +110,8 @@ export function itemToRow(item: Item): ItemRow {
     created_at: item.createdAt,
     completed_at: item.completedAt ?? null,
   };
+}
+
+export function isLocalItem(item: Item): boolean {
+  return item.source === 'task' || item.source === 'event';
 }

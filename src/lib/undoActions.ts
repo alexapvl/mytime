@@ -3,7 +3,7 @@ import { restoreItem, updateItem } from '../db/items.js';
 import { autoPush } from '../google/autoSync.js';
 
 export function cloneItem(item: Item): Item {
-  return { ...item, tags: [...item.tags] };
+  return { ...item, tags: [...item.tags], reminders: [...item.reminders] };
 }
 
 export function makeUndoDelete(snapshot: Item, onStatus: (msg: string) => void): () => void {

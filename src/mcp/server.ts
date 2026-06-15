@@ -6,23 +6,26 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { Item, ItemPriority } from '../db/types.js';
 import {
   createItem,
+  createEvent,
   deleteItem,
   getItem,
   listAllScheduled,
   listBacklog,
   listPastDue,
   listScheduledInRange,
+  rescheduleLocalItem,
   scheduleAllDayItem,
   scheduleItem,
   toggleDone,
   updateItem,
 } from '../db/items.js';
+import type { Reminder } from '../db/types.js';
 import { parseQuickAdd } from '../lib/nlp.js';
 import { overdueLabel } from '../lib/overdue.js';
 import { listFreeSlots } from '../lib/scheduleOverlap.js';
 import { allDayRange, defaultEnd, todayEnd, todayStart } from '../lib/time.js';
 import { isAuthenticated } from '../google/auth.js';
-import { pushTask, removeFromGoogle, syncWithGoogle } from '../google/sync.js';
+import { pushLocalItem, removeFromGoogle, syncWithGoogle } from '../google/sync.js';
 
 const VERSION = '0.1.0';
 
@@ -45,29 +48,29 @@ function view(item: Item) {
     priority: item.priority,
     project: item.project,
     tags: item.tags,
+    location: item.location,
+    reminders: item.reminders,
     start: item.start,
     end: item.end,
     notes: item.notes,
   };
 }
 
-/** Push a task to Google after a local change; returns a short status suffix. */
 async function syncPush(id: string): Promise<string> {
   if (!isAuthenticated()) return '';
   const item = getItem(id);
-  if (!item || item.source !== 'task' || !item.start) return '';
+  if (!item || (item.source !== 'task' && item.source !== 'event') || !item.start) return '';
   try {
-    await pushTask(item);
+    await pushLocalItem(item);
     return ' (synced to Google)';
   } catch (e) {
     return ` (Google sync failed: ${(e as Error).message})`;
   }
 }
 
-/** Remove a task's Google event after a local change; returns a short status suffix. */
 async function syncRemove(item: Item): Promise<string> {
   if (!isAuthenticated()) return '';
-  if (item.source !== 'task' || !item.googleEventId) return '';
+  if ((item.source !== 'task' && item.source !== 'event') || !item.googleEventId) return '';
   try {
     await removeFromGoogle(item);
     return ' (removed from Google)';
@@ -281,6 +284,7 @@ function registerTools(server: McpServer): void {
       await ensureFresh();
       const existing = getItem(id);
       if (!existing) return toolError(`No item with id ${id}`);
+      if (existing.source !== 'task') return toolError('Only tasks can be updated with update_task');
       const updates: Partial<Item> = {};
       if (title !== undefined) updates.title = title;
       if (notes !== undefined) updates.notes = notes;
@@ -365,13 +369,183 @@ function registerTools(server: McpServer): void {
       await ensureFresh();
       const item = getItem(id);
       if (!item) return toolError(`No item with id ${id}`);
-      if (item.source !== 'task') return toolError('External events cannot be completed');
+      if (item.source !== 'task') return toolError('Only tasks can be completed');
       const isDone = item.status === 'done';
       const target = done === undefined ? !isDone : done;
       if (target !== isDone) toggleDone(id);
       const note = await syncPush(id);
       const updated = getItem(id);
       return text({ message: `Task ${target ? 'completed' : 'reopened'}${note}`, item: updated ? view(updated) : null });
+    },
+  );
+
+  server.registerTool(
+    'add_event',
+    {
+      description: 'Create a new calendar event on the mytime calendar. Requires start/end (use NLP via quick_add_event or provide ISO times).',
+      inputSchema: {
+        title: z.string(),
+        notes: z.string().optional(),
+        location: z.string().optional(),
+        start: z.string().describe('ISO datetime or date for event start'),
+        end: z.string().optional().describe('ISO datetime or date for event end'),
+        allDay: z.boolean().optional(),
+        reminders: z
+          .array(z.object({ method: z.literal('popup'), minutes: z.number().int().nonnegative() }))
+          .optional(),
+      },
+    },
+    async ({ title, notes, location, start, end, allDay, reminders }) => {
+      if (!DateTime.fromISO(start).isValid) return toolError(`Invalid start: ${start}`);
+      await ensureFresh();
+      const useAllDay = allDay === true || !start.includes('T');
+      const range = useAllDay ? allDayRange(start) : null;
+      const finalStart = range?.start ?? start;
+      const finalEnd = end ?? (range?.end ?? defaultEnd(start));
+      if (!DateTime.fromISO(finalEnd).isValid) return toolError(`Invalid end: ${finalEnd}`);
+      const item = createEvent({
+        title,
+        notes,
+        location,
+        start: finalStart,
+        end: finalEnd,
+        allDay: useAllDay,
+        reminders: reminders as Reminder[] | undefined,
+      });
+      const note = await syncPush(item.id);
+      return text({ message: `Event added${note}`, item: view(item) });
+    },
+  );
+
+  server.registerTool(
+    'quick_add_event',
+    {
+      description:
+        'Add a calendar event from natural language. Parses date/time only (no priority/project). e.g. "team lunch tomorrow 12pm".',
+      inputSchema: { text: z.string() },
+    },
+    async ({ text: input }) => {
+      await ensureFresh();
+      const parsed = parseQuickAdd(input);
+      if (!parsed.start) return toolError('Events require a date/time in the text');
+      const item = createEvent({
+        title: parsed.title,
+        start: parsed.start,
+        end: parsed.end,
+        allDay: parsed.allDay,
+      });
+      const note = await syncPush(item.id);
+      return text({ message: `Added event: ${item.title}${note}`, item: view(item) });
+    },
+  );
+
+  server.registerTool(
+    'update_event',
+    {
+      description: 'Update fields of an existing mytime event. Only provided fields change.',
+      inputSchema: {
+        id: z.string(),
+        title: z.string().optional(),
+        notes: z.string().optional(),
+        location: z.string().optional(),
+        reminders: z
+          .array(z.object({ method: z.literal('popup'), minutes: z.number().int().nonnegative() }))
+          .optional(),
+      },
+    },
+    async ({ id, title, notes, location, reminders }) => {
+      await ensureFresh();
+      const existing = getItem(id);
+      if (!existing) return toolError(`No item with id ${id}`);
+      if (existing.source !== 'event') return toolError('Item is not an event');
+      const updates: Partial<Item> = {};
+      if (title !== undefined) updates.title = title;
+      if (notes !== undefined) updates.notes = notes;
+      if (location !== undefined) updates.location = location;
+      if (reminders !== undefined) updates.reminders = reminders as Reminder[];
+      const updated = updateItem(id, updates);
+      const note = await syncPush(id);
+      return text({ message: `Event updated${note}`, item: updated ? view(updated) : null });
+    },
+  );
+
+  const eventScheduleHandler = async ({
+    id,
+    start,
+    end,
+    allDay,
+    durationMinutes,
+  }: {
+    id: string;
+    start: string;
+    end?: string;
+    allDay?: boolean;
+    durationMinutes?: number;
+  }): Promise<CallToolResult> => {
+    if (!DateTime.fromISO(start).isValid) return toolError(`Invalid start datetime: ${start}`);
+    if (end && !DateTime.fromISO(end).isValid) return toolError(`Invalid end datetime: ${end}`);
+    await ensureFresh();
+    const item = getItem(id);
+    if (!item) return toolError(`No item with id ${id}`);
+    if (item.source !== 'event') return toolError('Item is not an event');
+    const useAllDay = allDay === true || !start.includes('T');
+    if (useAllDay) {
+      const range = allDayRange(start);
+      const finalEnd = end ? allDayRange(end).end : range.end;
+      if (DateTime.fromISO(finalEnd) <= DateTime.fromISO(range.start)) return toolError('end must be after start');
+      const result = rescheduleLocalItem(id, range.start, finalEnd, true);
+      if (!result) return toolError(`Cannot reschedule event ${id}`);
+      const note = await syncPush(id);
+      return text({ message: `Event rescheduled all day${note}`, item: view(result) });
+    }
+    const finalEnd = end ?? defaultEnd(start, durationMinutes ?? 60);
+    if (DateTime.fromISO(finalEnd) <= DateTime.fromISO(start)) return toolError('end must be after start');
+    const result = rescheduleLocalItem(id, start, finalEnd, false);
+    if (!result) return toolError(`Cannot reschedule event ${id}`);
+    const note = await syncPush(id);
+    return text({ message: `Event rescheduled${note}`, item: view(result) });
+  };
+
+  const eventScheduleSchema = {
+    id: z.string(),
+    start: z.string().describe('ISO datetime/date for the event start'),
+    end: z.string().optional().describe('ISO datetime/date for the event end'),
+    allDay: z.boolean().optional().describe('Schedule as an all-day event. Also inferred when start is an ISO date like 2026-05-30.'),
+    durationMinutes: z.number().int().positive().optional().describe('Used when end is omitted (default 60)'),
+  };
+
+  server.registerTool(
+    'schedule_event',
+    {
+      description: `Schedule or reschedule a mytime event. ${scheduleHint}`,
+      inputSchema: eventScheduleSchema,
+    },
+    eventScheduleHandler,
+  );
+
+  server.registerTool(
+    'reschedule_event',
+    {
+      description: `Change the date/time of an already-scheduled event. ${scheduleHint}`,
+      inputSchema: eventScheduleSchema,
+    },
+    eventScheduleHandler,
+  );
+
+  server.registerTool(
+    'delete_event',
+    {
+      description: 'Permanently delete a mytime event and its Google calendar entry.',
+      inputSchema: { id: z.string() },
+    },
+    async ({ id }) => {
+      await ensureFresh();
+      const item = getItem(id);
+      if (!item) return toolError(`No item with id ${id}`);
+      if (item.source !== 'event') return toolError('Item is not an event');
+      deleteItem(id);
+      const note = await syncRemove(item);
+      return text({ message: `Deleted event "${item.title}"${note}` });
     },
   );
 
@@ -385,6 +559,7 @@ function registerTools(server: McpServer): void {
       await ensureFresh();
       const item = getItem(id);
       if (!item) return toolError(`No item with id ${id}`);
+      if (item.source !== 'task') return toolError('Use delete_event for events');
       deleteItem(id);
       const note = await syncRemove(item);
       return text({ message: `Deleted "${item.title}"${note}` });

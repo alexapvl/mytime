@@ -2,12 +2,14 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
 import TextInput from 'ink-text-input';
 import { DateTime } from 'luxon';
-import type { Item } from '../db/types.js';
-import { createItem, deleteItem, listScheduledInRange, scheduleAllDayItem, scheduleItem, toggleDone, updateItem } from '../db/items.js';
+import type { Item, Reminder } from '../db/types.js';
+import { isLocalItem } from '../db/types.js';
+import { createItem, createEvent, deleteItem, listScheduledInRange, rescheduleLocalItem, toggleDone, updateItem } from '../db/items.js';
 import { padToWidth } from '../lib/textWidth.js';
 import { addMinutes, allDayRange, hourLabels, isSameDay } from '../lib/time.js';
 import { autoPush, autoRemove } from '../google/autoSync.js';
 import { ItemEditor } from '../components/ItemEditor.js';
+import { EventEditor } from '../components/EventEditor.js';
 import { useClickRegions } from '../components/Mouse.js';
 import { ScheduleEditor } from '../components/ScheduleEditor.js';
 import { CalendarEventRow, CALENDAR_PREFIX_COL, hasWeekTime } from '../components/CalendarEventRow.js';
@@ -29,20 +31,35 @@ type Props = {
   onStatus: (msg: string) => void;
   refreshToken?: number;
 };
-type CalendarMode = 'list' | 'add' | 'quick' | 'edit' | 'schedule';
+type CalendarMode = 'list' | 'add' | 'quick' | 'addEvent' | 'quickEvent' | 'edit' | 'editEvent' | 'schedule' | 'scheduleNewEvent';
 
-/** Index of the next upcoming item (start >= now). Items are sorted ascending by start. */
-function nearestIndexToNow(items: Item[]): number {
-  if (items.length === 0) return 0;
-  const now = DateTime.local().toMillis();
-  const upcoming = items.findIndex((item) => item.start && DateTime.fromISO(item.start).toMillis() >= now);
-  // All events are in the past — fall back to the most recent one.
-  return upcoming === -1 ? items.length - 1 : upcoming;
+type PendingEventDraft = {
+  title: string;
+  notes?: string;
+  location?: string;
+  reminders: Reminder[];
+};
+
+type CreatorKind = 'task' | 'event';
+
+/** Items in the same order as the day view renders them (all-day, then timed by hour). */
+function orderedDayItems(scheduled: Item[]): Item[] {
+  const hours = hourLabels();
+  const out: Item[] = [];
+  const allDay = scheduled.filter((item) => !hasWeekTime(item));
+  allDay.forEach((item) => out.push(item));
+  hours.forEach((_, hi) => {
+    const blocks = scheduled.filter(
+      (item) => hasWeekTime(item) && item.start && DateTime.fromISO(item.start).hour === hi,
+    );
+    blocks.forEach((item) => out.push(item));
+  });
+  return out;
 }
 
 function defaultDaySelectionIndex(items: Item[]): number {
   const firstOpen = items.findIndex((item) => !isDoneTask(item));
-  return firstOpen >= 0 ? firstOpen : nearestIndexToNow(items);
+  return firstOpen >= 0 ? firstOpen : 0;
 }
 
 function scheduledForDay(day: DateTime): Item[] {
@@ -76,27 +93,51 @@ function allDayFields(day: DateTime): { start: string; end: string; allDay: true
   return { ...range, allDay: true };
 }
 
-function createCalendarItemFromQuickAdd(input: string, day: DateTime): Item {
+function createCalendarItemFromQuickAdd(input: string, day: DateTime, kind: CreatorKind): Item {
   const parsed = parseQuickAdd(input, day.startOf('day').toJSDate());
   const fallback = allDayFields(day);
-  return createItem({
+  const fields = {
     title: parsed.title,
-    tags: parsed.tags,
-    project: parsed.project,
-    priority: parsed.priority,
     start: parsed.start ?? fallback.start,
     end: parsed.end ?? fallback.end,
     allDay: parsed.start ? parsed.allDay : true,
-  });
+  };
+  return kind === 'event' ? createEvent(fields) : createItem({ ...fields, tags: parsed.tags, project: parsed.project, priority: parsed.priority });
 }
 
-function CalendarTaskCreator({
+function draftScheduleItem(title: string): Item {
+  return {
+    id: 'draft',
+    title,
+    tags: [],
+    priority: 0,
+    status: 'open',
+    source: 'event',
+    reminders: [],
+    allDay: false,
+    updatedAt: '',
+    createdAt: '',
+  };
+}
+
+function calendarHelpContext(item: Item | undefined) {
+  return {
+    isTask: item?.source === 'task',
+    isEvent: item?.source === 'event',
+    isLocal: !!item && isLocalItem(item),
+    hasTime: item ? hasWeekTime(item) : false,
+  };
+}
+
+function CalendarItemCreator({
   mode,
+  kind,
   day,
   onCancel,
   onCreated,
 }: {
-  mode: Exclude<CalendarMode, 'list'>;
+  mode: 'quick' | 'quickEvent';
+  kind: CreatorKind;
   day: DateTime;
   onCancel: () => void;
   onCreated: (item: Item) => void;
@@ -106,34 +147,21 @@ function CalendarTaskCreator({
     if (key.escape) onCancel();
   });
 
-  if (mode === 'quick') {
-    return (
-      <Box flexDirection="column">
-        <Text color="cyanBright">Quick add for {day.toFormat('EEE d MMM')}:</Text>
-        <Text dimColor>Time-only input uses this day. No time makes an all-day task.</Text>
-        <Box marginTop={1}>
-          <Text>&gt; </Text>
-          <TextInput
-            value={quickInput}
-            onChange={setQuickInput}
-            onSubmit={(val) => {
-              if (val.trim()) onCreated(createCalendarItemFromQuickAdd(val, day));
-            }}
-          />
-        </Box>
-      </Box>
-    );
-  }
-
   return (
-    <ItemEditor
-      mode="add"
-      onCancel={onCancel}
-      onSubmit={(data) => {
-        const fields = allDayFields(day);
-        onCreated(createItem({ ...data, ...fields }));
-      }}
-    />
+    <Box flexDirection="column">
+      <Text color="cyanBright">Quick add {kind} for {day.toFormat('EEE d MMM')}:</Text>
+      <Text dimColor>Time-only input uses this day. No time makes an all-day {kind}.</Text>
+      <Box marginTop={1}>
+        <Text>&gt; </Text>
+        <TextInput
+          value={quickInput}
+          onChange={setQuickInput}
+          onSubmit={(val) => {
+            if (val.trim()) onCreated(createCalendarItemFromQuickAdd(val, day, kind));
+          }}
+        />
+      </Box>
+    </Box>
   );
 }
 
@@ -153,6 +181,7 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
   const [items, setItems] = useState<Item[]>([]);
   const [selected, setSelected] = useState(0);
   const [mode, setMode] = useState<CalendarMode>('list');
+  const [pendingEvent, setPendingEvent] = useState<PendingEventDraft | null>(null);
   const pendingSelectRef = useRef<'first' | 'last' | 'nearest'>('nearest');
 
   useEffect(() => {
@@ -163,18 +192,21 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
   useEffect(() => {
     const loaded = listScheduledInRange(day.startOf('day').toISO()!, day.endOf('day').toISO()!);
     setItems(loaded);
-    const dayItems = loaded.filter((i) => i.start);
+    const ordered = orderedDayItems(loaded.filter((i) => i.start));
     const anchor = pendingSelectRef.current;
     pendingSelectRef.current = 'nearest';
     if (anchor === 'first') setSelected(0);
-    else if (anchor === 'last') setSelected(Math.max(0, dayItems.length - 1));
-    else setSelected(defaultDaySelectionIndex(dayItems));
+    else if (anchor === 'last') setSelected(Math.max(0, ordered.length - 1));
+    else setSelected(defaultDaySelectionIndex(ordered));
     onRefresh();
   }, [day.toISODate()]);
 
   useEffect(() => {
     if (refreshToken === undefined || refreshToken === 0) return;
-    setItems(listScheduledInRange(day.startOf('day').toISO()!, day.endOf('day').toISO()!));
+    const loaded = listScheduledInRange(day.startOf('day').toISO()!, day.endOf('day').toISO()!);
+    setItems(loaded);
+    const ordered = orderedDayItems(loaded.filter((i) => i.start));
+    setSelected((s) => Math.min(s, Math.max(0, ordered.length - 1)));
   }, [refreshToken]);
 
   const refresh = () => {
@@ -183,10 +215,11 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
   };
 
   const scheduled = items.filter((i) => i.start);
+  const orderedItems = useMemo(() => orderedDayItems(scheduled), [scheduled]);
   const hours = useMemo(() => hourLabels(), []);
   const isToday = day.hasSame(DateTime.local(), 'day');
-  const sel = Math.min(selected, Math.max(0, scheduled.length - 1));
-  const selectedDayItem = scheduled[sel];
+  const sel = Math.min(selected, Math.max(0, orderedItems.length - 1));
+  const selectedDayItem = orderedItems[sel];
 
   // Build the rendered line list so click rows stay in sync with the layout.
   const lines = useMemo(() => {
@@ -213,11 +246,11 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
       visibleLines
         .map((line, idx) =>
           line.item
-            ? { row: DAY_CONTENT_ROW + idx, onClick: () => setSelected(scheduled.indexOf(line.item!)) }
+            ? { row: DAY_CONTENT_ROW + idx, onClick: () => setSelected(orderedItems.indexOf(line.item!)) }
             : null,
         )
         .filter((r): r is ClickRegion => r !== null),
-    [visibleLines, scheduled],
+    [visibleLines, orderedItems],
   );
   useClickRegions('day', mode !== 'list' ? [] : regions);
 
@@ -243,10 +276,18 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
         setMode('quick');
         return;
       }
+      if (input === 'A') {
+        setMode('addEvent');
+        return;
+      }
+      if (input === 'Q') {
+        setMode('quickEvent');
+        return;
+      }
 
       const moveVertical = (dir: 1 | -1) => {
-        if (scheduled.length > 0) {
-          if (dir === 1 && sel < scheduled.length - 1) {
+        if (orderedItems.length > 0) {
+          if (dir === 1 && sel < orderedItems.length - 1) {
             setSelected((s) => s + 1);
             return;
           }
@@ -273,11 +314,11 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
         return;
       }
 
-      if (scheduled.length === 0) return;
+      if (orderedItems.length === 0) return;
 
       const item = scheduled[sel];
       if (input === 'J' || (key.shift && key.downArrow)) {
-        if (item?.start && item.end && item.source === 'task' && hasWeekTime(item)) {
+        if (item?.start && item.end && isLocalItem(item) && hasWeekTime(item)) {
           updateItem(item.id, { start: addMinutes(item.start, 60), end: addMinutes(item.end, 60) });
           refresh();
           autoPush(item.id, onStatus);
@@ -286,7 +327,7 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
         return;
       }
       if (input === 'K' || (key.shift && key.upArrow)) {
-        if (item?.start && item.end && item.source === 'task' && hasWeekTime(item)) {
+        if (item?.start && item.end && isLocalItem(item) && hasWeekTime(item)) {
           updateItem(item.id, { start: addMinutes(item.start, -60), end: addMinutes(item.end, -60) });
           refresh();
           autoPush(item.id, onStatus);
@@ -295,17 +336,17 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
         return;
       }
 
-      if (!item?.start || !item.end || item.source === 'external') return;
+      if (!item?.start || !item.end || !isLocalItem(item)) return;
 
       if (input === 'e') {
-        setMode('edit');
+        setMode(item.source === 'event' ? 'editEvent' : 'edit');
         return;
       }
       if (input === 's') {
         setMode('schedule');
         return;
       }
-      if (input === 'x') {
+      if (item.source === 'task' && input === 'x') {
         const before = cloneItem(item);
         toggleDone(item.id);
         pushUndo(
@@ -328,6 +369,26 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
         return;
       }
       if (!hasWeekTime(item)) return;
+      if ((input === '+' || input === '=') && key.shift) {
+        const newStart = addMinutes(item.start, 15);
+        if (DateTime.fromISO(newStart) < DateTime.fromISO(item.end)) {
+          updateItem(item.id, { start: newStart });
+          refresh();
+          autoPush(item.id, onStatus);
+          onStatus('Start 15m later');
+        }
+        return;
+      }
+      if (input === '-' && key.shift) {
+        const newStart = addMinutes(item.start, -15);
+        if (DateTime.fromISO(newStart) < DateTime.fromISO(item.end)) {
+          updateItem(item.id, { start: newStart });
+          refresh();
+          autoPush(item.id, onStatus);
+          onStatus('Start 15m earlier');
+        }
+        return;
+      }
       if (input === '+' || input === '=') {
         updateItem(item.id, { end: addMinutes(item.end, 15) });
         refresh();
@@ -345,17 +406,78 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
     { isActive: mode === 'list' },
   );
 
-  if (mode === 'add' || mode === 'quick') {
+  if (mode === 'add') {
     return (
-      <CalendarTaskCreator
+      <ItemEditor
+        mode="add"
+        onCancel={() => setMode('list')}
+        onSubmit={(data) => {
+          const item = createItem({ ...data, ...allDayFields(day) });
+          setMode('list');
+          refresh();
+          pushUndo(`Added: ${item.title}`, makeUndoDelete(cloneItem(item), onStatus));
+          autoPush(item.id, onStatus);
+          onStatus(`Added: ${item.title}`);
+        }}
+      />
+    );
+  }
+
+  if (mode === 'quick' || mode === 'quickEvent') {
+    return (
+      <CalendarItemCreator
         mode={mode}
+        kind={mode === 'quickEvent' ? 'event' : 'task'}
         day={day}
         onCancel={() => setMode('list')}
         onCreated={(item) => {
           setMode('list');
           refresh();
+          pushUndo(`Added: ${item.title}`, makeUndoDelete(cloneItem(item), onStatus));
           autoPush(item.id, onStatus);
           onStatus(`Added: ${item.title}`);
+        }}
+      />
+    );
+  }
+
+  if (mode === 'addEvent') {
+    return (
+      <EventEditor
+        mode="add"
+        onCancel={() => setMode('list')}
+        onSubmit={(data) => {
+          setPendingEvent(data);
+          setMode('scheduleNewEvent');
+        }}
+      />
+    );
+  }
+
+  if (mode === 'scheduleNewEvent' && pendingEvent) {
+    return (
+      <ScheduleEditor
+        item={draftScheduleItem(pendingEvent.title)}
+        onCancel={() => {
+          setPendingEvent(null);
+          setMode('list');
+        }}
+        onSubmit={(start, end, allDay) => {
+          const item = createEvent({
+            title: pendingEvent.title,
+            notes: pendingEvent.notes,
+            location: pendingEvent.location,
+            reminders: pendingEvent.reminders,
+            start,
+            end,
+            allDay,
+          });
+          setPendingEvent(null);
+          setMode('list');
+          refresh();
+          pushUndo(`Added: ${item.title}`, makeUndoDelete(cloneItem(item), onStatus));
+          autoPush(item.id, onStatus);
+          onStatus(`Added event: ${item.title}`);
         }}
       />
     );
@@ -385,15 +507,37 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
     );
   }
 
-  if (mode === 'schedule' && selectedDayItem?.source === 'task') {
+  if (mode === 'editEvent' && selectedDayItem?.source === 'event') {
+    const item = selectedDayItem;
+    return (
+      <EventEditor
+        mode="edit"
+        item={item}
+        onCancel={() => setMode('list')}
+        onSubmit={(data) => {
+          updateItem(item.id, {
+            title: data.title,
+            notes: data.notes,
+            location: data.location,
+            reminders: data.reminders,
+          });
+          refresh();
+          autoPush(item.id, onStatus);
+          onStatus('Event updated');
+          setMode('list');
+        }}
+      />
+    );
+  }
+
+  if (mode === 'schedule' && selectedDayItem && isLocalItem(selectedDayItem)) {
     const item = selectedDayItem;
     return (
       <ScheduleEditor
         item={item}
         onCancel={() => setMode('list')}
         onSubmit={(start, end, allDay) => {
-          if (allDay) scheduleAllDayItem(item.id, start, end);
-          else scheduleItem(item.id, start, end);
+          rescheduleLocalItem(item.id, start, end, allDay);
           refresh();
           autoPush(item.id, onStatus);
           onStatus('Rescheduled');
@@ -408,13 +552,7 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
       <Text bold>
         {day.toFormat('EEE MMM d, yyyy')} {isToday ? '(today)' : ''}
       </Text>
-      <ShortcutBar
-        shortcuts={DAILY_SHORTCUTS}
-        context={{
-          isTask: selectedDayItem?.source === 'task',
-          hasTime: selectedDayItem ? hasWeekTime(selectedDayItem) : false,
-        }}
-      />
+      <ShortcutBar shortcuts={DAILY_SHORTCUTS} context={calendarHelpContext(selectedDayItem)} />
       <Box flexDirection="column" marginTop={1} width={viewWidth}>
         {visibleLines.map((line) => {
           if ('separator' in line && line.separator) {
@@ -436,8 +574,7 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
             );
           }
           const item = line.item;
-          const idx = scheduled.indexOf(item);
-          const selectedHere = idx === sel;
+          const selectedHere = orderedItems[sel]?.id === item.id;
           return (
             <Box key={line.key} flexDirection="column">
               <CalendarEventRow
@@ -465,6 +602,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
   const [items, setItems] = useState<Item[]>([]);
   const [selected, setSelected] = useState(0);
   const [mode, setMode] = useState<CalendarMode>('list');
+  const [pendingEvent, setPendingEvent] = useState<PendingEventDraft | null>(null);
   const pendingItemIdRef = useRef<string | null>(null);
   const weekSelectIntentRef = useRef<{ dayISO: string; select: 'first' | 'last' } | null>(null);
   useEffect(() => {
@@ -638,6 +776,14 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
         setMode('quick');
         return;
       }
+      if (input === 'A') {
+        setMode('addEvent');
+        return;
+      }
+      if (input === 'Q') {
+        setMode('quickEvent');
+        return;
+      }
 
       const moveVertical = (dir: 1 | -1) => {
         const dayItems = scheduled.filter((i) => i.start && isSameDay(i.start, focusedDay.toISO()!));
@@ -668,17 +814,36 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
       if (input === 'k' || key.upArrow) moveVertical(-1);
 
       const item = selectedWeekItem;
-      if (!item?.start || !item.end || item.source === 'external') return;
+      if (input === 'J' || (key.shift && key.downArrow)) {
+        if (item?.start && item.end && isLocalItem(item) && hasWeekTime(item)) {
+          updateItem(item.id, { start: addMinutes(item.start, 60), end: addMinutes(item.end, 60) });
+          refresh();
+          autoPush(item.id, onStatus);
+          onStatus('Moved 1h later');
+        }
+        return;
+      }
+      if (input === 'K' || (key.shift && key.upArrow)) {
+        if (item?.start && item.end && isLocalItem(item) && hasWeekTime(item)) {
+          updateItem(item.id, { start: addMinutes(item.start, -60), end: addMinutes(item.end, -60) });
+          refresh();
+          autoPush(item.id, onStatus);
+          onStatus('Moved 1h earlier');
+        }
+        return;
+      }
+
+      if (!item?.start || !item.end || !isLocalItem(item)) return;
 
       if (input === 'e') {
-        setMode('edit');
+        setMode(item.source === 'event' ? 'editEvent' : 'edit');
         return;
       }
       if (input === 's') {
         setMode('schedule');
         return;
       }
-      if (input === 'x') {
+      if (item.source === 'task' && input === 'x') {
         const before = cloneItem(item);
         toggleDone(item.id);
         pushUndo(
@@ -700,21 +865,116 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
         onStatus('Deleted');
         return;
       }
+      if (!hasWeekTime(item)) return;
+      if ((input === '+' || input === '=') && key.shift) {
+        const newStart = addMinutes(item.start, 15);
+        if (DateTime.fromISO(newStart) < DateTime.fromISO(item.end)) {
+          updateItem(item.id, { start: newStart });
+          refresh();
+          autoPush(item.id, onStatus);
+          onStatus('Start 15m later');
+        }
+        return;
+      }
+      if (input === '-' && key.shift) {
+        const newStart = addMinutes(item.start, -15);
+        if (DateTime.fromISO(newStart) < DateTime.fromISO(item.end)) {
+          updateItem(item.id, { start: newStart });
+          refresh();
+          autoPush(item.id, onStatus);
+          onStatus('Start 15m earlier');
+        }
+        return;
+      }
+      if (input === '+' || input === '=') {
+        updateItem(item.id, { end: addMinutes(item.end, 15) });
+        refresh();
+        autoPush(item.id, onStatus);
+      }
+      if (input === '-') {
+        const newEnd = addMinutes(item.end, -15);
+        if (DateTime.fromISO(newEnd) > DateTime.fromISO(item.start)) {
+          updateItem(item.id, { end: newEnd });
+          refresh();
+          autoPush(item.id, onStatus);
+        }
+      }
     },
     { isActive: mode === 'list' },
   );
 
-  if (mode === 'add' || mode === 'quick') {
+  if (mode === 'add') {
     return (
-      <CalendarTaskCreator
+      <ItemEditor
+        mode="add"
+        onCancel={() => setMode('list')}
+        onSubmit={(data) => {
+          const item = createItem({ ...data, ...allDayFields(focusedDay) });
+          setMode('list');
+          refresh();
+          pushUndo(`Added: ${item.title}`, makeUndoDelete(cloneItem(item), onStatus));
+          autoPush(item.id, onStatus);
+          onStatus(`Added: ${item.title}`);
+        }}
+      />
+    );
+  }
+
+  if (mode === 'quick' || mode === 'quickEvent') {
+    return (
+      <CalendarItemCreator
         mode={mode}
+        kind={mode === 'quickEvent' ? 'event' : 'task'}
         day={focusedDay}
         onCancel={() => setMode('list')}
         onCreated={(item) => {
           setMode('list');
           refresh();
+          pushUndo(`Added: ${item.title}`, makeUndoDelete(cloneItem(item), onStatus));
           autoPush(item.id, onStatus);
           onStatus(`Added: ${item.title}`);
+        }}
+      />
+    );
+  }
+
+  if (mode === 'addEvent') {
+    return (
+      <EventEditor
+        mode="add"
+        onCancel={() => setMode('list')}
+        onSubmit={(data) => {
+          setPendingEvent(data);
+          setMode('scheduleNewEvent');
+        }}
+      />
+    );
+  }
+
+  if (mode === 'scheduleNewEvent' && pendingEvent) {
+    return (
+      <ScheduleEditor
+        item={draftScheduleItem(pendingEvent.title)}
+        onCancel={() => {
+          setPendingEvent(null);
+          setMode('list');
+        }}
+        onSubmit={(start, end, allDay) => {
+          const item = createEvent({
+            title: pendingEvent.title,
+            notes: pendingEvent.notes,
+            location: pendingEvent.location,
+            reminders: pendingEvent.reminders,
+            start,
+            end,
+            allDay,
+          });
+          setPendingEvent(null);
+          setMode('list');
+          refresh();
+          pushUndo(`Added: ${item.title}`, makeUndoDelete(cloneItem(item), onStatus));
+          autoPush(item.id, onStatus);
+          onStatus(`Added event: ${item.title}`);
         }}
       />
     );
@@ -744,15 +1004,37 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
     );
   }
 
-  if (mode === 'schedule' && selectedWeekItem?.source === 'task') {
+  if (mode === 'editEvent' && selectedWeekItem?.source === 'event') {
+    const item = selectedWeekItem;
+    return (
+      <EventEditor
+        mode="edit"
+        item={item}
+        onCancel={() => setMode('list')}
+        onSubmit={(data) => {
+          updateItem(item.id, {
+            title: data.title,
+            notes: data.notes,
+            location: data.location,
+            reminders: data.reminders,
+          });
+          refresh();
+          autoPush(item.id, onStatus);
+          onStatus('Event updated');
+          setMode('list');
+        }}
+      />
+    );
+  }
+
+  if (mode === 'schedule' && selectedWeekItem && isLocalItem(selectedWeekItem)) {
     const item = selectedWeekItem;
     return (
       <ScheduleEditor
         item={item}
         onCancel={() => setMode('list')}
         onSubmit={(start, end, allDay) => {
-          if (allDay) scheduleAllDayItem(item.id, start, end);
-          else scheduleItem(item.id, start, end);
+          rescheduleLocalItem(item.id, start, end, allDay);
           refresh();
           autoPush(item.id, onStatus);
           onStatus('Rescheduled');
@@ -767,7 +1049,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
       <Text bold>
         Week of {weekStart.toFormat('MMM d')} – {weekStart.endOf('week').toFormat('MMM d, yyyy')}
       </Text>
-      <ShortcutBar shortcuts={WEEK_SHORTCUTS} context={{ isTask: selectedWeekItem?.source === 'task' }} />
+      <ShortcutBar shortcuts={WEEK_SHORTCUTS} context={calendarHelpContext(selectedWeekItem)} />
       <Box key={weekKey} marginTop={1} flexDirection="column" width={viewWidth}>
         <Box flexDirection="row">
           {days.map((d, dayIndex) => (

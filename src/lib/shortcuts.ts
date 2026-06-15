@@ -8,13 +8,11 @@ export type BacklogHelpContext = {
   scheduled: boolean;
 };
 
-export type DailyHelpContext = {
+export type CalendarHelpContext = {
   isTask: boolean;
+  isEvent: boolean;
+  isLocal: boolean;
   hasTime: boolean;
-};
-
-export type WeekHelpContext = {
-  isTask: boolean;
 };
 
 export function formatShortcuts<C>(shortcuts: Shortcut<C>[], ctx: C): string {
@@ -36,18 +34,21 @@ export const BACKLOG_SHORTCUTS: Shortcut<BacklogHelpContext>[] = [
   { keys: 'd', label: 'delete' },
 ];
 
-export const DAILY_SHORTCUTS: Shortcut<DailyHelpContext>[] = [
+export const DAILY_SHORTCUTS: Shortcut<CalendarHelpContext>[] = [
   { keys: '←/→', label: 'day' },
   { keys: 't', label: 'today' },
   { keys: '↑/↓', label: 'select' },
-  { keys: 'a', label: 'add' },
+  { keys: 'a', label: 'add task' },
   { keys: 'q', label: 'quick-add' },
-  { keys: 'e', label: 'edit', show: (ctx) => ctx.isTask },
-  { keys: 's', label: 'reschedule', show: (ctx) => ctx.isTask },
-  { keys: '⇧↑/↓', label: 'move 1h', show: (ctx) => ctx.isTask && ctx.hasTime },
-  { keys: '+/-', label: 'resize', show: (ctx) => ctx.isTask && ctx.hasTime },
+  { keys: '⇧a', label: 'add event' },
+  { keys: '⇧q', label: 'quick-event' },
+  { keys: 'e', label: 'edit', show: (ctx) => ctx.isLocal },
+  { keys: 's', label: 'reschedule', show: (ctx) => ctx.isLocal },
+  { keys: '⇧↑/↓', label: 'move 1h', show: (ctx) => ctx.isLocal && ctx.hasTime },
+  { keys: '+/-', label: 'end ±15m', show: (ctx) => ctx.isLocal && ctx.hasTime },
+  { keys: '⇧+/-', label: 'start ±15m', show: (ctx) => ctx.isLocal && ctx.hasTime },
   { keys: 'x', label: 'done', show: (ctx) => ctx.isTask },
-  { keys: 'd', label: 'delete', show: (ctx) => ctx.isTask },
+  { keys: 'd', label: 'delete', show: (ctx) => ctx.isLocal },
 ];
 
 export const PAST_DUE_SHORTCUTS: Shortcut<Record<string, never>>[] = [
@@ -58,15 +59,20 @@ export const PAST_DUE_SHORTCUTS: Shortcut<Record<string, never>>[] = [
   { keys: 'd', label: 'delete' },
 ];
 
-export const WEEK_SHORTCUTS: Shortcut<WeekHelpContext>[] = [
+export const WEEK_SHORTCUTS: Shortcut<CalendarHelpContext>[] = [
   { keys: '←/→', label: 'day' },
   { keys: '⇧←/→', label: 'week' },
   { keys: 't', label: 'today' },
   { keys: '↑/↓', label: 'select' },
-  { keys: 'a', label: 'add' },
+  { keys: 'a', label: 'add task' },
   { keys: 'q', label: 'quick-add' },
-  { keys: 'e', label: 'edit', show: (ctx) => ctx.isTask },
-  { keys: 's', label: 'reschedule', show: (ctx) => ctx.isTask },
+  { keys: '⇧a', label: 'add event' },
+  { keys: '⇧q', label: 'quick-event' },
+  { keys: 'e', label: 'edit', show: (ctx) => ctx.isLocal },
+  { keys: 's', label: 'reschedule', show: (ctx) => ctx.isLocal },
+  { keys: '⇧↑/↓', label: 'move 1h', show: (ctx) => ctx.isLocal && ctx.hasTime },
+  { keys: '+/-', label: 'end ±15m', show: (ctx) => ctx.isLocal && ctx.hasTime },
+  { keys: '⇧+/-', label: 'start ±15m', show: (ctx) => ctx.isLocal && ctx.hasTime },
   { keys: 'x', label: 'done', show: (ctx) => ctx.isTask },
-  { keys: 'd', label: 'delete', show: (ctx) => ctx.isTask },
+  { keys: 'd', label: 'delete', show: (ctx) => ctx.isLocal },
 ];
