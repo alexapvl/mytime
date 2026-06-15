@@ -21,6 +21,7 @@ export const META_KEYS = {
   googleCalendarFetchPrefs: 'google_calendar_fetch_prefs',
   defaultEventReminders: 'default_event_reminders',
   customEventReminderPresets: 'custom_event_reminder_presets',
+  calendarFreeTimeExcludePrefs: 'calendar_free_time_exclude_prefs',
 } as const;
 
 export function getCalendarFetchPrefs(): Record<string, boolean> {
@@ -87,4 +88,20 @@ export function getCustomEventReminderPresets(): number[] {
 
 export function setCustomEventReminderPresets(minutes: number[]): void {
   setMeta(META_KEYS.customEventReminderPresets, JSON.stringify(minutes));
+}
+
+export function getCalendarFreeTimeExcludePrefs(): Record<string, boolean> {
+  const raw = getMeta(META_KEYS.calendarFreeTimeExcludePrefs);
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) as Record<string, boolean>;
+  } catch {
+    return {};
+  }
+}
+
+export function setCalendarFreeTimeExcludePref(calendarId: string, excluded: boolean): void {
+  const prefs = getCalendarFreeTimeExcludePrefs();
+  prefs[calendarId] = excluded;
+  setMeta(META_KEYS.calendarFreeTimeExcludePrefs, JSON.stringify(prefs));
 }

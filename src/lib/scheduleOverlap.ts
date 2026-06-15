@@ -1,6 +1,7 @@
 import { DateTime } from 'luxon';
 import { listAllScheduled, listScheduledInRange } from '../db/items.js';
 import type { Item } from '../db/types.js';
+import { filterItemsForFreeTime } from './freeTime.js';
 import { defaultEnd, isAllDaySchedule } from './time.js';
 
 function dateOnly(iso: string): string {
@@ -36,7 +37,7 @@ export function listDayEventsForSchedule(day: DateTime, excludeId?: string): Ite
     if (allDayEventSpansDay(event, day)) byId.set(event.id, event);
   }
 
-  return [...byId.values()].sort((a, b) => {
+  return filterItemsForFreeTime([...byId.values()]).sort((a, b) => {
     const aAllDay = isAllDayEvent(a);
     const bAllDay = isAllDayEvent(b);
     if (aAllDay !== bAllDay) return aAllDay ? -1 : 1;

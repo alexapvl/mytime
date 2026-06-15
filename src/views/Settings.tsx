@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Text, useApp } from 'ink';
 import TextInput from 'ink-text-input';
 import { deleteItemsByGoogleCalendar } from '../db/items.js';
-import { getCalendarFetchPrefs } from '../db/meta.js';
+import { getCalendarFetchPrefs, getCalendarFreeTimeExcludePrefs, setCalendarFreeTimeExcludePref } from '../db/meta.js';
 import {
   getOrCreateMytimeCalendarId,
   isCalendarFetchEnabled,
@@ -28,16 +28,18 @@ type Props = {
   onStatus: (msg: string) => void;
 };
 
-type SettingsTab = 'calendars' | 'reminders';
+type SettingsTab = 'calendars' | 'reminders' | 'freeTime';
 
 type CalendarRow = CalendarInfo & {
   enabled: boolean;
   locked: boolean;
+  freeTimeExcluded: boolean;
 };
 
 const TABS: { id: SettingsTab; key: string; label: string }[] = [
   { id: 'calendars', key: '1', label: 'Calendars' },
   { id: 'reminders', key: '2', label: 'Event Reminders' },
+  { id: 'freeTime', key: '3', label: 'Free Time' },
 ];
 
 export function SettingsView({ onStatus }: Props) {
@@ -68,11 +70,13 @@ export function SettingsView({ onStatus }: Props) {
         getOrCreateMytimeCalendarId(),
       ]);
       const prefs = getCalendarFetchPrefs();
+      const freeTimePrefs = getCalendarFreeTimeExcludePrefs();
       const rows = all
         .map((cal) => ({
           ...cal,
           enabled: isCalendarFetchEnabled(cal, mytimeCalendarId, prefs),
           locked: cal.id === mytimeCalendarId,
+          freeTimeExcluded: Boolean(freeTimePrefs[cal.id]),
         }))
         .sort((a, b) => {
           if (a.locked !== b.locked) return a.locked ? -1 : 1;
@@ -108,6 +112,11 @@ export function SettingsView({ onStatus }: Props) {
     { isActive: addingReminder },
   );
 
+  const fetchedCalendars = useMemo(
+    () => calendars.filter((cal) => cal.enabled),
+    [calendars],
+  );
+
   const toggleSelectedCalendar = useCallback(() => {
     const cal = calendars[selected];
     if (!cal || cal.locked) return;
@@ -128,6 +137,22 @@ export function SettingsView({ onStatus }: Props) {
         : `Disabled "${cal.summary}"${removed ? `, removed ${removed} local event${removed === 1 ? '' : 's'}` : ''}`,
     );
   }, [calendars, onStatus, selected]);
+
+  const toggleFreeTimeExclude = useCallback(() => {
+    const cal = fetchedCalendars[selected];
+    if (!cal || cal.locked) return;
+
+    const nextExcluded = !cal.freeTimeExcluded;
+    setCalendarFreeTimeExcludePref(cal.id, nextExcluded);
+    setCalendars((rows) =>
+      rows.map((row) => (row.id === cal.id ? { ...row, freeTimeExcluded: nextExcluded } : row)),
+    );
+    onStatus(
+      nextExcluded
+        ? `"${cal.summary}" excluded from free-time blocking`
+        : `"${cal.summary}" blocks free time again`,
+    );
+  }, [fetchedCalendars, onStatus, selected]);
 
   const toggleReminderPreset = useCallback(() => {
     const preset = reminderPresets[selected];
@@ -181,6 +206,10 @@ export function SettingsView({ onStatus }: Props) {
         setTab('reminders');
         setSelected(0);
       }
+      if (input === '3') {
+        setTab('freeTime');
+        setSelected(0);
+      }
 
       if (tab === 'calendars') {
         if (input === 'r') {
@@ -197,6 +226,24 @@ export function SettingsView({ onStatus }: Props) {
           return;
         }
         if (input === ' ' || input === 'x') toggleSelectedCalendar();
+        return;
+      }
+
+      if (tab === 'freeTime') {
+        if (input === 'r') {
+          void loadCalendars();
+          onStatus('Reloaded calendars');
+          return;
+        }
+        if (key.upArrow || input === 'k') {
+          setSelected((idx) => Math.max(0, idx - 1));
+          return;
+        }
+        if (key.downArrow || input === 'j') {
+          setSelected((idx) => Math.min(fetchedCalendars.length - 1, idx + 1));
+          return;
+        }
+        if (input === ' ' || input === 'x') toggleFreeTimeExclude();
         return;
       }
 
@@ -219,7 +266,7 @@ export function SettingsView({ onStatus }: Props) {
       }
       if (input === ' ' || input === 'x') toggleReminderPreset();
     },
-    { isActive: (tab !== 'calendars' || (!loading && calendars.length > 0)) && !addingReminder },
+    { isActive: ((tab === 'calendars' && !loading && calendars.length > 0) || tab === 'reminders' || (tab === 'freeTime' && !loading && fetchedCalendars.length > 0)) && !addingReminder },
   );
 
   if (addingReminder) {
@@ -292,6 +339,37 @@ export function SettingsView({ onStatus }: Props) {
               })}
           </Box>
           <Text dimColor>↑/↓ navigate · space/x toggle · r reload · esc quit</Text>
+        </>
+      ) : tab === 'freeTime' ? (
+        <>
+          <Text dimColor>
+            Fetched calendars still appear in Daily/Week. Excluded ones do not block free slots when scheduling.
+          </Text>
+          <Box marginTop={1} marginBottom={1} flexDirection="column">
+            {loading && <Text dimColor>Loading calendars...</Text>}
+            {!loading && error && <Text color="red">{error}</Text>}
+            {!loading && !error && fetchedCalendars.length === 0 && (
+              <Text dimColor>No fetched calendars. Enable calendars on tab [1] first.</Text>
+            )}
+            {!loading &&
+              !error &&
+              fetchedCalendars.slice(0, Math.max(1, contentRows - SETTINGS_VIEW_HEADER_ROWS)).map((cal, idx) => {
+                const active = idx === selected;
+                const blocks = cal.locked || !cal.freeTimeExcluded;
+                const check = blocks ? '[x]' : '[ ]';
+                const suffix = cal.locked ? ' (always blocks)' : cal.primary ? ' (primary)' : '';
+                return (
+                  <Box key={cal.id}>
+                    <Text color={active ? 'cyanBright' : undefined} bold={active}>
+                      {active ? '> ' : '  '}
+                      {check} {cal.summary}
+                      {suffix}
+                    </Text>
+                  </Box>
+                );
+              })}
+          </Box>
+          <Text dimColor>↑/↓ navigate · space/x toggle exclude · r reload · esc quit</Text>
         </>
       ) : (
         <>
