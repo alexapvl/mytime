@@ -1,3 +1,4 @@
+import * as chrono from 'chrono-node';
 import { DateTime } from 'luxon';
 
 export const DEFAULT_TIMEZONE = DateTime.local().zoneName;
@@ -83,8 +84,8 @@ export function parseTimeInput(input: string, baseDate?: string): { start: strin
 
   const base = baseDate ? DateTime.fromISO(baseDate) : DateTime.local();
 
-  // "14:30" or "14:30-15:30" or "2pm-3pm"
-  const rangeMatch = trimmed.match(/^(.+?)\s*[-–]\s*(.+)$/);
+  // "14:30" or "14:30-15:30" or "2pm-3pm" or "11:30 to 7pm"
+  const rangeMatch = trimmed.match(/^(.+?)\s*(?:[-–—]|(?:\s+(?:to|till|until)\s+))\s*(.+)$/i);
   if (rangeMatch) {
     const start = parseSingleTime(rangeMatch[1]!, base);
     const end = parseSingleTime(rangeMatch[2]!, base);
@@ -101,8 +102,53 @@ export function parseTimeInput(input: string, baseDate?: string): { start: strin
   return null;
 }
 
+/** Parse a custom start–end range for scheduling (supports NLP fallback). */
+export function parseScheduleRangeInput(input: string, baseDate: string): { start: string; end: string } | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  const base = DateTime.fromISO(baseDate).startOf('day');
+  const normalized = trimmed.replace(/(\d)\.(\d{2})\b/g, '$1:$2');
+
+  const structured = parseTimeInput(normalized, base.toISO()!);
+  if (structured) return structured;
+
+  const rangeSep = /\s*(?:[-–—]|\s+(?:to|till|until)\s+)\s*/i;
+  const parts = normalized.split(rangeSep).map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 2) {
+    const start = parseTimeNlp(parts[0]!, base);
+    let end = parseTimeNlp(parts[1]!, base);
+    if (start && end) {
+      if (end <= start) end = end.plus({ days: 1 });
+      return { start: start.toISO()!, end: end.toISO()! };
+    }
+  }
+
+  const ref = base.toJSDate();
+  const results = chrono.parse(normalized, ref, { forwardDate: true });
+  if (results.length === 0) return null;
+
+  const r = results[0]!;
+  if (!r.start.isCertain('hour')) return null;
+  const start = DateTime.fromJSDate(r.start.date());
+  if (!r.end || !(r.end.isCertain('hour') || r.end.isCertain('minute'))) return null;
+
+  let end = DateTime.fromJSDate(r.end.date());
+  if (end <= start) end = end.plus({ days: 1 });
+  return { start: start.toISO()!, end: end.toISO()! };
+}
+
+function parseTimeNlp(input: string, base: DateTime): DateTime | null {
+  const fromStructured = parseSingleTime(input, base);
+  if (fromStructured) return fromStructured;
+
+  const results = chrono.parse(input.trim(), base.toJSDate(), { forwardDate: true });
+  if (!results[0]?.start.isCertain('hour')) return null;
+  return DateTime.fromJSDate(results[0]!.start.date());
+}
+
 function parseSingleTime(input: string, base: DateTime): DateTime | null {
-  const t = input.trim().toLowerCase();
+  const t = input.trim().toLowerCase().replace(/(\d)\.(\d{2})\b/g, '$1:$2');
 
   const hm = t.match(/^(\d{1,2}):(\d{2})$/);
   if (hm) {
@@ -118,14 +164,19 @@ function parseSingleTime(input: string, base: DateTime): DateTime | null {
     }
   }
 
-  const ampm = t.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/);
+  const ampm = t.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm|a|p)$/);
   if (ampm) {
     let hour = parseInt(ampm[1]!, 10);
     const minute = ampm[2] ? parseInt(ampm[2], 10) : 0;
-    const meridiem = ampm[3];
-    if (meridiem === 'pm' && hour < 12) hour += 12;
-    if (meridiem === 'am' && hour === 12) hour = 0;
+    const meridiem = ampm[3]!;
+    if ((meridiem === 'pm' || meridiem === 'p') && hour < 12) hour += 12;
+    if ((meridiem === 'am' || meridiem === 'a') && hour === 12) hour = 0;
     return base.set({ hour, minute, second: 0, millisecond: 0 });
+  }
+
+  const chronoResults = chrono.parse(t, base.toJSDate(), { forwardDate: true });
+  if (chronoResults[0]?.start.isCertain('hour')) {
+    return DateTime.fromJSDate(chronoResults[0]!.start.date());
   }
 
   return null;

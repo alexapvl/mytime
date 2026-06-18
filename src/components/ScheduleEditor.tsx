@@ -5,7 +5,7 @@ import { useAppInput } from '../hooks/useAppInput.js';
 import { MarqueeText } from './MarqueeText.js';
 import type { Item } from '../db/types.js';
 import { isSlotFree, listDayEventsForSchedule, overlappingEvents, splitDayEvents, buildScheduleSlots } from '../lib/scheduleOverlap.js';
-import { allDayRange } from '../lib/time.js';
+import { allDayRange, formatTime, parseScheduleRangeInput } from '../lib/time.js';
 
 type Props = {
   item: Item;
@@ -31,6 +31,12 @@ function nearestIndexTo(slots: DateTime[], targetMillis: number): number {
   return best;
 }
 
+const RANGE_TYPING = /^[0-9:a-zA-Z.\-–— ]$/;
+
+function isRangeTyping(input: string): boolean {
+  return input.length === 1 && RANGE_TYPING.test(input);
+}
+
 function divider(width: number): string {
   return '─'.repeat(Math.max(1, width));
 }
@@ -45,6 +51,8 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
 
   const [date, setDate] = useState(initialDate);
   const [filter, setFilter] = useState('');
+  const [rangeInput, setRangeInput] = useState('');
+  const [rangeMode, setRangeMode] = useState(false);
   const [freeOnly, setFreeOnly] = useState(false);
   const [stepIndex, setStepIndex] = useState(DEFAULT_STEP_INDEX);
   const stepMinutes = STEP_MINUTES[stepIndex]!;
@@ -68,6 +76,11 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
   const isToday = date.hasSame(DateTime.local(), 'day');
   const headerPrefix = `${isReschedule ? 'reschedule' : 'schedule'}: `;
 
+  const parsedRange = useMemo(() => {
+    if (!rangeInput.trim()) return null;
+    return parseScheduleRangeInput(rangeInput, date.toISO()!);
+  }, [rangeInput, date]);
+
   const goToDate = (next: DateTime) => {
     const clamped = next < today ? today : next;
     setDate(clamped);
@@ -82,10 +95,23 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
 
   useAppInput((input, key) => {
     if (key.escape) {
+      if (rangeMode) {
+        setRangeMode(false);
+        setRangeInput('');
+        return;
+      }
       onCancel();
       return;
     }
+    if (input === 'c') {
+      setRangeMode(true);
+      return;
+    }
     if (key.return) {
+      if (rangeInput.trim()) {
+        if (parsedRange) onSubmit(parsedRange.start, parsedRange.end, false);
+        return;
+      }
       const slot = filtered[sel];
       if (slot) onSubmit(slot.toISO()!, slot.plus({ minutes: stepMinutes }).toISO()!, false);
       return;
@@ -106,6 +132,25 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
     }
     if (input === 'l' || key.rightArrow) {
       goToDate(date.plus({ days: 1 }));
+      return;
+    }
+    if (rangeMode) {
+      if (key.backspace || key.delete) {
+        setRangeInput((r) => {
+          const next = r.slice(0, -1);
+          if (!next) setRangeMode(false);
+          return next;
+        });
+        return;
+      }
+      if (input && !key.ctrl && !key.meta && isRangeTyping(input)) {
+        setRangeInput((r) => r + input);
+      }
+      return;
+    }
+    if (input && !key.ctrl && !key.meta && isRangeTyping(input) && !/^[0-9]$/.test(input)) {
+      setRangeMode(true);
+      setRangeInput(input);
       return;
     }
     if (input === '-' || input === '_') {
@@ -149,7 +194,7 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
         color="cyanBright"
       />
       <MarqueeText
-        text="←/→ day · ↑/↓ time · +/- step · f free slots · a all day · digits filter · enter confirm · esc cancel"
+        text="←/→ day · ↑/↓ time · +/- step · c custom range · f free slots · a all day · digits filter · enter confirm · esc cancel"
         maxWidth={viewWidth}
         active={false}
         dimColor
@@ -180,7 +225,19 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
       <Box flexDirection="column" width={viewWidth}>
         <Text>filter:</Text>
         <Text>
-          {'  '}digits: <Text color="yellow">{filter || '—'}</Text>
+          {'  '}digits: <Text color={!rangeMode ? 'yellow' : undefined}>{filter || '—'}</Text>
+        </Text>
+        <Text>
+          {'  '}range:{' '}
+          <Text color={rangeMode ? 'yellow' : undefined}>{rangeInput || '—'}</Text>
+          {parsedRange ? (
+            <Text dimColor>
+              {' '}
+              ({formatTime(parsedRange.start)}–{formatTime(parsedRange.end)})
+            </Text>
+          ) : rangeInput.trim() && rangeMode ? (
+            <Text dimColor> (unrecognized)</Text>
+          ) : null}
         </Text>
         <Text>
           {'  '}free slots: <Text color={freeOnly ? 'yellow' : undefined}>{freeOnly ? 'on' : 'off'}</Text>

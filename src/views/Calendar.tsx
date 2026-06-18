@@ -23,7 +23,8 @@ import { useAppInput } from '../hooks/useAppInput.js';
 import type { ClickRegion } from '../lib/mouse.js';
 import { useViewport } from '../context/ViewportContext.js';
 import { DAY_VIEW_HEADER_ROWS, VIEW_ROW0, WEEK_VIEW_HEADER_ROWS } from '../lib/layout.js';
-import { parseQuickAdd } from '../lib/nlp.js';
+import { QuickAddPreview } from '../components/QuickAddPreview.js';
+import { buildQuickAddDraft, calendarQuickAddReference } from '../lib/quickAddPreview.js';
 import { DAILY_SHORTCUTS, WEEK_SHORTCUTS } from '../lib/shortcuts.js';
 import { cloneItem, makeUndoDelete, makeUndoToggleDone } from '../lib/undoActions.js';
 
@@ -95,15 +96,20 @@ function allDayFields(day: DateTime): { start: string; end: string; allDay: true
 }
 
 function createCalendarItemFromQuickAdd(input: string, day: DateTime, kind: CreatorKind): Item {
-  const parsed = parseQuickAdd(input, day.startOf('day').toJSDate());
-  const fallback = allDayFields(day);
+  const ref = day.startOf('day');
+  const draft = buildQuickAddDraft(input, {
+    kind,
+    referenceDate: ref.toJSDate(),
+    fallbackDay: ref.toISO()!,
+  });
+  if (!draft) throw new Error('empty quick add');
   const fields = {
-    title: parsed.title,
-    start: parsed.start ?? fallback.start,
-    end: parsed.end ?? fallback.end,
-    allDay: parsed.start ? parsed.allDay : true,
+    title: draft.title,
+    start: draft.start!,
+    end: draft.end,
+    allDay: draft.allDay,
   };
-  return kind === 'event' ? createEvent(fields) : createItem({ ...fields, tags: parsed.tags, project: parsed.project, priority: parsed.priority });
+  return kind === 'event' ? createEvent(fields) : createItem({ ...fields, tags: draft.tags, project: draft.project, priority: draft.priority });
 }
 
 function draftScheduleItem(title: string): Item {
@@ -129,21 +135,23 @@ function calendarHelpContext(item: Item | undefined) {
   };
 }
 
-/** +/_ adjust start; =/- adjust end. Terminals rarely set key.shift for shifted +/- keys. */
+/** +/- adjust end; shift+/- adjust start (_ is shift+- when the terminal omits key.shift). */
 function timedResizeInput(item: Item, input: string, key: Key): { updates: Partial<Item>; message: string } | null {
   if (!item.start || !item.end || !hasWeekTime(item)) return null;
 
-  if (input === '+' || (key.shift && input === '=')) {
+  const startLater = key.shift && (input === '+' || input === '=');
+  const startEarlier = input === '_' || (key.shift && input === '-');
+  if (startLater) {
     const newStart = addMinutes(item.start, 15);
     if (DateTime.fromISO(newStart) >= DateTime.fromISO(item.end)) return null;
     return { updates: { start: newStart }, message: 'Start 15m later' };
   }
-  if (input === '_' || (key.shift && input === '-')) {
+  if (startEarlier) {
     const newStart = addMinutes(item.start, -15);
     if (DateTime.fromISO(newStart) >= DateTime.fromISO(item.end)) return null;
     return { updates: { start: newStart }, message: 'Start 15m earlier' };
   }
-  if (input === '=') {
+  if (input === '+' || input === '=') {
     return { updates: { end: addMinutes(item.end, 15) }, message: 'End 15m later' };
   }
   if (input === '-') {
@@ -184,6 +192,10 @@ function CalendarItemCreator({
   onCreated: (item: Item) => void;
 }) {
   const [quickInput, setQuickInput] = useState('');
+  const previewOpts = useMemo(
+    () => ({ kind, ...calendarQuickAddReference(day) }),
+    [kind, day],
+  );
   useAppInput((_input, key) => {
     if (key.escape) onCancel();
   });
@@ -202,6 +214,7 @@ function CalendarItemCreator({
           }}
         />
       </Box>
+      <QuickAddPreview input={quickInput} {...previewOpts} />
     </Box>
   );
 }

@@ -4,6 +4,7 @@ import TextInput from 'ink-text-input';
 import { DateTime } from 'luxon';
 import { ItemEditor } from '../components/ItemEditor.js';
 import { ScheduleEditor } from '../components/ScheduleEditor.js';
+import { QuickAddPreview } from '../components/QuickAddPreview.js';
 import { COLUMN_DIVIDER_WIDTH, ColumnDivider } from '../components/ColumnDivider.js';
 import { ItemDetailLines, itemDetailLineCount } from '../components/ItemDetailLines.js';
 import { MarqueeText } from '../components/MarqueeText.js';
@@ -302,6 +303,7 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
   );
 
   if (mode === 'quick') {
+    const inputHasPriority = /\bp[0-3]\b/i.test(quickInput);
     return (
       <Box flexDirection="column">
         <Text color="cyanBright">Quick add (NLP):</Text>
@@ -332,6 +334,12 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
             }}
           />
         </Box>
+        <QuickAddPreview
+          input={quickInput}
+          kind="task"
+          defaultPriority={selectedPriority}
+          useDefaultPriority={!inputHasPriority}
+        />
       </Box>
     );
   }
