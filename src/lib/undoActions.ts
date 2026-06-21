@@ -1,6 +1,6 @@
 import type { Item } from '../db/types.js';
-import { restoreItem, updateItem } from '../db/items.js';
-import { autoPush } from '../google/autoSync.js';
+import { deleteItem, restoreItem, updateItem } from '../db/items.js';
+import { autoPush, autoRemove } from '../google/autoSync.js';
 
 export function cloneItem(item: Item): Item {
   return { ...item, tags: [...item.tags], reminders: [...item.reminders] };
@@ -15,6 +15,13 @@ export function makeUndoDelete(snapshot: Item, onStatus: (msg: string) => void):
       syncedAt: undefined,
     });
     if (snapshot.start) autoPush(snapshot.id, onStatus);
+  };
+}
+
+export function makeUndoAdd(snapshot: Item, onStatus: (msg: string) => void): () => void {
+  return () => {
+    deleteItem(snapshot.id);
+    autoRemove(snapshot, onStatus);
   };
 }
 

@@ -26,7 +26,7 @@ import { DAY_VIEW_HEADER_ROWS, VIEW_ROW0, WEEK_VIEW_HEADER_ROWS } from '../lib/l
 import { QuickAddPreview } from '../components/QuickAddPreview.js';
 import { buildQuickAddDraft, calendarQuickAddReference } from '../lib/quickAddPreview.js';
 import { DAILY_SHORTCUTS, WEEK_SHORTCUTS } from '../lib/shortcuts.js';
-import { cloneItem, makeUndoDelete, makeUndoToggleDone } from '../lib/undoActions.js';
+import { cloneItem, makeUndoAdd, makeUndoDelete, makeUndoToggleDone } from '../lib/undoActions.js';
 
 type Props = {
   onRefresh: () => void;
@@ -437,7 +437,7 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
           const item = createItem({ ...data, ...allDayFields(day) });
           setMode('list');
           refresh();
-          pushUndo(`Added: ${item.title}`, makeUndoDelete(cloneItem(item), onStatus));
+          pushUndo(`Added: ${item.title}`, makeUndoAdd(cloneItem(item), onStatus));
           autoPush(item.id, onStatus);
           onStatus(`Added: ${item.title}`);
         }}
@@ -455,7 +455,7 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
         onCreated={(item) => {
           setMode('list');
           refresh();
-          pushUndo(`Added: ${item.title}`, makeUndoDelete(cloneItem(item), onStatus));
+          pushUndo(`Added: ${item.title}`, makeUndoAdd(cloneItem(item), onStatus));
           autoPush(item.id, onStatus);
           onStatus(`Added: ${item.title}`);
         }}
@@ -497,7 +497,7 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
           setPendingEvent(null);
           setMode('list');
           refresh();
-          pushUndo(`Added: ${item.title}`, makeUndoDelete(cloneItem(item), onStatus));
+          pushUndo(`Added: ${item.title}`, makeUndoAdd(cloneItem(item), onStatus));
           autoPush(item.id, onStatus);
           onStatus(`Added event: ${item.title}`);
         }}
@@ -901,7 +901,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
           const item = createItem({ ...data, ...allDayFields(focusedDay) });
           setMode('list');
           refresh();
-          pushUndo(`Added: ${item.title}`, makeUndoDelete(cloneItem(item), onStatus));
+          pushUndo(`Added: ${item.title}`, makeUndoAdd(cloneItem(item), onStatus));
           autoPush(item.id, onStatus);
           onStatus(`Added: ${item.title}`);
         }}
@@ -919,7 +919,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
         onCreated={(item) => {
           setMode('list');
           refresh();
-          pushUndo(`Added: ${item.title}`, makeUndoDelete(cloneItem(item), onStatus));
+          pushUndo(`Added: ${item.title}`, makeUndoAdd(cloneItem(item), onStatus));
           autoPush(item.id, onStatus);
           onStatus(`Added: ${item.title}`);
         }}
@@ -961,7 +961,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
           setPendingEvent(null);
           setMode('list');
           refresh();
-          pushUndo(`Added: ${item.title}`, makeUndoDelete(cloneItem(item), onStatus));
+          pushUndo(`Added: ${item.title}`, makeUndoAdd(cloneItem(item), onStatus));
           autoPush(item.id, onStatus);
           onStatus(`Added event: ${item.title}`);
         }}
