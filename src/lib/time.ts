@@ -147,12 +147,68 @@ function parseTimeNlp(input: string, base: DateTime): DateTime | null {
   return DateTime.fromJSDate(results[0]!.start.date());
 }
 
+export type ParsedEmbeddedTimeRange = {
+  start: string;
+  end: string;
+  match: string;
+  index: number;
+};
+
+const MONTH_BEFORE_HOUR_RANGE =
+  /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*$/i;
+
+/** Find a start–end time range embedded in quick-add text (e.g. 1300-1400, 13-14). */
+export function findTimeRangeInText(text: string, baseDate: string | Date): ParsedEmbeddedTimeRange | null {
+  const base =
+    typeof baseDate === 'string'
+      ? DateTime.fromISO(baseDate).startOf('day')
+      : DateTime.fromJSDate(baseDate).startOf('day');
+
+  const military = /(\d{3,4})\s*[-–—]\s*(\d{3,4})/;
+  const mMil = military.exec(text);
+  if (mMil?.index != null) {
+    const start = parseSingleTime(mMil[1]!, base);
+    let end = parseSingleTime(mMil[2]!, base);
+    if (start && end) {
+      if (end <= start) end = end.plus({ days: 1 });
+      return { start: start.toISO()!, end: end.toISO()!, match: mMil[0], index: mMil.index };
+    }
+  }
+
+  const hourRange = /\b(\d{1,2})\s*[-–—]\s*(\d{1,2})\b/g;
+  for (const match of text.matchAll(hourRange)) {
+    const index = match.index;
+    if (index == null) continue;
+    const before = text.slice(0, index);
+    if (MONTH_BEFORE_HOUR_RANGE.test(before)) continue;
+
+    const start = parseSingleTime(match[1]!, base);
+    let end = parseSingleTime(match[2]!, base);
+    if (start && end) {
+      if (end <= start) end = end.plus({ days: 1 });
+      return { start: start.toISO()!, end: end.toISO()!, match: match[0], index };
+    }
+  }
+
+  return null;
+}
+
 function parseSingleTime(input: string, base: DateTime): DateTime | null {
   const t = input.trim().toLowerCase().replace(/(\d)\.(\d{2})\b/g, '$1:$2');
 
   const hm = t.match(/^(\d{1,2}):(\d{2})$/);
   if (hm) {
     return base.set({ hour: parseInt(hm[1]!, 10), minute: parseInt(hm[2]!, 10), second: 0, millisecond: 0 });
+  }
+
+  const military = t.match(/^(\d{3,4})$/);
+  if (military) {
+    const n = parseInt(military[1]!, 10);
+    const hour = Math.floor(n / 100);
+    const minute = n % 100;
+    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+      return base.set({ hour, minute, second: 0, millisecond: 0 });
+    }
   }
 
   // Bare hour like "12" -> 12:00

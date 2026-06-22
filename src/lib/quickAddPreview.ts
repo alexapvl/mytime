@@ -65,7 +65,7 @@ export function formatQuickAddPreviewLine(item: Item): string {
   if (item.source === 'task') {
     const meta = metaLabel(item);
     if (meta) parts.push(meta);
-    if (item.priority > 0) parts.push(`P${item.priority}`);
+    parts.push(`P${item.priority}`);
   }
 
   return parts.join(' · ');

@@ -1,6 +1,6 @@
 import * as chrono from 'chrono-node';
 import { DateTime } from 'luxon';
-import { allDayRange, defaultEnd } from './time.js';
+import { allDayRange, defaultEnd, findTimeRangeInText } from './time.js';
 
 export type ParsedItem = {
   title: string;
@@ -37,13 +37,33 @@ export function parseQuickAdd(input: string, referenceDate: Date = new Date()): 
     text = text.replace(/\bp[0-3]\b/i, '').replace(/\s+/g, ' ').trim();
   }
 
+  const embeddedRange = findTimeRangeInText(text, referenceDate);
+  if (embeddedRange) {
+    text = (text.slice(0, embeddedRange.index) + text.slice(embeddedRange.index + embeddedRange.match.length))
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   const results = chrono.parse(text, referenceDate, { forwardDate: true });
   let start: string | undefined;
   let end: string | undefined;
   let allDay = false;
   let title = text;
 
-  if (results.length > 0) {
+  if (embeddedRange) {
+    let day = DateTime.fromJSDate(referenceDate).startOf('day');
+    if (results.length > 0) {
+      const r = results[0]!;
+      day = DateTime.fromJSDate(r.start.date()).startOf('day');
+      title = text.slice(0, r.index).trim() + text.slice(r.index + r.text.length).trim();
+      title = title.replace(/\s+/g, ' ').trim();
+    }
+    const startParts = DateTime.fromISO(embeddedRange.start);
+    const endParts = DateTime.fromISO(embeddedRange.end);
+    start = day.set({ hour: startParts.hour, minute: startParts.minute, second: 0, millisecond: 0 }).toISO()!;
+    end = day.set({ hour: endParts.hour, minute: endParts.minute, second: 0, millisecond: 0 }).toISO()!;
+    allDay = false;
+  } else if (results.length > 0) {
     const r = results[0]!;
     const startDate = r.start.date();
     const hasTime = r.start.isCertain('hour') || r.start.isCertain('minute');
