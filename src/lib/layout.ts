@@ -24,6 +24,7 @@ export function contentAreaRows(terminalRows: number, screen: AppScreen): number
 /** Rows each view uses before its scrollable body (inside the content area). */
 export const DAY_VIEW_HEADER_ROWS = 3;
 export const WEEK_VIEW_HEADER_ROWS = 4;
+export const MONTH_VIEW_HEADER_ROWS = 4;
 export const BACKLOG_VIEW_HEADER_ROWS = 2;
 export const PAST_DUE_VIEW_HEADER_ROWS = 2;
 export const SETTINGS_VIEW_HEADER_ROWS = 7;

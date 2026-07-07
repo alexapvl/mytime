@@ -1,7 +1,9 @@
 import React, { useCallback, useState } from 'react';
 import { Box, Text, useApp } from 'ink';
+import { DateTime } from 'luxon';
 import { BacklogView } from './views/Backlog.js';
 import { DayView, WeekView } from './views/Calendar.js';
+import { MonthView } from './views/Month.js';
 import { PastDueView } from './views/PastDue.js';
 import { SettingsView } from './views/Settings.js';
 import { syncWithGoogle } from './google/sync.js';
@@ -13,14 +15,15 @@ import { useAppInput } from './hooks/useAppInput.js';
 import { ViewportProvider, useViewport } from './context/ViewportContext.js';
 import { TAB_ROW } from './lib/layout.js';
 
-type Tab = 'backlog' | 'daily' | 'week' | 'pastdue';
+type Tab = 'backlog' | 'daily' | 'week' | 'month' | 'pastdue';
 type Screen = 'main' | 'settings';
 
 const TABS: { id: Tab; label: string; key: string }[] = [
   { id: 'backlog', label: 'Backlog', key: '1' },
   { id: 'daily', label: 'Daily', key: '2' },
   { id: 'week', label: 'Week', key: '3' },
-  { id: 'pastdue', label: 'Past Due', key: '4' },
+  { id: 'month', label: 'Month', key: '4' },
+  { id: 'pastdue', label: 'Past Due', key: '5' },
 ];
 
 function AppShell({ screen }: { screen: Screen }) {
@@ -29,6 +32,7 @@ function AppShell({ screen }: { screen: Screen }) {
   const { inputFocused } = useInputFocus();
   const { undoLast } = useUndo();
   const [tab, setTab] = useState<Tab>('backlog');
+  const [focusedDateISO, setFocusedDateISO] = useState(() => DateTime.local().toISODate()!);
   const [status, setStatus] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
@@ -39,7 +43,8 @@ function AppShell({ screen }: { screen: Screen }) {
     { row: TAB_ROW, col: 1, endCol: 11, onClick: () => setTab('backlog') },
     { row: TAB_ROW, col: 12, endCol: 22, onClick: () => setTab('daily') },
     { row: TAB_ROW, col: 23, endCol: 33, onClick: () => setTab('week') },
-    { row: TAB_ROW, col: 34, endCol: 46, onClick: () => setTab('pastdue') },
+    { row: TAB_ROW, col: 34, endCol: 44, onClick: () => setTab('month') },
+    { row: TAB_ROW, col: 45, endCol: 57, onClick: () => setTab('pastdue') },
   ]);
 
   const doSync = useCallback(async () => {
@@ -69,7 +74,8 @@ function AppShell({ screen }: { screen: Screen }) {
         if (input === '1') setTab('backlog');
         if (input === '2') setTab('daily');
         if (input === '3') setTab('week');
-        if (input === '4') setTab('pastdue');
+        if (input === '4') setTab('month');
+        if (input === '5') setTab('pastdue');
         if (input === 'r') void doSync();
         if (input === 'u') {
           const label = undoLast();
@@ -117,10 +123,26 @@ function AppShell({ screen }: { screen: Screen }) {
           <BacklogView refreshToken={refreshToken} onRefresh={refresh} onStatus={setStatus} />
         )}
         {screen === 'main' && tab === 'daily' && (
-          <DayView refreshToken={refreshToken} onRefresh={refresh} onStatus={setStatus} />
+          <DayView
+            refreshToken={refreshToken}
+            onRefresh={refresh}
+            onStatus={setStatus}
+            focusedDateISO={focusedDateISO}
+            onFocusedDateChange={setFocusedDateISO}
+          />
         )}
         {screen === 'main' && tab === 'week' && (
           <WeekView refreshToken={refreshToken} onRefresh={refresh} onStatus={setStatus} />
+        )}
+        {screen === 'main' && tab === 'month' && (
+          <MonthView
+            refreshToken={refreshToken}
+            onRefresh={refresh}
+            onStatus={setStatus}
+            focusedDateISO={focusedDateISO}
+            onFocusedDateChange={setFocusedDateISO}
+            onDrillToDaily={() => setTab('daily')}
+          />
         )}
         {screen === 'main' && tab === 'pastdue' && (
           <PastDueView refreshToken={refreshToken} onRefresh={refresh} onStatus={setStatus} />

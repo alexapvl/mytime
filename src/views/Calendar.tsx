@@ -32,10 +32,12 @@ type Props = {
   onRefresh: () => void;
   onStatus: (msg: string) => void;
   refreshToken?: number;
+  focusedDateISO?: string;
+  onFocusedDateChange?: (iso: string) => void;
 };
 type CalendarMode = 'list' | 'add' | 'quick' | 'addEvent' | 'quickEvent' | 'edit' | 'editEvent' | 'schedule' | 'scheduleNewEvent';
 
-type PendingEventDraft = {
+export type PendingEventDraft = {
   title: string;
   notes?: string;
   location?: string;
@@ -90,12 +92,12 @@ function isDoneTask(item: Item): boolean {
   return item.status === 'done' && item.source === 'task';
 }
 
-function allDayFields(day: DateTime): { start: string; end: string; allDay: true } {
+export function allDayFields(day: DateTime): { start: string; end: string; allDay: true } {
   const range = allDayRange(day.toISO()!);
   return { ...range, allDay: true };
 }
 
-function createCalendarItemFromQuickAdd(input: string, day: DateTime, kind: CreatorKind): Item {
+export function createCalendarItemFromQuickAdd(input: string, day: DateTime, kind: CreatorKind): Item {
   const ref = day.startOf('day');
   const draft = buildQuickAddDraft(input, {
     kind,
@@ -112,7 +114,7 @@ function createCalendarItemFromQuickAdd(input: string, day: DateTime, kind: Crea
   return kind === 'event' ? createEvent(fields) : createItem({ ...fields, tags: draft.tags, project: draft.project, priority: draft.priority });
 }
 
-function draftScheduleItem(title: string): Item {
+export function draftScheduleItem(title: string): Item {
   return {
     id: 'draft',
     title,
@@ -178,7 +180,7 @@ function applyTimedResize(
   return true;
 }
 
-function CalendarItemCreator({
+export function CalendarItemCreator({
   mode,
   kind,
   day,
@@ -226,12 +228,29 @@ function rowDivider(width: number): string {
   return '─'.repeat(Math.max(1, width));
 }
 
-export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
+export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onFocusedDateChange }: Props) {
   const { setInputFocused } = useInputFocus();
   const { pushUndo } = useUndo();
   const { contentRows, columns } = useViewport();
   const viewWidth = Math.max(40, columns - 6);
-  const [day, setDay] = useState(() => DateTime.local().startOf('day'));
+  const [day, setDay] = useState(() =>
+    focusedDateISO ? DateTime.fromISO(focusedDateISO).startOf('day') : DateTime.local().startOf('day'),
+  );
+
+  const changeDay = (next: DateTime | ((d: DateTime) => DateTime)) => {
+    setDay((current) => {
+      const resolved = typeof next === 'function' ? next(current) : next;
+      const normalized = resolved.startOf('day');
+      onFocusedDateChange?.(normalized.toISODate()!);
+      return normalized;
+    });
+  };
+
+  useEffect(() => {
+    if (!focusedDateISO) return;
+    const external = DateTime.fromISO(focusedDateISO).startOf('day');
+    setDay((current) => (current.hasSame(external, 'day') ? current : external));
+  }, [focusedDateISO]);
   const [items, setItems] = useState<Item[]>([]);
   const [selected, setSelected] = useState(0);
   const [mode, setMode] = useState<CalendarMode>('list');
@@ -312,15 +331,15 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
   useAppInput(
     (input, key) => {
       if (input === 't') {
-        setDay(DateTime.local().startOf('day'));
+        changeDay(DateTime.local().startOf('day'));
         return;
       }
       if (input === 'h' || key.leftArrow) {
-        setDay((d) => d.minus({ days: 1 }));
+        changeDay((d) => d.minus({ days: 1 }));
         return;
       }
       if (input === 'l' || key.rightArrow) {
-        setDay((d) => d.plus({ days: 1 }));
+        changeDay((d) => d.plus({ days: 1 }));
         return;
       }
       if (input === 'a') {
@@ -356,7 +375,7 @@ export function DayView({ onRefresh, onStatus, refreshToken }: Props) {
         const adjacent = findAdjacentDayItem(day, dir);
         if (adjacent) {
           pendingSelectRef.current = anchor;
-          setDay(adjacent.day.startOf('day'));
+          changeDay(adjacent.day.startOf('day'));
         }
       };
 

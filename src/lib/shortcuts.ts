@@ -58,6 +58,18 @@ export const PAST_DUE_SHORTCUTS: Shortcut<Record<string, never>>[] = [
   { keys: 'd', label: 'delete' },
 ];
 
+export const MONTH_SHORTCUTS: Shortcut<CalendarHelpContext>[] = [
+  { keys: '←/→', label: 'day' },
+  { keys: '↑/↓', label: 'week' },
+  { keys: '⇧←/→', label: 'month' },
+  { keys: 't', label: 'today' },
+  { keys: 'enter', label: 'open day' },
+  { keys: 'a', label: 'add task' },
+  { keys: 'q', label: 'quick-add' },
+  { keys: '⇧a', label: 'add event' },
+  { keys: '⇧q', label: 'quick-event' },
+];
+
 export const WEEK_SHORTCUTS: Shortcut<CalendarHelpContext>[] = [
   { keys: '←/→', label: 'day' },
   { keys: '⇧←/→', label: 'week' },
