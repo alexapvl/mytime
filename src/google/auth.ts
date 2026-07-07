@@ -1,3 +1,4 @@
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { google } from 'googleapis';
@@ -84,12 +85,23 @@ export function isAuthenticated(): boolean {
   return existsSync(TOKEN_PATH);
 }
 
+function generateOAuthState(): string {
+  return randomBytes(32).toString('hex');
+}
+
+function verifyOAuthState(expected: string, received: string | null): boolean {
+  if (!received || expected.length !== received.length) return false;
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(received));
+}
+
 export async function authenticate(): Promise<void> {
   const oauth2 = getOAuthClient();
+  const state = generateOAuthState();
   const authUrl = oauth2.generateAuthUrl({
     access_type: 'offline',
     scope: GOOGLE_SCOPES,
     prompt: 'consent',
+    state,
   });
 
   console.log('\nOpening browser for Google sign-in...\n');
@@ -102,13 +114,13 @@ export async function authenticate(): Promise<void> {
     // ignore
   }
 
-  const code = await waitForAuthCode();
+  const code = await waitForAuthCode(state);
   const { tokens } = await oauth2.getToken(code);
   saveToken(normalizeToken(tokens));
   console.log('\nAuthenticated. Token saved to', TOKEN_PATH);
 }
 
-function waitForAuthCode(): Promise<string> {
+function waitForAuthCode(expectedState: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const server = createServer((req, res) => {
       const url = new URL(req.url ?? '/', 'http://127.0.0.1:3847');
@@ -120,13 +132,16 @@ function waitForAuthCode(): Promise<string> {
 
       const code = url.searchParams.get('code');
       const error = url.searchParams.get('error');
+      const state = url.searchParams.get('state');
 
       res.writeHead(200, { 'Content-Type': 'text/html' });
       res.end('<html><body><h1>mytime authenticated</h1><p>You can close this tab.</p></body></html>');
 
       server.close();
       if (error) reject(new Error(error));
-      else if (code) resolve(code);
+      else if (!verifyOAuthState(expectedState, state)) {
+        reject(new Error('Invalid OAuth state — possible CSRF attempt'));
+      } else if (code) resolve(code);
       else reject(new Error('No authorization code received'));
     });
 
