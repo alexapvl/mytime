@@ -123,11 +123,3 @@ pnpm build
 ```
 
 There is no automated test suite yet. Manually exercise affected TUI tabs and MCP tools when behavior changes.
-
-## User Preferences (maintainer)
-
-- Minimize scope; match existing file style and naming
-- Do not co-author commits
-- Do not use plan mode — output plans inline if asked
-- For implementation tasks: make edits, then reply **Done.** unless explanation was requested
-- Use `/caveman` skill when asked to explain something
