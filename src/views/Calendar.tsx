@@ -7,7 +7,7 @@ import type { Item, Reminder } from '../db/types.js';
 import { isLocalItem } from '../db/types.js';
 import { createItem, createEvent, deleteItem, listScheduledInRange, rescheduleLocalItem, toggleDone, updateItem } from '../db/items.js';
 import { padToWidth } from '../lib/textWidth.js';
-import { addMinutes, allDayRange, hourLabels, isSameDay } from '../lib/time.js';
+import { addMinutes, allDayRange, hourLabels, itemSpansDay } from '../lib/time.js';
 import { autoPush, autoRemove } from '../google/autoSync.js';
 import { ItemEditor } from '../components/ItemEditor.js';
 import { EventEditor } from '../components/EventEditor.js';
@@ -663,13 +663,13 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
     } else if (weekSelectIntentRef.current) {
       const { dayISO, select } = weekSelectIntentRef.current;
       weekSelectIntentRef.current = null;
-      const dayItems = scheduledLoaded.filter((i) => i.start && isSameDay(i.start, dayISO));
+      const dayItems = scheduledLoaded.filter((i) => i.start && itemSpansDay(i, dayISO));
       if (dayItems.length > 0) {
         const target = select === 'last' ? dayItems[dayItems.length - 1]! : dayItems[0]!;
         setSelected(scheduledLoaded.indexOf(target));
       }
     } else {
-      const dayItems = scheduledLoaded.filter((i) => i.start && isSameDay(i.start, focusedDayISO));
+      const dayItems = scheduledLoaded.filter((i) => i.start && itemSpansDay(i, focusedDayISO));
       if (dayItems.length > 0) setSelected(scheduledLoaded.indexOf(dayItems[0]!));
     }
     onRefresh();
@@ -690,7 +690,8 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
   const scheduled = useMemo(() => items.filter((i) => i.start), [items]);
   const sel = Math.min(selected, Math.max(0, scheduled.length - 1));
   const selectedCandidate = scheduled[sel];
-  const selectedWeekItem = selectedCandidate?.start && isSameDay(selectedCandidate.start, focusedDay.toISO()!) ? selectedCandidate : undefined;
+  const selectedWeekItem =
+    selectedCandidate?.start && itemSpansDay(selectedCandidate, focusedDay) ? selectedCandidate : undefined;
   const selectedDayIndex = Math.max(0, days.findIndex((d) => d.hasSame(focusedDay, 'day')));
   const viewWidth = Math.max(80, columns) - 4;
   const availableWidth = viewWidth - COLUMN_DIVIDER_WIDTH * (days.length - 1);
@@ -708,7 +709,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
   }, []);
 
   const itemsByDay = useMemo(
-    () => days.map((d) => scheduled.filter((i) => i.start && isSameDay(i.start, d.toISO()!))),
+    () => days.map((d) => scheduled.filter((i) => i.start && itemSpansDay(i, d))),
     [days, scheduled],
   );
   const itemRows = useMemo(() => Math.max(1, ...itemsByDay.map((col) => col.length)), [itemsByDay]);
@@ -790,7 +791,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
         }
 
         if (select === 'keep') return;
-        const dayItems = scheduled.filter((i) => i.start && isSameDay(i.start, d.toISO()!));
+        const dayItems = scheduled.filter((i) => i.start && itemSpansDay(i, d));
         if (dayItems.length > 0) {
           const target = select === 'last' ? dayItems[dayItems.length - 1]! : dayItems[0]!;
           setSelected(scheduled.indexOf(target));
@@ -827,7 +828,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
       }
 
       const moveVertical = (dir: 1 | -1) => {
-        const dayItems = scheduled.filter((i) => i.start && isSameDay(i.start, focusedDay.toISO()!));
+        const dayItems = scheduled.filter((i) => i.start && itemSpansDay(i, focusedDay));
         const pos = selectedWeekItem ? dayItems.indexOf(selectedWeekItem) : dir === 1 ? -1 : dayItems.length;
         const next = dayItems[pos + dir];
         if (next) {
@@ -836,7 +837,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
         }
 
         for (let dayIndex = selectedDayIndex + dir; dayIndex >= 0 && dayIndex < days.length; dayIndex += dir) {
-          const targetDayItems = scheduled.filter((i) => i.start && isSameDay(i.start, days[dayIndex]!.toISO()!));
+          const targetDayItems = scheduled.filter((i) => i.start && itemSpansDay(i, days[dayIndex]!));
           const target = dir === 1 ? targetDayItems[0] : targetDayItems[targetDayItems.length - 1];
           if (target) {
             setFocusedDayISO(days[dayIndex]!.toISODate()!);

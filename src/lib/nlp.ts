@@ -1,6 +1,6 @@
 import * as chrono from 'chrono-node';
 import { DateTime } from 'luxon';
-import { allDayRange, defaultEnd, findTimeRangeInText } from './time.js';
+import { allDayRange, defaultEnd, findAllDayDateRangeInText, findTimeRangeInText, multiDayAllDayRange } from './time.js';
 
 export type ParsedItem = {
   title: string;
@@ -37,6 +37,13 @@ export function parseQuickAdd(input: string, referenceDate: Date = new Date()): 
     text = text.replace(/\bp[0-3]\b/i, '').replace(/\s+/g, ' ').trim();
   }
 
+  const embeddedDateRange = findAllDayDateRangeInText(text, referenceDate);
+  if (embeddedDateRange) {
+    text = (text.slice(0, embeddedDateRange.index) + text.slice(embeddedDateRange.index + embeddedDateRange.match.length))
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   const embeddedRange = findTimeRangeInText(text, referenceDate);
   if (embeddedRange) {
     text = (text.slice(0, embeddedRange.index) + text.slice(embeddedRange.index + embeddedRange.match.length))
@@ -50,7 +57,11 @@ export function parseQuickAdd(input: string, referenceDate: Date = new Date()): 
   let allDay = false;
   let title = text;
 
-  if (embeddedRange) {
+  if (embeddedDateRange) {
+    start = embeddedDateRange.start;
+    end = embeddedDateRange.end;
+    allDay = true;
+  } else if (embeddedRange) {
     let day = DateTime.fromJSDate(referenceDate).startOf('day');
     if (results.length > 0) {
       const r = results[0]!;
@@ -77,9 +88,14 @@ export function parseQuickAdd(input: string, referenceDate: Date = new Date()): 
       }
     } else {
       allDay = true;
-      const range = allDayRange(DateTime.fromJSDate(startDate).toISO()!);
-      start = range.start;
-      end = r.end ? allDayRange(DateTime.fromJSDate(r.end.date()).toISO()!).end : range.end;
+      const startDay = DateTime.fromJSDate(startDate).startOf('day');
+      start = startDay.toISODate()!;
+      if (r.end && !(r.end.isCertain('hour') || r.end.isCertain('minute'))) {
+        const endDay = DateTime.fromJSDate(r.end.date()).startOf('day');
+        end = multiDayAllDayRange(startDay.toISODate()!, endDay.toISODate()!).end;
+      } else {
+        end = allDayRange(start).end;
+      }
     }
 
     title = text.slice(0, r.index).trim() + text.slice(r.index + r.text.length).trim();

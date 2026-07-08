@@ -4,7 +4,7 @@ import { DateTime } from 'luxon';
 import type { Item } from '../db/types.js';
 import { createEvent, createItem, listScheduledInRange } from '../db/items.js';
 import { padToWidth, truncateToWidth } from '../lib/textWidth.js';
-import { formatTime, isSameDay } from '../lib/time.js';
+import { formatTime, itemSpansDay } from '../lib/time.js';
 import { autoPush } from '../google/autoSync.js';
 import { ItemEditor } from '../components/ItemEditor.js';
 import { EventEditor } from '../components/EventEditor.js';
@@ -239,7 +239,7 @@ export function MonthView({
   const itemsByDay = useMemo(
     () =>
       gridDays.map((d) =>
-        items.filter((i) => i.start && isSameDay(i.start, d.toISO()!)).sort((a, b) => {
+        items.filter((i) => i.start && itemSpansDay(i, d)).sort((a, b) => {
           const aAll = !hasWeekTime(a);
           const bAll = !hasWeekTime(b);
           if (aAll !== bAll) return aAll ? -1 : 1;

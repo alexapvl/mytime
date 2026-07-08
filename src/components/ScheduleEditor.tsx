@@ -5,7 +5,14 @@ import { useAppInput } from '../hooks/useAppInput.js';
 import { MarqueeText } from './MarqueeText.js';
 import type { Item } from '../db/types.js';
 import { isSlotFree, listDayEventsForSchedule, overlappingEvents, splitDayEvents, buildScheduleSlots } from '../lib/scheduleOverlap.js';
-import { allDayRange, formatTime, parseScheduleRangeInput } from '../lib/time.js';
+import {
+  allDayRange,
+  formatTime,
+  isMultiDayAllDay,
+  multiDayAllDayRange,
+  parseAllDayDateRangeInput,
+  parseScheduleRangeInput,
+} from '../lib/time.js';
 
 type Props = {
   item: Item;
@@ -48,8 +55,15 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
   const isReschedule = Boolean(item.start);
   const target = item.start ? DateTime.fromISO(item.start) : DateTime.local();
   const initialDate = target.startOf('day') < today ? today : target.startOf('day');
+  const initialMultiDay =
+    Boolean(item.start && item.end && isMultiDayAllDay(item.start, item.end, item.allDay));
+  const initialEndDate = initialMultiDay
+    ? DateTime.fromISO(item.end!).minus({ days: 1 }).startOf('day')
+    : initialDate;
 
   const [date, setDate] = useState(initialDate);
+  const [endDate, setEndDate] = useState(initialEndDate);
+  const [multiDay, setMultiDay] = useState(initialMultiDay);
   const [filter, setFilter] = useState('');
   const [rangeInput, setRangeInput] = useState('');
   const [rangeMode, setRangeMode] = useState(false);
@@ -78,14 +92,20 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
 
   const parsedRange = useMemo(() => {
     if (!rangeInput.trim()) return null;
-    return parseScheduleRangeInput(rangeInput, date.toISO()!);
+    return parseScheduleRangeInput(rangeInput, date.toISO()!) ?? parseAllDayDateRangeInput(rangeInput, date.toISO()!);
   }, [rangeInput, date]);
 
   const goToDate = (next: DateTime) => {
     const clamped = next < today ? today : next;
     setDate(clamped);
+    if (!multiDay || clamped > endDate) setEndDate(clamped);
     setFilter('');
     setSelected(nearestIndexTo(buildScheduleSlots(clamped, stepMinutes), DateTime.local().toMillis()));
+  };
+
+  const goToEndDate = (next: DateTime) => {
+    const clamped = next < date ? date : next;
+    setEndDate(clamped);
   };
 
   const changeStep = (direction: -1 | 1) => {
@@ -109,7 +129,15 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
     }
     if (key.return) {
       if (rangeInput.trim()) {
-        if (parsedRange) onSubmit(parsedRange.start, parsedRange.end, false);
+        if (parsedRange) {
+          const allDayRangePick = !parsedRange.start.includes('T') && !parsedRange.end.includes('T');
+          onSubmit(parsedRange.start, parsedRange.end, allDayRangePick);
+        }
+        return;
+      }
+      if (multiDay) {
+        const range = multiDayAllDayRange(date.toISODate()!, endDate.toISODate()!);
+        onSubmit(range.start, range.end, true);
         return;
       }
       const slot = filtered[sel];
@@ -121,17 +149,27 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
       onSubmit(range.start, range.end, true);
       return;
     }
+    if (input === 'm') {
+      setMultiDay((on) => {
+        const next = !on;
+        if (next && endDate < date) setEndDate(date);
+        return next;
+      });
+      return;
+    }
     if (input === 'f') {
       setFreeOnly((on) => !on);
       setSelected(0);
       return;
     }
     if (input === 'h' || key.leftArrow) {
-      goToDate(date.minus({ days: 1 }));
+      if (multiDay && (key.shift || input === 'H')) goToEndDate(endDate.minus({ days: 1 }));
+      else goToDate(date.minus({ days: 1 }));
       return;
     }
     if (input === 'l' || key.rightArrow) {
-      goToDate(date.plus({ days: 1 }));
+      if (multiDay && (key.shift || input === 'L')) goToEndDate(endDate.plus({ days: 1 }));
+      else goToDate(date.plus({ days: 1 }));
       return;
     }
     if (rangeMode) {
@@ -194,7 +232,7 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
         color="cyanBright"
       />
       <MarqueeText
-        text="←/→ day · ↑/↓ time · +/- step · c custom range · f free slots · a all day · digits filter · enter confirm · esc cancel"
+        text="←/→ day · ⇧←/→ end day · ↑/↓ time · +/- step · c custom range · m multi-day · f free slots · a all day · digits filter · enter confirm · esc cancel"
         maxWidth={viewWidth}
         active={false}
         dimColor
@@ -222,6 +260,12 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
         <Text color="cyanBright">◂ {date.toFormat('EEE MMM d')} ▸</Text>
         {isToday ? <Text dimColor> (today)</Text> : null}
       </Box>
+      {multiDay ? (
+        <Box width={viewWidth}>
+          <Text>end: </Text>
+          <Text color="cyanBright">◂ {endDate.toFormat('EEE MMM d')} ▸</Text>
+        </Box>
+      ) : null}
       <Box flexDirection="column" width={viewWidth}>
         <Text>filter:</Text>
         <Text>
@@ -233,11 +277,17 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
           {parsedRange ? (
             <Text dimColor>
               {' '}
-              ({formatTime(parsedRange.start)}–{formatTime(parsedRange.end)})
+              ({parsedRange.start.includes('T')
+                ? `${formatTime(parsedRange.start)}–${formatTime(parsedRange.end)}`
+                : `${DateTime.fromISO(parsedRange.start).toFormat('MMM d')}–${DateTime.fromISO(parsedRange.end).minus({ days: 1 }).toFormat('MMM d')}`}
+              )
             </Text>
           ) : rangeInput.trim() && rangeMode ? (
             <Text dimColor> (unrecognized)</Text>
           ) : null}
+        </Text>
+        <Text>
+          {'  '}multi-day: <Text color={multiDay ? 'yellow' : undefined}>{multiDay ? 'on' : 'off'}</Text>
         </Text>
         <Text>
           {'  '}free slots: <Text color={freeOnly ? 'yellow' : undefined}>{freeOnly ? 'on' : 'off'}</Text>

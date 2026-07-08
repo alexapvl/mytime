@@ -2,7 +2,7 @@ import { DateTime } from 'luxon';
 import type { Item, ItemPriority } from '../db/types.js';
 import { metaLabel } from './itemLabels.js';
 import { parseQuickAdd } from './nlp.js';
-import { allDayRange, formatDate, formatScheduleTime, isAllDaySchedule } from './time.js';
+import { allDayRange, formatDate, formatAllDaySchedule, formatScheduleTime, isAllDaySchedule } from './time.js';
 
 export type QuickAddPreviewOptions = {
   referenceDate?: Date;
@@ -56,7 +56,7 @@ export function formatQuickAddPreviewLine(item: Item): string {
 
   if (item.start) {
     if (isAllDaySchedule(item.start, item.end, item.allDay)) {
-      parts.push(formatDate(item.start));
+      parts.push(formatAllDaySchedule(item.start, item.end));
     } else {
       parts.push(`${formatDate(item.start)} ${formatScheduleTime(item.start, item.end, item.allDay)}`);
     }

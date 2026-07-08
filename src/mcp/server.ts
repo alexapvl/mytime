@@ -23,7 +23,7 @@ import type { Reminder } from '../db/types.js';
 import { parseQuickAdd } from '../lib/nlp.js';
 import { overdueLabel } from '../lib/overdue.js';
 import { listFreeSlots } from '../lib/scheduleOverlap.js';
-import { allDayRange, defaultEnd, todayEnd, todayStart } from '../lib/time.js';
+import { allDayRange, defaultEnd, multiDayAllDayRange, todayEnd, todayStart } from '../lib/time.js';
 import { isAuthenticated } from '../google/auth.js';
 import { pushLocalItem, removeFromGoogle, syncWithGoogle } from '../google/sync.js';
 
@@ -411,9 +411,18 @@ function registerTools(server: McpServer): void {
       if (!DateTime.fromISO(start).isValid) return toolError(`Invalid start: ${start}`);
       await ensureFresh();
       const useAllDay = allDay === true || !start.includes('T');
-      const range = useAllDay ? allDayRange(start) : null;
-      const finalStart = range?.start ?? start;
-      const finalEnd = end ?? (range?.end ?? defaultEnd(start));
+      let finalStart = start;
+      let finalEnd = end ?? defaultEnd(start);
+      if (useAllDay) {
+        const startDay = start.includes('T') ? DateTime.fromISO(start).toISODate()! : start.slice(0, 10);
+        finalStart = allDayRange(startDay).start;
+        if (end && !end.includes('T')) {
+          const endDay = end.slice(0, 10);
+          finalEnd = endDay > startDay ? multiDayAllDayRange(startDay, endDay).end : allDayRange(startDay).end;
+        } else if (!end) {
+          finalEnd = allDayRange(startDay).end;
+        }
+      }
       if (!DateTime.fromISO(finalEnd).isValid) return toolError(`Invalid end: ${finalEnd}`);
       const item = createEvent({
         title,
@@ -433,7 +442,7 @@ function registerTools(server: McpServer): void {
     'quick_add_event',
     {
       description:
-        'Add a calendar event from natural language. Parses date/time only (no priority/project). e.g. "team lunch tomorrow 12pm".',
+        'Add a calendar event from natural language. Parses date/time only (no priority/project). e.g. "team lunch tomorrow 12pm", "vacation jun 1-5".',
       inputSchema: { text: z.string() },
     },
     async ({ text: input }) => {

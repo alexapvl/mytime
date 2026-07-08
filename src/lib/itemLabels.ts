@@ -1,5 +1,5 @@
 import type { Item } from '../db/types.js';
-import { formatDate, formatScheduleTime, isAllDaySchedule } from './time.js';
+import { formatDate, formatAllDaySchedule, formatScheduleTime, isAllDaySchedule } from './time.js';
 import { remindersSummary } from './reminders.js';
 
 export function metaLabel(item: Item): string {
@@ -19,8 +19,10 @@ export function eventDetailLines(item: Item): string[] {
 
 export function scheduleLabel(item: Item): string {
   if (!item.start) return '';
+  if (isAllDaySchedule(item.start, item.end ?? undefined, item.allDay)) {
+    return formatAllDaySchedule(item.start, item.end);
+  }
   const date = formatDate(item.start);
-  if (isAllDaySchedule(item.start, item.end ?? undefined, item.allDay)) return date;
   return `${date} ${formatScheduleTime(item.start, item.end, item.allDay)}`;
 }
 

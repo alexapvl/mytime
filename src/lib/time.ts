@@ -17,7 +17,7 @@ export function isAllDaySchedule(start: string, end: string | undefined, allDay:
 }
 
 export function formatScheduleTime(start: string, end: string | undefined, allDay: boolean): string {
-  if (isAllDaySchedule(start, end, allDay)) return 'all day';
+  if (isAllDaySchedule(start, end, allDay)) return formatAllDaySchedule(start, end);
   return end ? `${formatTime(start)}-${formatTime(end)}` : formatTime(start);
 }
 
@@ -68,6 +68,157 @@ export function allDayRange(day: string): { start: string; end: string } {
   return { start: start.toISODate()!, end: start.plus({ days: 1 }).toISODate()! };
 }
 
+/** Inclusive start/end dates → exclusive end (Google Calendar all-day convention). */
+export function multiDayAllDayRange(startDay: string, endDayInclusive: string): { start: string; end: string } {
+  const start = DateTime.fromISO(startDay).startOf('day');
+  const end = DateTime.fromISO(endDayInclusive).startOf('day').plus({ days: 1 });
+  return { start: start.toISODate()!, end: end.toISODate()! };
+}
+
+function dateOnlyISO(iso: string): string {
+  return iso.includes('T') ? DateTime.fromISO(iso).toISODate()! : iso.slice(0, 10);
+}
+
+export function isMultiDayAllDay(start: string, end: string | undefined, allDay: boolean): boolean {
+  if (!allDay && !isAllDaySchedule(start, end, allDay)) return false;
+  if (!end) return false;
+  return allDayRange(dateOnlyISO(start)).end !== dateOnlyISO(end);
+}
+
+export function formatAllDaySchedule(start: string, end?: string): string {
+  if (!end) return 'all day';
+  const startISO = dateOnlyISO(start);
+  if (allDayRange(startISO).end === dateOnlyISO(end)) return 'all day';
+  const startDay = DateTime.fromISO(startISO);
+  const endInclusive = DateTime.fromISO(dateOnlyISO(end)).minus({ days: 1 });
+  if (startDay.hasSame(endInclusive, 'day')) return 'all day';
+  if (startDay.year === endInclusive.year && startDay.month === endInclusive.month) {
+    return `${startDay.toFormat('MMM d')}–${endInclusive.toFormat('d')}`;
+  }
+  return `${startDay.toFormat('MMM d')}–${endInclusive.toFormat('MMM d')}`;
+}
+
+/** Whether a scheduled item overlaps a calendar day (timed or all-day, including multi-day). */
+export function itemSpansDay(
+  item: { start?: string; end?: string; allDay: boolean },
+  day: DateTime | string,
+): boolean {
+  if (!item.start) return false;
+  const d = typeof day === 'string' ? DateTime.fromISO(day).startOf('day') : day.startOf('day');
+  const dayISO = d.toISODate()!;
+
+  if (isAllDaySchedule(item.start, item.end, item.allDay)) {
+    const start = dateOnlyISO(item.start);
+    const end = item.end ? dateOnlyISO(item.end) : DateTime.fromISO(start).plus({ days: 1 }).toISODate()!;
+    return start <= dayISO && end > dayISO;
+  }
+
+  const start = DateTime.fromISO(item.start);
+  const end = item.end ? DateTime.fromISO(item.end) : start;
+  return start < d.endOf('day') && end > d.startOf('day');
+}
+
+/** Parse an all-day date or date range (e.g. "Jun 1-5", "mon to wed"). */
+export function parseAllDayDateRangeInput(input: string, baseDate: string): { start: string; end: string } | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  const base = DateTime.fromISO(baseDate).startOf('day');
+  const ref = base.toJSDate();
+
+  const monthDayRange =
+    /\b(?:(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+)?(\d{1,2})\s*[-–—]\s*(\d{1,2})(?:\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?))?\b/i;
+  const m = monthDayRange.exec(trimmed);
+  if (m) {
+    const monthWord = m[1] ?? m[4];
+    const startDay = parseSingleDate(`${monthWord ? `${monthWord} ` : ''}${m[2]}`, base);
+    const endDay = parseSingleDate(`${monthWord ? `${monthWord} ` : ''}${m[3]}`, base);
+    if (startDay && endDay && endDay >= startDay) {
+      return multiDayAllDayRange(startDay.toISODate()!, endDay.toISODate()!);
+    }
+  }
+
+  const rangeSep = /\s*(?:[-–—]|\s+(?:to|till|until)\s+)\s*/i;
+  const parts = trimmed.split(rangeSep).map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 2) {
+    const startDay = parseSingleDate(parts[0]!, base);
+    const endDay = parseSingleDate(parts[1]!, base);
+    if (startDay && endDay && endDay >= startDay) {
+      return multiDayAllDayRange(startDay.toISODate()!, endDay.toISODate()!);
+    }
+  }
+
+  const results = chrono.parse(trimmed, ref, { forwardDate: true });
+  if (results.length === 0) return null;
+
+  const r = results[0]!;
+  const hasTime = r.start.isCertain('hour') || r.start.isCertain('minute');
+  if (hasTime) return null;
+
+  const startDay = DateTime.fromJSDate(r.start.date()).startOf('day');
+  if (r.end && !(r.end.isCertain('hour') || r.end.isCertain('minute'))) {
+    const endDay = DateTime.fromJSDate(r.end.date()).startOf('day');
+    if (endDay < startDay) return null;
+    return multiDayAllDayRange(startDay.toISODate()!, endDay.toISODate()!);
+  }
+
+  return allDayRange(startDay.toISODate()!);
+}
+
+function parseSingleDate(input: string, base: DateTime): DateTime | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  const results = chrono.parse(trimmed, base.toJSDate(), { forwardDate: true });
+  if (!results[0]) return null;
+  if (results[0].start.isCertain('hour') || results[0].start.isCertain('minute')) return null;
+  return DateTime.fromJSDate(results[0].start.date()).startOf('day');
+}
+
+export type ParsedEmbeddedDateRange = {
+  start: string;
+  end: string;
+  match: string;
+  index: number;
+};
+
+/** Find an all-day date range embedded in quick-add text (e.g. "vacation jun 1-5"). */
+export function findAllDayDateRangeInText(text: string, baseDate: string | Date): ParsedEmbeddedDateRange | null {
+  const base =
+    typeof baseDate === 'string'
+      ? DateTime.fromISO(baseDate).startOf('day')
+      : DateTime.fromJSDate(baseDate).startOf('day');
+
+  const monthDayRange =
+    /\b(?:(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+)?(\d{1,2})\s*[-–—]\s*(\d{1,2})(?:\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?))?\b/gi;
+
+  for (const match of text.matchAll(monthDayRange)) {
+    const index = match.index;
+    if (index == null) continue;
+    const monthWord = match[1] ?? match[4];
+    const startDay = parseSingleDate(`${monthWord ? `${monthWord} ` : ''}${match[2]}`, base);
+    const endDay = parseSingleDate(`${monthWord ? `${monthWord} ` : ''}${match[3]}`, base);
+    if (startDay && endDay && endDay >= startDay) {
+      const range = multiDayAllDayRange(startDay.toISODate()!, endDay.toISODate()!);
+      return { ...range, match: match[0], index };
+    }
+  }
+
+  const results = chrono.parse(text, base.toJSDate(), { forwardDate: true });
+  for (const r of results) {
+    if (r.start.isCertain('hour') || r.start.isCertain('minute')) continue;
+    const startDay = DateTime.fromJSDate(r.start.date()).startOf('day');
+    if (r.end && !(r.end.isCertain('hour') || r.end.isCertain('minute'))) {
+      const endDay = DateTime.fromJSDate(r.end.date()).startOf('day');
+      if (endDay >= startDay) {
+        const range = multiDayAllDayRange(startDay.toISODate()!, endDay.toISODate()!);
+        return { ...range, match: r.text, index: r.index };
+      }
+    }
+  }
+
+  return null;
+}
+
 export function hourLabels(): string[] {
   return Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`);
 }
@@ -109,6 +260,9 @@ export function parseScheduleRangeInput(input: string, baseDate: string): { star
 
   const base = DateTime.fromISO(baseDate).startOf('day');
   const normalized = trimmed.replace(/(\d)\.(\d{2})\b/g, '$1:$2');
+
+  const allDayRangeParsed = parseAllDayDateRangeInput(normalized, base.toISO()!);
+  if (allDayRangeParsed) return allDayRangeParsed;
 
   const structured = parseTimeInput(normalized, base.toISO()!);
   if (structured) return structured;

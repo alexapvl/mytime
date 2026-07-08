@@ -2,11 +2,7 @@ import { DateTime } from 'luxon';
 import { listAllScheduled, listScheduledInRange } from '../db/items.js';
 import type { Item } from '../db/types.js';
 import { filterItemsForFreeTime } from './freeTime.js';
-import { defaultEnd, isAllDaySchedule } from './time.js';
-
-function dateOnly(iso: string): string {
-  return iso.includes('T') ? DateTime.fromISO(iso).toISODate()! : iso.slice(0, 10);
-}
+import { defaultEnd, isAllDaySchedule, itemSpansDay } from './time.js';
 
 export function isAllDayEvent(event: Item): boolean {
   if (!event.start) return false;
@@ -15,11 +11,7 @@ export function isAllDayEvent(event: Item): boolean {
 
 /** All-day events use an exclusive end date (Google Calendar convention). */
 export function allDayEventSpansDay(event: Item, day: DateTime): boolean {
-  if (!event.start || !isAllDayEvent(event)) return false;
-  const dayISO = day.toISODate()!;
-  const start = dateOnly(event.start);
-  const end = event.end ? dateOnly(event.end) : DateTime.fromISO(start).plus({ days: 1 }).toISODate()!;
-  return start <= dayISO && end > dayISO;
+  return itemSpansDay(event, day) && isAllDayEvent(event);
 }
 
 /** Events on a day for scheduling, including multi-day all-day items that span the day. */
