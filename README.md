@@ -95,9 +95,31 @@ Defaults to today with the first event on that day selected.
 
 External Google events appear in Daily/Week but are read-only (`s`/`x`/`d` only apply to your tasks).
 
-## MCP server
+## Agent CLI (preferred)
 
-`mytime mcp` runs a [Model Context Protocol](https://modelcontextprotocol.io) server over stdio, letting an AI agent (Claude Desktop, Cursor, etc.) read and manage your tasks. It reuses the same local database and Google auth, and pushes/deletes Google Calendar events automatically per action.
+`mytime agent` is the [AXI](https://axi.md)-shaped interface for AI agents. Same database and Google sync as the TUI, with token-efficient TOON output and contextual next-step hints.
+
+```bash
+mytime agent                              # dashboard: backlog, past due, today
+mytime agent backlog list
+mytime agent schedule list                # today by default
+mytime agent slots --date tomorrow
+mytime agent task quick "review PR tomorrow 3pm @work p2"
+mytime agent search meloDL
+mytime agent sync
+```
+
+Install the agent skill (optional):
+
+```bash
+npx skills add /Users/alex/GitHub/mytime --skill mytime -g
+```
+
+See `skills/mytime/SKILL.md` for the full command reference.
+
+## MCP server (legacy)
+
+`mytime mcp` still runs a [Model Context Protocol](https://modelcontextprotocol.io) server over stdio for clients that only support MCP. **Prefer `mytime agent` in Cursor and other shell-capable agents** — same behavior, fewer tokens, no schema overhead.
 
 Register it in your client's MCP config (the global `mytime` command must be on your PATH):
 

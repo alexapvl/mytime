@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@toon-format/toon": "^2.3.0",
     "better-sqlite3": "^12.11.1",
     "chrono-node": "^2.7.7",
     "googleapis": "^144.0.0",

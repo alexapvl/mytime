@@ -89,9 +89,29 @@ Tasks have `status: 'open' | 'done'`, `priority: 0–3`, optional `start`/`end`,
 
 ### MCP (`src/mcp/server.ts`)
 
-- stdio transport; debounced `ensureFresh()` sync before reads/writes
+Legacy stdio MCP server. Prefer **`mytime agent`** for AI agents — same handlers, lower token cost.
+
+- Thin adapter over `src/agent/handlers.ts`
 - External items are read-only for write tools
-- Prefer `list_free_slots` before `schedule_task` / `reschedule_task`
+- Prefer `list_free_slots` / `mytime agent slots` before scheduling
+
+### Agent CLI (`src/agent/`)
+
+AXI-shaped agent interface: `mytime agent`.
+
+```
+src/agent/
+  handlers.ts   Shared read/write logic (used by MCP + agent CLI)
+  cli.ts        Command router
+  format.ts     TOON stdout, structured errors
+  views.ts      Compact list vs detail item shapes
+  fresh.ts      Debounced Google sync before reads/writes
+```
+
+- No-args dashboard with counts and previews
+- TOON output via `@toon-format/toon`; `--json` escape hatch
+- Contextual `help:` hints after responses
+- Installable skill at `skills/mytime/SKILL.md`
 
 ### Undo
 

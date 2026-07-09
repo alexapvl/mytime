@@ -98,6 +98,12 @@ async function main() {
       return;
     }
 
+    if (command === 'agent') {
+      const { runAgentCli } = await import('./agent/cli.js');
+      const code = await runAgentCli(args.slice(1));
+      process.exit(code);
+    }
+
     if (command === 'settings') {
       await runTui('settings');
       return;
@@ -161,7 +167,8 @@ Usage:
   mytime auth         Connect Google Calendar
   mytime settings     Choose which Google calendars to fetch locally
   mytime sync         Sync with Google Calendar
-  mytime mcp          Run the MCP server (stdio) for AI agents
+  mytime agent        Agent-ergonomic CLI for AI agents (preferred over MCP)
+  mytime mcp          Legacy MCP server (stdio)
   mytime help         Show this help
 
 TUI keys:
