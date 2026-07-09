@@ -85,6 +85,12 @@ export function isAuthenticated(): boolean {
   return existsSync(TOKEN_PATH);
 }
 
+/** Open the Google OAuth flow when no saved token exists. */
+export async function ensureAuthenticated(): Promise<void> {
+  if (isAuthenticated()) return;
+  await authenticate();
+}
+
 function generateOAuthState(): string {
   return randomBytes(32).toString('hex');
 }

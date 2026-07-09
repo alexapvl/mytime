@@ -26,7 +26,12 @@ const TABS: { id: Tab; label: string; key: string }[] = [
   { id: 'pastdue', label: 'Past Due', key: '5' },
 ];
 
-function AppShell({ screen }: { screen: Screen }) {
+type AppProps = {
+  initialScreen?: Screen;
+  onNeedAuth?: () => void;
+};
+
+function AppShell({ screen, onNeedAuth }: { screen: Screen; onNeedAuth?: () => void }) {
   const { rows } = useViewport();
   const { exit } = useApp();
   const { inputFocused } = useInputFocus();
@@ -49,7 +54,9 @@ function AppShell({ screen }: { screen: Screen }) {
 
   const doSync = useCallback(async () => {
     if (!isAuthenticated()) {
-      setStatus('Not authenticated — run: mytime auth');
+      onNeedAuth?.();
+      setStatus('Opening Google sign-in...');
+      exit();
       return;
     }
     setSyncing(true);
@@ -62,7 +69,7 @@ function AppShell({ screen }: { screen: Screen }) {
         ? `Sync errors: ${result.errors.join('; ')}`
         : `Synced: ${result.pushed} pushed, ${result.pulled} pulled from ${result.calendars} calendars`,
     );
-  }, [refresh]);
+  }, [exit, onNeedAuth, refresh]);
 
   useAppInput(
     (input, key) => {
@@ -160,13 +167,13 @@ function AppShell({ screen }: { screen: Screen }) {
   );
 }
 
-export function App({ initialScreen = 'main' }: { initialScreen?: Screen }) {
+export function App({ initialScreen = 'main', onNeedAuth }: AppProps) {
   return (
     <InputFocusProvider>
       <UndoProvider>
         <MouseProvider>
           <ViewportProvider screen={initialScreen}>
-            <AppShell screen={initialScreen} />
+            <AppShell screen={initialScreen} onNeedAuth={onNeedAuth} />
           </ViewportProvider>
         </MouseProvider>
       </UndoProvider>

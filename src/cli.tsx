@@ -4,7 +4,7 @@ import { App } from './app.js';
 import { closeDb } from './db/schema.js';
 import { createItem, createEvent } from './db/items.js';
 import { parseQuickAdd } from './lib/nlp.js';
-import { authenticate, isAuthenticated } from './google/auth.js';
+import { authenticate, ensureAuthenticated, isAuthenticated } from './google/auth.js';
 import { syncWithGoogle } from './google/sync.js';
 import { listScheduledInRange } from './db/items.js';
 import { enterTuiModes, exitTuiModes } from './lib/mouse.js';
@@ -21,6 +21,7 @@ async function main() {
     }
 
     if (command === 'sync') {
+      await ensureAuthenticated();
       const result = await syncWithGoogle();
       console.log(`Pushed: ${result.pushed}, Pulled: ${result.pulled}, Deleted: ${result.deleted}, Calendars: ${result.calendars}`);
       if (result.errors.length) {
@@ -98,10 +99,6 @@ async function main() {
     }
 
     if (command === 'settings') {
-      if (!isAuthenticated()) {
-        console.error('Not authenticated. Run: mytime auth');
-        process.exit(1);
-      }
       await runTui('settings');
       return;
     }
@@ -119,22 +116,36 @@ async function main() {
 }
 
 async function runTui(initialScreen: 'main' | 'settings' = 'main') {
-  const tty = process.stdout.isTTY;
-  let restored = false;
-  const restore = () => {
-    if (restored) return;
-    restored = true;
-    if (tty) exitTuiModes();
-  };
+  let reopenForAuth = false;
 
-  if (tty) enterTuiModes();
-  process.once('exit', restore);
+  while (true) {
+    if (!isAuthenticated()) {
+      await ensureAuthenticated();
+    }
 
-  try {
-    const { waitUntilExit } = render(<App initialScreen={initialScreen} />);
-    await waitUntilExit();
-  } finally {
-    restore();
+    reopenForAuth = false;
+
+    const tty = process.stdout.isTTY;
+    let restored = false;
+    const restore = () => {
+      if (restored) return;
+      restored = true;
+      if (tty) exitTuiModes();
+    };
+
+    if (tty) enterTuiModes();
+    process.once('exit', restore);
+
+    try {
+      const { waitUntilExit } = render(
+        <App initialScreen={initialScreen} onNeedAuth={() => { reopenForAuth = true; }} />,
+      );
+      await waitUntilExit();
+    } finally {
+      restore();
+    }
+
+    if (!reopenForAuth) return;
   }
 }
 

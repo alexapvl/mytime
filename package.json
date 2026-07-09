@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "better-sqlite3": "^11.7.0",
+    "better-sqlite3": "^12.11.1",
     "chrono-node": "^2.7.7",
     "googleapis": "^144.0.0",
     "ink": "^5.2.0",
