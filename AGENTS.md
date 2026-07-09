@@ -38,7 +38,7 @@ CLI entry points (`src/cli.tsx`):
 ```
 src/
   cli.tsx              CLI router + TUI bootstrap
-  app.tsx              Tab shell (Backlog / Daily / Week / Past Due)
+  app.tsx              Tab shell (Backlog / Daily / Week / Month / Past Due)
   views/               Full-screen Ink views
   components/          Reusable TUI pieces (editors, MarqueeText, mouse)
   db/                  SQLite schema, items CRUD, meta, types
@@ -73,6 +73,7 @@ Tasks have `status: 'open' | 'done'`, `priority: 0–3`, optional `start`/`end`,
 - `useAppInput` in views/components; respect `InputFocusContext` so typing in editors doesn't trigger global shortcuts
 - `MouseProvider` + `useClickRegions` for click targets; mouse modes re-applied on terminal refocus (`src/lib/mouse.ts`)
 - `ShortcutBar` reads from `src/lib/shortcuts.ts` — update shortcuts there when adding keybinds
+- **`mytime help`** text lives in `printHelp()` (`src/cli.tsx`) — keep it in sync when adding tabs, CLI commands, or other user-visible features (alongside `shortcuts.ts` and view help bars)
 
 ### Views
 
@@ -81,6 +82,7 @@ Tasks have `status: 'open' | 'done'`, `priority: 0–3`, optional `start`/`end`,
 | Backlog | `views/Backlog.tsx` | P0–P3 columns; default selection = lowest non-empty priority |
 | Daily | `views/Calendar.tsx` (`DayView`) | Hour grid + all-day; default = first open (not done) item |
 | Week | `views/Calendar.tsx` (`WeekView`) | 7-column grid; default = today + first event that day |
+| Month | `views/Month.tsx` (`MonthView`) | Month grid; drill to Daily with enter |
 | Past Due | `views/PastDue.tsx` | Open tasks past deadline |
 
 `ScheduleEditor` shows day context, overlap hints, digit time filter, and `f` for free slots only. Overlap logic lives in `src/lib/scheduleOverlap.ts`.

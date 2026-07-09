@@ -165,8 +165,9 @@ Usage:
   mytime help         Show this help
 
 TUI keys:
-  1/2/3/4   Switch Backlog / Daily / Week / Past Due
+  1/2/3/4/5 Switch Backlog / Daily / Week / Month / Past Due
   r         Sync with Google
+  u         Undo
   esc       Quit
 
 Backlog:
