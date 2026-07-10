@@ -13,12 +13,12 @@ class Mytime < Formula
   # Slim prebuilt pack (dist + node_modules). Uses Homebrew node@20 — see scripts/build-macos-pack.sh.
   on_arm do
     url "https://github.com/alexapvl/mytime/releases/download/v0.1.2/mytime-0.1.2-macos-arm64.tar.gz"
-    sha256 "7a4543a7bbcdf9d3b6e996cb61c42e3b4949a052d6cafa800be88adf3644ccb8"
+    sha256 "6d2c61deb5fbf721c2ff93661bf8f1c40cd179ce905f8e8da8f079d88fecc75b"
   end
 
   on_intel do
     url "https://github.com/alexapvl/mytime/releases/download/v0.1.2/mytime-0.1.2-macos-x86_64.tar.gz"
-    sha256 "674ef0ee3c014511c6f8ee1feef5e54401947aa35dc4ebc02a8765ad2a5ff3db"
+    sha256 "be48e5c3e654dbf4acc2789b860ef8a09cfd57e3164f44f1b9ec0fb7442ee2f8"
   end
 
   def install
