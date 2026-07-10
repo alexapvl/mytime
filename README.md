@@ -15,10 +15,11 @@ pnpm link --global   # optional: global `mytime` command
 **Homebrew** (macOS):
 
 ```bash
-brew install alexapvl/mytime/mytime
+brew tap alexapvl/mytime https://github.com/alexapvl/mytime
+brew install mytime
 ```
 
-Installs v0.1.0 from [homebrew-mytime](https://github.com/alexapvl/homebrew-mytime). For the latest `main` branch: `brew install alexapvl/mytime/mytime --HEAD`.
+The formula lives in this repo (`Formula/mytime.rb`) — no separate Homebrew tap repo. Stable releases install by default; for latest `main`: `brew install mytime --HEAD`.
 
 The TUI checks GitHub once per day for updates and shows an upgrade command when a newer `main` commit is available.
 

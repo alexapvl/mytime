@@ -25,7 +25,7 @@ function detectInstallMethod(): InstallMethod {
 }
 
 function upgradeCommand(method: InstallMethod): string {
-  if (method === 'homebrew') return 'brew update && brew upgrade mytime --fetch-HEAD';
+  if (method === 'homebrew') return 'brew update && brew upgrade mytime';
   return 'git pull && pnpm install && pnpm build';
 }
 

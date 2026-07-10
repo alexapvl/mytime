@@ -165,11 +165,9 @@ When stable user-visible work lands on `main` (feature, fix batch, or anything y
    npx -y gh-axi release create vX.Y.Z --title "vX.Y.Z" --target main --latest --body-file notes.md
    ```
 
-   Write short release notes: highlights, install (`brew install alexapvl/mytime/mytime`), and Google setup pointer.
+   Write short release notes: highlights, install (`brew tap alexapvl/mytime https://github.com/alexapvl/mytime && brew install mytime`), and Google setup pointer.
 
-4. Update the Homebrew stable pin in **both** places (keep them identical):
-   - `Formula/mytime.rb` in this repo
-   - `Formula/mytime.rb` in [homebrew-mytime](https://github.com/alexapvl/homebrew-mytime)
+4. Update the Homebrew stable pin in `Formula/mytime.rb` (same repo):
 
    ```bash
    curl -fsL "https://github.com/alexapvl/mytime/archive/refs/tags/vX.Y.Z.tar.gz" | shasum -a 256
@@ -177,8 +175,8 @@ When stable user-visible work lands on `main` (feature, fix batch, or anything y
 
    Set `url`, `sha256`, and `version` in the formula. Leave the `head` stanza for `--HEAD` installs.
 
-5. Commit formula changes here; push `homebrew-mytime` tap.
-6. Confirm `brew update && brew info alexapvl/mytime/mytime` shows the new version.
+5. Commit and push formula changes with the release (or in the same release PR).
+6. Confirm after `brew tap alexapvl/mytime https://github.com/alexapvl/mytime`: `brew update && brew info mytime` shows the new version.
 
 ### What not to release
 
