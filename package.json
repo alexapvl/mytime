@@ -1,6 +1,6 @@
 {
   "name": "mytime",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Unified tasks + calendar CLI with Google Calendar sync",
   "type": "module",
   "packageManager": "pnpm@9.5.0",
@@ -20,11 +20,12 @@
     ]
   },
   "dependencies": {
+    "@googleapis/calendar": "^15.0.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@toon-format/toon": "^2.3.0",
     "better-sqlite3": "^12.11.1",
     "chrono-node": "^2.7.7",
-    "googleapis": "^144.0.0",
+    "google-auth-library": "^10.9.0",
     "ink": "^5.2.0",
     "ink-text-input": "^6.0.0",
     "luxon": "^3.5.0",

@@ -11,7 +11,7 @@ Treat this as a small, single-user CLI/TUI — prefer focused diffs, reuse exist
 - Node 20+, ESM TypeScript
 - **Ink 5** + React 18 for the TUI
 - **better-sqlite3** for local storage (`~/.mytime/db.sqlite`)
-- **googleapis** for Calendar sync
+- **google-auth-library** + **@googleapis/calendar** for Calendar sync (not the full `googleapis` metapackage)
 - **chrono-node** for quick-add NLP
 - **luxon** for dates/times
 - **string-width** for terminal-safe text width (emoji, wide chars)
@@ -159,27 +159,23 @@ When stable user-visible work lands on `main` (feature, fix batch, or anything y
 
 1. Ensure `main` is clean and `pnpm build` passes.
 2. Bump `package.json` `version`; commit and push to `main`.
-3. Push tag — CI (`.github/workflows/release.yml`) builds **standalone macOS packs** and uploads to the release:
+3. Push tag — CI builds **slim macOS packs** (Homebrew) and uploads to the release:
    ```bash
    git tag vX.Y.Z && git push origin vX.Y.Z
    ```
-   Or create the release with gh-axi after the tag; assets must include `mytime-X.Y.Z-macos-arm64.tar.gz` and `mytime-X.Y.Z-macos-x86_64.tar.gz`.
+   Assets: `mytime-X.Y.Z-macos-arm64.tar.gz` and `mytime-X.Y.Z-macos-x86_64.tar.gz`.
 
-   Local build (Apple Silicon smoke test):
+   Local build (both arches):
    ```bash
-   ./scripts/build-macos-pack.sh X.Y.Z arm64
+   ./scripts/build-macos-pack.sh X.Y.Z arm64 slim
+   ./scripts/build-macos-pack.sh X.Y.Z x86_64 slim
    ```
+   Slim packs are ~8–9MB; formula **`depends_on "node@20"`**. Optional standalone: `… standalone` (~40MB, vendored Node).
 
-   Each pack is ~64MB: vendored Node 20 + prod `node_modules` + `dist/` — **no compile or Node install for end users**.
-
-4. Update `Formula/mytime.rb` stable blocks with release asset URLs and sha256:
-   ```bash
-   shasum -a 256 dist/release/mytime-X.Y.Z-macos-arm64.tar.gz
-   ```
-   Add `on_intel` block when the x86_64 pack is published. Keep `head` for source/`--HEAD` installs.
+4. Update `Formula/mytime.rb` with release URLs + sha256 from both packs.
 
 5. Commit and push formula changes.
-6. Install smoke test (Apple Silicon): `brew update && brew reinstall mytime`
+6. Install smoke test: `brew update && brew reinstall mytime`
 
 ### What not to release
 

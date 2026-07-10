@@ -12,14 +12,18 @@ pnpm build
 pnpm link --global   # optional: global `mytime` command
 ```
 
-**Homebrew** (macOS) — prebuilt standalone pack (~65MB, vendored Node; no compile at install time):
+**Homebrew** (macOS) — slim prebuilt pack (~15MB); uses Homebrew **Node 20** (installed automatically if needed):
 
 ```bash
-brew tap alexapvl/mytime https://github.com/alexapvl/mytime
-brew install mytime
+brew tap alexapvl/mytime https://github.com/alexapvl/mytime && brew install mytime
+mytime setup          # Google
+mytime auth
+mytime setup --agent-onboarding-prompt   # copy → paste into agent
 ```
 
-Bleeding edge from source: `brew install mytime --HEAD`.
+The tap is one-time; later upgrades are `brew upgrade mytime`. Bleeding edge from source: `brew install mytime --HEAD`.
+
+Portable standalone build (includes vendored Node, ~40MB): see [releases](https://github.com/alexapvl/mytime/releases) (`*-standalone.tar.gz`).
 
 The TUI checks GitHub once per day for updates and shows an upgrade command when a newer `main` commit is available.
 

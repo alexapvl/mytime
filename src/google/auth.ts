@@ -1,7 +1,8 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { google } from 'googleapis';
+import { OAuth2Client } from 'google-auth-library';
+import { calendar } from '@googleapis/calendar';
 import { CREDENTIALS_PATH, GOOGLE_SCOPES, TOKEN_PATH, ensureMytimeDir } from '../lib/config.js';
 import {
   formatAuthError,
@@ -61,7 +62,7 @@ function saveToken(token: StoredToken): void {
 
 export function getOAuthClient() {
   const { clientId, clientSecret } = loadCredentials();
-  return new google.auth.OAuth2(clientId, clientSecret, 'http://127.0.0.1:3847/oauth2callback');
+  return new OAuth2Client(clientId, clientSecret, 'http://127.0.0.1:3847/oauth2callback');
 }
 
 export function getAuthenticatedClient() {
@@ -169,7 +170,7 @@ function waitForAuthCode(expectedState: string): Promise<string> {
 
 export function getCalendarClient() {
   const auth = getAuthenticatedClient();
-  return google.calendar({ version: 'v3', auth });
+  return calendar({ version: 'v3', auth });
 }
 
 export { validateCredentialsFile, getGoogleSetupStatus } from '../lib/googleSetup.js';

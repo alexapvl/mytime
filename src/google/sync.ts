@@ -1,5 +1,5 @@
 import { DateTime } from 'luxon';
-import type { calendar_v3 } from 'googleapis';
+import type { calendar_v3 } from '@googleapis/calendar';
 import {
   deleteEvent,
   getOrCreateMytimeCalendarId,
