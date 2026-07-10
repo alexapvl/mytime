@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Box, Text, useApp } from 'ink';
 import { DateTime } from 'luxon';
 import { BacklogView } from './views/Backlog.js';
@@ -14,6 +14,7 @@ import { UndoProvider, useUndo } from './context/UndoContext.js';
 import { useAppInput } from './hooks/useAppInput.js';
 import { ViewportProvider, useViewport } from './context/ViewportContext.js';
 import { TAB_ROW } from './lib/layout.js';
+import { checkForUpdatesOnceDaily, type UpdateNotice } from './lib/updateCheck.js';
 
 type Tab = 'backlog' | 'daily' | 'week' | 'month' | 'pastdue';
 type Screen = 'main' | 'settings';
@@ -41,8 +42,19 @@ function AppShell({ screen, onNeedAuth }: { screen: Screen; onNeedAuth?: () => v
   const [status, setStatus] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
+  const [updateNotice, setUpdateNotice] = useState<UpdateNotice | null>(null);
 
   const refresh = useCallback(() => setRefreshToken((t) => t + 1), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void checkForUpdatesOnceDaily().then((notice) => {
+      if (!cancelled) setUpdateNotice(notice);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useClickRegions('tabs', [
     { row: TAB_ROW, col: 1, endCol: 11, onClick: () => setTab('backlog') },
@@ -129,6 +141,14 @@ function AppShell({ screen, onNeedAuth }: { screen: Screen; onNeedAuth?: () => v
             {!setup.credentials || setup.credentialsValidation?.ok === false
               ? 'Google Calendar not set up — run: mytime setup (or mytime setup --agent-prompt for an AI agent)'
               : 'Sign in to Google — run: mytime auth'}
+          </Text>
+        </Box>
+      )}
+
+      {updateNotice && (
+        <Box flexShrink={0} marginBottom={1}>
+          <Text color="green">
+            {updateNotice.message} — {updateNotice.command}
           </Text>
         </Box>
       )}

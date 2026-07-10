@@ -20,6 +20,8 @@ brew install alexapvl/mytime/mytime --HEAD
 
 Installs from [homebrew-mytime](https://github.com/alexapvl/homebrew-mytime) and builds from the latest `main` branch. Requires Node (installed automatically). After install, run `mytime setup` for Google Calendar onboarding.
 
+The TUI checks GitHub once per day for updates and shows an upgrade command when a newer `main` commit is available.
+
 Dev mode (no build):
 
 ```bash
