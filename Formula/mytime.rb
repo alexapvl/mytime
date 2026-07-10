@@ -28,7 +28,7 @@ class Mytime < Formula
       system "npm", "run", "build"
       libexec.install "dist", "node_modules", "package.json"
     else
-      libexec.install Dir["libexec/*"]
+      libexec.install "libexec/dist", "libexec/node_modules"
       cd libexec do
         system Formula["node@20"].opt_bin/"npm", "rebuild", "better-sqlite3"
       end
