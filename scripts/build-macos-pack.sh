@@ -20,6 +20,12 @@ case "$ARCH" in
     ;;
 esac
 
+HOST_ARCH="$(uname -m)"
+if [[ "$HOST_ARCH" != "$ARCH" ]]; then
+  echo "host architecture is $HOST_ARCH, cannot build native $ARCH dependencies" >&2
+  exit 1
+fi
+
 case "$MODE" in
   slim|standalone) ;;
   *)
@@ -44,16 +50,20 @@ prune_tree() {
 
   find "$dir" -type f \( \
     -name '*.map' \
-    -o -name '*.md' \
-    -o -name '*.markdown' \
     -o -name 'CHANGELOG*' \
-    -o -name 'LICENSE.md' \
     -o -name 'README*' \
     -o -name '*.ts' ! -name '*.d.ts' \
     -o -name '*.tsx' \
     -o -name '*.mts' \
     -o -name '*.cts' \
     \) -delete 2>/dev/null || true
+
+  # Keep license/notice markdown required by bundled dependencies.
+  find "$dir" -type f \( -name '*.md' -o -name '*.markdown' \) \
+    ! -iname 'license*' \
+    ! -iname 'copying*' \
+    ! -iname 'notice*' \
+    -delete 2>/dev/null || true
 
   find "$dir" -type d \( \
     -name test \

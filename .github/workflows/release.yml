@@ -10,7 +10,14 @@ permissions:
 
 jobs:
   build-macos:
-    runs-on: macos-14
+    strategy:
+      matrix:
+        include:
+          - runner: macos-14
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
@@ -23,15 +30,15 @@ jobs:
           node-version: 20
           cache: pnpm
 
-      - name: Build macOS slim packs (Homebrew; arm64 + x86_64)
+      - name: Build macOS packs
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           chmod +x scripts/build-macos-pack.sh
-          scripts/build-macos-pack.sh "$VERSION" arm64 slim
-          scripts/build-macos-pack.sh "$VERSION" x86_64 slim
+          scripts/build-macos-pack.sh "$VERSION" "${{ matrix.arch }}" slim
+          scripts/build-macos-pack.sh "$VERSION" "${{ matrix.arch }}" standalone
           ls -lh release/
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
-          files: release/mytime-*-macos-*.tar.gz
+          files: release/mytime-*-macos-${{ matrix.arch }}*.tar.gz

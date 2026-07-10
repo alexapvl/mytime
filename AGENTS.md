@@ -159,18 +159,18 @@ When stable user-visible work lands on `main` (feature, fix batch, or anything y
 
 1. Ensure `main` is clean and `pnpm build` passes.
 2. Bump `package.json` `version`; commit and push to `main`.
-3. Push tag — CI builds **slim macOS packs** (Homebrew) and uploads to the release:
+3. Push tag - CI builds **slim and standalone macOS packs** on native arm64 and x86_64 runners:
    ```bash
    git tag vX.Y.Z && git push origin vX.Y.Z
    ```
-   Assets: `mytime-X.Y.Z-macos-arm64.tar.gz` and `mytime-X.Y.Z-macos-x86_64.tar.gz`.
+   Assets: slim `mytime-X.Y.Z-macos-{arm64,x86_64}.tar.gz` plus matching `*-standalone.tar.gz` packs.
 
    Local build (both arches):
    ```bash
    ./scripts/build-macos-pack.sh X.Y.Z arm64 slim
    ./scripts/build-macos-pack.sh X.Y.Z x86_64 slim
    ```
-   Slim packs are ~8–9MB; formula **`depends_on "node@20"`**. Optional standalone: `… standalone` (~40MB, vendored Node).
+   Slim packs are ~13MB; formula **`depends_on "node@20"`**. Standalone packs are ~40MB with vendored Node.
 
 4. Update `Formula/mytime.rb` with release URLs + sha256 from both packs.
 
