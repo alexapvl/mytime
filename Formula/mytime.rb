@@ -3,15 +3,14 @@ class Mytime < Formula
   homepage "https://github.com/alexapvl/mytime"
   head "https://github.com/alexapvl/mytime.git", branch: "main"
 
-  depends_on "node@20"
-  depends_on "pnpm"
+  depends_on "node"
 
   def install
-    ENV.prepend_path "PATH", Formula["node@20"].opt_bin
-    system "pnpm", "install", "--frozen-lockfile"
-    system "pnpm", "build"
+    ENV.prepend_path "PATH", Formula["node"].opt_bin
+    system "npm", "install"
+    system "npm", "run", "build"
     libexec.install "dist", "node_modules", "package.json"
-    bin.install libexec/"dist/cli.js" => "mytime"
+    (bin/"mytime").write_env_script libexec/"dist/cli.js", PATH: "#{Formula["node"].opt_bin}:$PATH"
   end
 
   test do

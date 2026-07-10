@@ -12,15 +12,13 @@ pnpm build
 pnpm link --global   # optional: global `mytime` command
 ```
 
-**Homebrew** (macOS, builds from `main`):
+**Homebrew** (macOS):
 
 ```bash
-brew install alexapvl/mytime/mytime
-# or before the formula is on default branch:
-brew install https://raw.githubusercontent.com/alexapvl/mytime/main/Formula/mytime.rb
+brew install alexapvl/mytime/mytime --HEAD
 ```
 
-Requires `node@20` and `pnpm` (installed as dependencies). After install, run `mytime setup` for Google Calendar onboarding.
+Installs from [homebrew-mytime](https://github.com/alexapvl/homebrew-mytime) and builds from the latest `main` branch. Requires Node (installed automatically). After install, run `mytime setup` for Google Calendar onboarding.
 
 Dev mode (no build):
 
