@@ -10,14 +10,7 @@ permissions:
 
 jobs:
   build-macos:
-    strategy:
-      matrix:
-        include:
-          - runner: macos-14
-            arch: arm64
-          - runner: macos-13
-            arch: x86_64
-    runs-on: ${{ matrix.runner }}
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
 
@@ -30,25 +23,14 @@ jobs:
           node-version: 20
           cache: pnpm
 
-      - name: Build macOS pack
+      - name: Build macOS packs (arm64 + x86_64)
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           chmod +x scripts/build-macos-pack.sh
-          scripts/build-macos-pack.sh "$VERSION" "${{ matrix.arch }}"
+          scripts/build-macos-pack.sh "$VERSION" arm64
+          scripts/build-macos-pack.sh "$VERSION" x86_64
 
-      - name: Upload release asset
+      - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/release/mytime-*-macos-${{ matrix.arch }}.tar.gz
-
-  update-formula-hints:
-    needs: build-macos
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Print formula sha256 hints
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          echo "Download release assets and update Formula/mytime.rb on_arm / on_intel sha256 values."
-          echo "Tag: v${VERSION}"
+          files: dist/release/mytime-*-macos-*.tar.gz

@@ -12,10 +12,13 @@ class Mytime < Formula
   # Prebuilt standalone pack (vendored Node + prod deps). See scripts/build-macos-pack.sh and release CI.
   on_arm do
     url "https://github.com/alexapvl/mytime/releases/download/v0.1.1/mytime-0.1.1-macos-arm64.tar.gz"
-    sha256 "1ee9a0faf7c9c6ffab46b76ad917213b64def2cfa2df4063fa36f1ed6b1e8b1c"
+    sha256 "f46f77f757417f6e7e40ccf48273b6bf8d25f11e07a2fdf924bebddd155fa063"
   end
 
-  # Add on_intel with x86_64 pack + sha256 after release CI publishes mytime-*-macos-x86_64.tar.gz
+  on_intel do
+    url "https://github.com/alexapvl/mytime/releases/download/v0.1.1/mytime-0.1.1-macos-x86_64.tar.gz"
+    sha256 "073a11e7dd1e40a564ef9cf069479dada366b51b6e2568ea9c88137a4e034d4d"
+  end
 
   def install
     if build.head?
