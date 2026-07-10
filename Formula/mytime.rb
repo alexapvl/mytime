@@ -29,7 +29,10 @@ class Mytime < Formula
       (bin/"mytime").write_env_script libexec/"dist/cli.js", PATH: "#{Formula["node"].opt_bin}:$PATH"
     else
       libexec.install Dir["libexec/*"]
-      bin.install "bin/mytime"
+      (bin/"mytime").write <<~EOS
+        #!/bin/bash
+        exec "#{libexec}/node/bin/node" --no-deprecation "#{libexec}/dist/cli.js" "$@"
+      EOS
     end
   end
 

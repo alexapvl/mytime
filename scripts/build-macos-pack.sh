@@ -50,7 +50,13 @@ rm "$STAGE/${NODE_TAR}"
 
 cat > "$STAGE/bin/mytime" << 'EOF'
 #!/usr/bin/env bash
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SOURCE="$0"
+while [ -h "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+ROOT="$(cd "$(dirname "$SOURCE")/.." && pwd)"
 exec "${ROOT}/libexec/node/bin/node" --no-deprecation "${ROOT}/libexec/dist/cli.js" "$@"
 EOF
 chmod +x "$STAGE/bin/mytime"
