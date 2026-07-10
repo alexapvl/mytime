@@ -4,11 +4,23 @@ One terminal app for tasks and calendar. Open tasks live in your **Backlog**; sc
 
 ## Install
 
+**From source** (requires Node 20+ and pnpm):
+
 ```bash
 pnpm install
 pnpm build
 pnpm link --global   # optional: global `mytime` command
 ```
+
+**Homebrew** (macOS, builds from `main`):
+
+```bash
+brew install alexapvl/mytime/mytime
+# or before the formula is on default branch:
+brew install https://raw.githubusercontent.com/alexapvl/mytime/main/Formula/mytime.rb
+```
+
+Requires `node@20` and `pnpm` (installed as dependencies). After install, run `mytime setup` for Google Calendar onboarding.
 
 Dev mode (no build):
 
@@ -17,6 +29,15 @@ pnpm dev
 ```
 
 ## Google Calendar setup
+
+Run **`mytime setup`** for a checklist, Console links, and next steps. Useful commands:
+
+```bash
+mytime setup                  # checks + Console links + what to do next
+mytime doctor                 # checks only (exit 1 if something is missing)
+mytime setup --links          # print Google Cloud Console URLs
+mytime setup --agent-prompt   # print prompt for Cursor / Claude / other agents
+```
 
 Google sync needs two local files under `~/.mytime/`:
 
@@ -29,7 +50,7 @@ mytime only **writes** to a dedicated calendar named **"mytime"**. Other Google 
 
 ### Agent-assisted setup
 
-If you use Cursor, Claude Code, or another agent with browser access, paste this prompt and let it walk you through (or drive) the Cloud Console steps:
+If you use Cursor, Claude Code, or another agent with browser access, run **`mytime setup --agent-prompt`** and paste the output, or copy this prompt:
 
 ```text
 Help me set up Google Calendar for mytime (https://github.com/alexapvl/mytime).
@@ -120,6 +141,19 @@ Prefer doing it yourself? You only do this once per machine (or per Google Cloud
 
    Toggle external Google calendars on or off. Disabled calendars are not pulled during sync, and their events are removed from the local database. The dedicated **mytime** calendar is always enabled.
 
+### Why bring your own Google Cloud project?
+
+mytime does **not** ship shared Google OAuth credentials. You create a Desktop OAuth client in **your** Google Cloud project and keep `credentials.json` and `token.json` locally under `~/.mytime/`.
+
+That is intentional for a personal tool:
+
+- **Privacy** — Calendar tokens stay on your machine. mytime never sends them through a maintainer's server.
+- **Control** — You own the GCP project, API access, and test users. Revoke or rotate credentials anytime in [Google Cloud Console](https://console.cloud.google.com/apis/credentials).
+- **Scope** — mytime only writes to a dedicated **"mytime"** calendar. Other calendars are read-only and optional in `mytime settings`.
+- **No hosted OAuth** — A shared OAuth app would need Google verification for public Calendar access, ongoing abuse monitoring, and trust that someone else's server (or embedded client secret) handles your Google account.
+
+The one-time Cloud Console setup is the tradeoff for keeping mytime local-first and maintainer-free. **Agent-assisted setup** (above) or an AI agent with browser access can do most of the clicking; you still run `mytime auth` yourself in the terminal for the final browser sign-in.
+
 ## Usage
 
 ```bash
@@ -127,6 +161,8 @@ mytime                          # interactive TUI
 mytime add "review PR tomorrow 3pm @work p2 #swe"
 mytime event "dentist tomorrow 2pm"   # calendar event (requires date/time)
 mytime today                    # print today's blocks
+mytime setup                    # Google setup checklist and Console links
+mytime doctor                   # verify credentials.json and token.json
 mytime sync                     # push/pull Google Calendar
 mytime auth                     # (re)connect Google
 mytime settings                 # choose which Google calendars to fetch locally

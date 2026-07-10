@@ -7,7 +7,7 @@ import { MonthView } from './views/Month.js';
 import { PastDueView } from './views/PastDue.js';
 import { SettingsView } from './views/Settings.js';
 import { syncWithGoogle } from './google/sync.js';
-import { isAuthenticated } from './google/auth.js';
+import { getGoogleSetupStatus, isAuthenticated } from './google/auth.js';
 import { MouseProvider, useClickRegions } from './components/Mouse.js';
 import { InputFocusProvider, useInputFocus } from './context/InputFocusContext.js';
 import { UndoProvider, useUndo } from './context/UndoContext.js';
@@ -53,6 +53,11 @@ function AppShell({ screen, onNeedAuth }: { screen: Screen; onNeedAuth?: () => v
   ]);
 
   const doSync = useCallback(async () => {
+    const setup = getGoogleSetupStatus();
+    if (!setup.credentials || setup.credentialsValidation?.ok === false) {
+      setStatus('Google not configured — run: mytime setup');
+      return;
+    }
     if (!isAuthenticated()) {
       onNeedAuth?.();
       setStatus('Opening Google sign-in...');
@@ -98,6 +103,17 @@ function AppShell({ screen, onNeedAuth }: { screen: Screen; onNeedAuth?: () => v
     { isActive: !inputFocused },
   );
 
+  const setup = getGoogleSetupStatus();
+  const statusMessage =
+    syncing
+      ? 'Syncing with Google...'
+      : status ||
+        (setup.ready
+          ? 'Google connected'
+          : !setup.credentials || setup.credentialsValidation?.ok === false
+            ? 'Google not configured — run: mytime setup'
+            : 'Google not signed in — run: mytime auth');
+
   return (
     <Box flexDirection="column" height={rows} overflow="hidden" padding={1}>
       <Box flexShrink={0} marginBottom={1}>
@@ -106,6 +122,16 @@ function AppShell({ screen, onNeedAuth }: { screen: Screen; onNeedAuth?: () => v
         </Text>
         <Text dimColor> — {screen === 'settings' ? 'settings' : 'tasks + calendar'}</Text>
       </Box>
+
+      {screen === 'main' && !setup.ready && (
+        <Box flexShrink={0} marginBottom={1}>
+          <Text color="yellow">
+            {!setup.credentials || setup.credentialsValidation?.ok === false
+              ? 'Google Calendar not set up — run: mytime setup (or mytime setup --agent-prompt for an AI agent)'
+              : 'Sign in to Google — run: mytime auth'}
+          </Text>
+        </Box>
+      )}
 
       {screen === 'main' && (
         <Box flexShrink={0} marginBottom={1}>
@@ -157,11 +183,7 @@ function AppShell({ screen, onNeedAuth }: { screen: Screen; onNeedAuth?: () => v
       </Box>
 
       <Box flexShrink={0} borderStyle="single" borderColor="gray" paddingX={1}>
-        <Text dimColor>
-          {syncing
-            ? 'Syncing with Google...'
-            : status || (isAuthenticated() ? 'Google connected' : 'Run mytime auth to connect Google')}
-        </Text>
+        <Text dimColor>{statusMessage}</Text>
       </Box>
     </Box>
   );

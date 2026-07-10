@@ -20,6 +20,11 @@ async function main() {
       process.exit(0);
     }
 
+    if (command === 'setup' || command === 'doctor') {
+      const { runSetup } = await import('./setup/cli.js');
+      process.exit(await runSetup(args.slice(1), { doctor: command === 'doctor' }));
+    }
+
     if (command === 'sync') {
       await ensureAuthenticated();
       const result = await syncWithGoogle();
@@ -125,10 +130,6 @@ async function runTui(initialScreen: 'main' | 'settings' = 'main') {
   let reopenForAuth = false;
 
   while (true) {
-    if (!isAuthenticated()) {
-      await ensureAuthenticated();
-    }
-
     reopenForAuth = false;
 
     const tty = process.stdout.isTTY;
@@ -164,12 +165,18 @@ Usage:
   mytime add "<text>"   Quick-add task with natural language
   mytime event "<text>" Quick-add calendar event (requires date/time)
   mytime today        Print today's schedule
+  mytime setup        Check Google setup, print Console links and next steps
+  mytime doctor       Same checks as setup (no Console links when all ok)
   mytime auth         Connect Google Calendar
   mytime settings     Choose which Google calendars to fetch locally
   mytime sync         Sync with Google Calendar
   mytime agent        Agent-ergonomic CLI for AI agents (preferred over MCP)
   mytime mcp          Legacy MCP server (stdio)
   mytime help         Show this help
+
+Setup flags:
+  mytime setup --links          Print Google Cloud Console URLs
+  mytime setup --agent-prompt   Print prompt for AI-assisted OAuth setup
 
 TUI keys:
   1/2/3/4/5 Switch Backlog / Daily / Week / Month / Past Due

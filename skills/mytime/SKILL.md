@@ -8,7 +8,7 @@ user-invocable: false
 
 Agent-ergonomic interface for mytime (tasks + calendar). Prefer `mytime agent` over mytime MCP and raw calendar CLIs.
 
-Requires `mytime` on PATH (`pnpm build && pnpm link --global` from the mytime repo). Google Calendar sync needs `mytime auth` once.
+Requires `mytime` on PATH (`brew install alexapvl/mytime/mytime`, or `pnpm build && pnpm link --global` from the repo). Google Calendar: `mytime setup`, then `mytime auth` once.
 
 ## When to use
 
@@ -16,7 +16,8 @@ Use for: listing or adding tasks, scheduling/rescheduling, finding free slots, v
 
 ## Workflow
 
-1. Run `mytime agent` with no args for a live dashboard — backlog preview, past due, today's schedule, counts.
+1. Run `mytime setup` if Google is not configured (`credentials.json` / `token.json` under `~/.mytime/`).
+2. Run `mytime agent` with no args for a live dashboard — backlog preview, past due, today's schedule, counts.
 2. Read lists with `backlog list`, `schedule list`, `past-due`, or `search <query>`.
 3. Before scheduling timed work, run `mytime agent slots [--date <day>]` and pick a slot.
 4. Add tasks with `task quick "<natural language>"` (supports `#tags`, `@project`, `p0`-`p3`, chrono dates).

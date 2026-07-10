@@ -3,11 +3,11 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { google } from 'googleapis';
 import { CREDENTIALS_PATH, GOOGLE_SCOPES, TOKEN_PATH, ensureMytimeDir } from '../lib/config.js';
-
-type Credentials = {
-  installed?: { client_id: string; client_secret: string; redirect_uris?: string[] };
-  web?: { client_id: string; client_secret: string; redirect_uris?: string[] };
-};
+import {
+  formatAuthError,
+  printPostAuthNextSteps,
+  validateCredentialsFile,
+} from '../lib/googleSetup.js';
 
 type Token = {
   access_token?: string | null;
@@ -39,17 +39,14 @@ function normalizeToken(token: Token): StoredToken {
 }
 
 function loadCredentials(): { clientId: string; clientSecret: string } {
-  if (!existsSync(CREDENTIALS_PATH)) {
-    throw new Error(
-      `Missing credentials at ${CREDENTIALS_PATH}. See README for Google Cloud setup.`,
-    );
+  const validation = validateCredentialsFile();
+  if (!validation.ok) {
+    throw new Error(`${validation.error}\n${validation.hint}`);
   }
-  const raw = JSON.parse(readFileSync(CREDENTIALS_PATH, 'utf8')) as Credentials;
-  const creds = raw.installed ?? raw.web;
-  if (!creds?.client_id || !creds.client_secret) {
-    throw new Error('Invalid credentials.json format.');
-  }
-  return { clientId: creds.client_id, clientSecret: creds.client_secret };
+  const raw = JSON.parse(readFileSync(CREDENTIALS_PATH, 'utf8')) as {
+    installed: { client_id: string; client_secret: string };
+  };
+  return { clientId: raw.installed.client_id, clientSecret: raw.installed.client_secret };
 }
 
 function loadToken(): Token | null {
@@ -120,10 +117,16 @@ export async function authenticate(): Promise<void> {
     // ignore
   }
 
-  const code = await waitForAuthCode(state);
-  const { tokens } = await oauth2.getToken(code);
-  saveToken(normalizeToken(tokens));
-  console.log('\nAuthenticated. Token saved to', TOKEN_PATH);
+  try {
+    const code = await waitForAuthCode(state);
+    const { tokens } = await oauth2.getToken(code);
+    saveToken(normalizeToken(tokens));
+    console.log('\nAuthenticated. Token saved to', TOKEN_PATH);
+    printPostAuthNextSteps();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(formatAuthError(message));
+  }
 }
 
 function waitForAuthCode(expectedState: string): Promise<string> {
@@ -168,3 +171,5 @@ export function getCalendarClient() {
   const auth = getAuthenticatedClient();
   return google.calendar({ version: 'v3', auth });
 }
+
+export { validateCredentialsFile, getGoogleSetupStatus } from '../lib/googleSetup.js';
