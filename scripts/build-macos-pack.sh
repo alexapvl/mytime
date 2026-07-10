@@ -151,7 +151,8 @@ mkdir -p "$OUT_DIR"
 if [[ "$MODE" == standalone ]]; then
   tar -czf "$TARBALL" -C "$STAGE" bin libexec
 else
-  tar -czf "$TARBALL" -C "$STAGE" libexec
+  # Flat layout for Homebrew: buildpath gets dist/ + node_modules/ at top level.
+  tar -czf "$TARBALL" -C "$STAGE/libexec" dist node_modules
 fi
 
 SHA="$(shasum -a 256 "$TARBALL" | awk '{print $1}')"
