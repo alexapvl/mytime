@@ -27,9 +27,39 @@ Google sync needs two local files under `~/.mytime/`:
 
 mytime only **writes** to a dedicated calendar named **"mytime"**. Other Google calendars can be pulled read-only for display in Daily, Week, and Month views.
 
+### Agent-assisted setup
+
+If you use Cursor, Claude Code, or another agent with browser access, paste this prompt and let it walk you through (or drive) the Cloud Console steps:
+
+```text
+Help me set up Google Calendar for mytime (https://github.com/alexapvl/mytime).
+
+Goal: mytime needs a Google Cloud OAuth Desktop client saved at ~/.mytime/credentials.json, then I will run `mytime auth` and `mytime sync` locally.
+
+Please do the following:
+
+1. In Google Cloud Console (https://console.cloud.google.com/):
+   - Create or select a project for personal mytime use.
+   - Enable the Google Calendar API (APIs & Services → Library → "Google Calendar API").
+   - Configure OAuth consent screen: External user type, app name "mytime", add my Google account as a Test user. Testing mode is fine.
+   - Create Credentials → OAuth client ID → Application type "Desktop app".
+   - Download the client JSON.
+
+2. On my machine:
+   - Create ~/.mytime if it does not exist.
+   - Save the downloaded JSON as ~/.mytime/credentials.json (must have an "installed" key with client_id and client_secret).
+   - Do NOT commit credentials.json to git.
+
+3. Tell me when credentials.json is in place. I will run `mytime auth` myself in the terminal (browser OAuth — you cannot complete this step for me). After auth succeeds, I will run `mytime sync` to verify.
+
+If you can control a browser (e.g. chrome-devtools-axi), navigate the Console for me step by step. Otherwise, give exact click-by-click instructions and pause after each step for confirmation.
+```
+
+After the agent finishes step 2, run `mytime auth` and `mytime sync` as described in the manual steps below.
+
 ### Google Cloud Console (manual)
 
-You only do this once per machine (or per Google Cloud project).
+Prefer doing it yourself? You only do this once per machine (or per Google Cloud project).
 
 1. **Open Google Cloud Console** — [console.cloud.google.com](https://console.cloud.google.com/)
 
@@ -89,36 +119,6 @@ You only do this once per machine (or per Google Cloud project).
    ```
 
    Toggle external Google calendars on or off. Disabled calendars are not pulled during sync, and their events are removed from the local database. The dedicated **mytime** calendar is always enabled.
-
-### Agent-assisted setup
-
-If you use Cursor, Claude Code, or another agent with browser access, paste this prompt and let it walk you through (or drive) the Cloud Console steps above:
-
-```text
-Help me set up Google Calendar for mytime (https://github.com/alexapvl/mytime).
-
-Goal: mytime needs a Google Cloud OAuth Desktop client saved at ~/.mytime/credentials.json, then I will run `mytime auth` and `mytime sync` locally.
-
-Please do the following:
-
-1. In Google Cloud Console (https://console.cloud.google.com/):
-   - Create or select a project for personal mytime use.
-   - Enable the Google Calendar API (APIs & Services → Library → "Google Calendar API").
-   - Configure OAuth consent screen: External user type, app name "mytime", add my Google account as a Test user. Testing mode is fine.
-   - Create Credentials → OAuth client ID → Application type "Desktop app".
-   - Download the client JSON.
-
-2. On my machine:
-   - Create ~/.mytime if it does not exist.
-   - Save the downloaded JSON as ~/.mytime/credentials.json (must have an "installed" key with client_id and client_secret).
-   - Do NOT commit credentials.json to git.
-
-3. Tell me when credentials.json is in place. I will run `mytime auth` myself in the terminal (browser OAuth — you cannot complete this step for me). After auth succeeds, I will run `mytime sync` to verify.
-
-If you can control a browser (e.g. chrome-devtools-axi), navigate the Console for me step by step. Otherwise, give exact click-by-click instructions and pause after each step for confirmation.
-```
-
-After the agent finishes step 2, run `mytime auth` and `mytime sync` as described in the manual steps above.
 
 ## Usage
 
