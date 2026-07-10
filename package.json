@@ -1,6 +1,6 @@
 {
   "name": "mytime",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Unified tasks + calendar CLI with Google Calendar sync",
   "type": "module",
   "packageManager": "pnpm@9.5.0",
@@ -10,7 +10,8 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsx src/cli.tsx",
-    "start": "node dist/cli.js"
+    "start": "node dist/cli.js",
+    "pack:macos": "scripts/build-macos-pack.sh"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

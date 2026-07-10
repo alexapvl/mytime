@@ -8,7 +8,7 @@ user-invocable: false
 
 Agent-ergonomic interface for mytime (tasks + calendar). Prefer `mytime agent` over mytime MCP and raw calendar CLIs.
 
-Requires `mytime` on PATH (`brew install alexapvl/mytime/mytime`, or `pnpm build && pnpm link --global` from the repo). Google Calendar: `mytime setup`, then `mytime auth` once.
+Requires `mytime` on PATH (`brew tap alexapvl/mytime https://github.com/alexapvl/mytime && brew install mytime`, or build from source). Google: `mytime setup`, then `mytime auth`. Agent onboarding: `mytime setup --agent-onboarding-prompt`.
 
 ## When to use
 

@@ -175,8 +175,12 @@ Usage:
   mytime help         Show this help
 
 Setup flags:
-  mytime setup --links          Print Google Cloud Console URLs
-  mytime setup --agent-prompt   Print prompt for AI-assisted OAuth setup
+  mytime setup --links                    Print Google Cloud Console URLs
+  mytime setup --agent-prompt             Prompt for Google OAuth setup (paste into agent)
+  mytime setup --agents                   AI agent + MCP integration guide
+  mytime setup --agent-onboarding-prompt  Prompt to set up mytime agent in Cursor / Claude
+  mytime setup --mcp-config               Cursor MCP JSON (legacy; prefer mytime agent)
+  mytime setup --agent-skill              Command to install the mytime agent skill
 
 TUI keys:
   1/2/3/4/5 Switch Backlog / Daily / Week / Month / Past Due

@@ -74,6 +74,7 @@ export async function agentDashboard(): Promise<AgentResult> {
       'Run `mytime agent past-due` for overdue tasks',
       'Run `mytime agent task quick "<text>"` to add from natural language',
       'Run `mytime agent slots` before scheduling timed tasks',
+      'Run `mytime setup --agents` to set up Cursor / Claude integration',
     ],
   );
 }

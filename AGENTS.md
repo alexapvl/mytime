@@ -158,25 +158,28 @@ When stable user-visible work lands on `main` (feature, fix batch, or anything y
 ### Release checklist
 
 1. Ensure `main` is clean and `pnpm build` passes.
-2. Bump `package.json` `version` if not already updated; commit and push to `main`.
-3. Create the GitHub release (load **gh-axi** skill, not raw `gh`):
-
+2. Bump `package.json` `version`; commit and push to `main`.
+3. Push tag — CI (`.github/workflows/release.yml`) builds **standalone macOS packs** and uploads to the release:
    ```bash
-   npx -y gh-axi release create vX.Y.Z --title "vX.Y.Z" --target main --latest --body-file notes.md
+   git tag vX.Y.Z && git push origin vX.Y.Z
+   ```
+   Or create the release with gh-axi after the tag; assets must include `mytime-X.Y.Z-macos-arm64.tar.gz` and `mytime-X.Y.Z-macos-x86_64.tar.gz`.
+
+   Local build (Apple Silicon smoke test):
+   ```bash
+   ./scripts/build-macos-pack.sh X.Y.Z arm64
    ```
 
-   Write short release notes: highlights, install (`brew tap alexapvl/mytime https://github.com/alexapvl/mytime && brew install mytime`), and Google setup pointer.
+   Each pack is ~64MB: vendored Node 20 + prod `node_modules` + `dist/` — **no compile or Node install for end users**.
 
-4. Update the Homebrew stable pin in `Formula/mytime.rb` (same repo):
-
+4. Update `Formula/mytime.rb` stable blocks with release asset URLs and sha256:
    ```bash
-   curl -fsL "https://github.com/alexapvl/mytime/archive/refs/tags/vX.Y.Z.tar.gz" | shasum -a 256
+   shasum -a 256 dist/release/mytime-X.Y.Z-macos-arm64.tar.gz
    ```
+   Add `on_intel` block when the x86_64 pack is published. Keep `head` for source/`--HEAD` installs.
 
-   Set `url`, `sha256`, and `version` in the formula. Leave the `head` stanza for `--HEAD` installs.
-
-5. Commit and push formula changes with the release (or in the same release PR).
-6. Confirm after `brew tap alexapvl/mytime https://github.com/alexapvl/mytime`: `brew update && brew info mytime` shows the new version.
+5. Commit and push formula changes.
+6. Install smoke test (Apple Silicon): `brew update && brew reinstall mytime`
 
 ### What not to release
 

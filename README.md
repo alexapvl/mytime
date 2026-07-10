@@ -12,14 +12,14 @@ pnpm build
 pnpm link --global   # optional: global `mytime` command
 ```
 
-**Homebrew** (macOS):
+**Homebrew** (macOS) — prebuilt standalone pack (~64MB, vendored Node; no compile at install time on Apple Silicon):
 
 ```bash
 brew tap alexapvl/mytime https://github.com/alexapvl/mytime
 brew install mytime
 ```
 
-The formula lives in this repo (`Formula/mytime.rb`) — no separate Homebrew tap repo. Stable releases install by default; for latest `main`: `brew install mytime --HEAD`.
+Intel Mac stable: coming with the x86_64 release asset — use `brew install mytime --HEAD` until then. Bleeding edge: `brew install mytime --HEAD`.
 
 The TUI checks GitHub once per day for updates and shows an upgrade command when a newer `main` commit is available.
 
@@ -36,8 +36,10 @@ Run **`mytime setup`** for a checklist, Console links, and next steps. Useful co
 ```bash
 mytime setup                  # checks + Console links + what to do next
 mytime doctor                 # checks only (exit 1 if something is missing)
-mytime setup --links          # print Google Cloud Console URLs
-mytime setup --agent-prompt   # print prompt for Cursor / Claude / other agents
+mytime setup --links                    # print Google Cloud Console URLs
+mytime setup --agent-prompt             # Google OAuth setup prompt for your agent
+mytime setup --agents                   # AI agent + MCP integration guide
+mytime setup --agent-onboarding-prompt  # paste into Cursor / Claude after install
 ```
 
 Google sync needs two local files under `~/.mytime/`:
@@ -219,7 +221,16 @@ External Google events appear in Daily/Week/Month but are read-only (`s`/`x`/`d`
 
 ## Agent CLI (preferred)
 
-`mytime agent` is the [AXI](https://axi.md)-shaped interface for AI agents. Same database and Google sync as the TUI, with token-efficient TOON output and contextual next-step hints.
+`mytime agent` is the [AXI](https://axi.md)-shaped interface for AI agents. Same database and Google sync as the TUI, with token-efficient TOON output and contextual next-step hints. **No extra setup beyond `mytime` on PATH** (and Google auth if you want sync).
+
+**Set up with your agent:**
+
+```bash
+mytime setup --agents                   # full guide
+mytime setup --agent-onboarding-prompt  # copy output → paste into Cursor / Claude
+```
+
+The onboarding prompt tells your agent to run `mytime agent`, install the skill, and use the CLI for tasks/calendar.
 
 ```bash
 mytime agent                              # dashboard: backlog, past due, today
@@ -234,7 +245,8 @@ mytime agent sync
 Install the agent skill (optional):
 
 ```bash
-npx skills add /Users/alex/GitHub/mytime --skill mytime -g
+mytime setup --agent-skill
+# or: npx skills add https://github.com/alexapvl/mytime --skill mytime -g
 ```
 
 See `skills/mytime/SKILL.md` for the full command reference.
@@ -243,7 +255,13 @@ See `skills/mytime/SKILL.md` for the full command reference.
 
 `mytime mcp` still runs a [Model Context Protocol](https://modelcontextprotocol.io) server over stdio for clients that only support MCP. **Prefer `mytime agent` in Cursor and other shell-capable agents** — same behavior, fewer tokens, no schema overhead.
 
-Register it in your client's MCP config (the global `mytime` command must be on your PATH):
+Print ready-to-paste MCP config:
+
+```bash
+mytime setup --mcp-config
+```
+
+Or register manually (global `mytime` must be on PATH for the MCP host):
 
 ```json
 {

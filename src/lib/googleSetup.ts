@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { printAgentNextStepsLine } from './agentSetup.js';
 import { CREDENTIALS_PATH, MYTIME_DIR, TOKEN_PATH, ensureMytimeDir } from './config.js';
 
 export const GOOGLE_CONSOLE_LINKS = {
@@ -199,6 +200,7 @@ export function printNextSteps(status: GoogleSetupStatus): void {
     console.log('  mytime sync              # create "mytime" calendar and sync');
     console.log('  mytime settings          # choose calendars to fetch');
     console.log('  mytime                   # launch TUI');
+    printAgentNextStepsLine();
   }
 }
 
@@ -230,6 +232,7 @@ export function printPostAuthNextSteps(): void {
   console.log('  mytime sync      # create "mytime" calendar and run first sync');
   console.log('  mytime settings  # choose which Google calendars to fetch');
   console.log('  mytime           # launch TUI');
+  printAgentNextStepsLine();
 }
 
 export function ensureMytimeDirExists(): void {
