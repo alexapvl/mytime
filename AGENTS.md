@@ -145,3 +145,42 @@ pnpm build
 ```
 
 There is no automated test suite yet. Manually exercise affected TUI tabs and MCP tools when behavior changes.
+
+## Releases
+
+When stable user-visible work lands on `main` (feature, fix batch, or anything you would expect Homebrew/source users to upgrade for), **cut a GitHub release** before treating the work as shipped. Do not leave stable improvements only on `main` without a tag unless the user explicitly defers.
+
+### Versioning
+
+- Keep `package.json` `version` in sync with the release tag (`v0.1.0` → `"0.1.0"`).
+- While `0.x`: **minor** for new features/capabilities, **patch** for fixes and small polish.
+
+### Release checklist
+
+1. Ensure `main` is clean and `pnpm build` passes.
+2. Bump `package.json` `version` if not already updated; commit and push to `main`.
+3. Create the GitHub release (load **gh-axi** skill, not raw `gh`):
+
+   ```bash
+   npx -y gh-axi release create vX.Y.Z --title "vX.Y.Z" --target main --latest --body-file notes.md
+   ```
+
+   Write short release notes: highlights, install (`brew install alexapvl/mytime/mytime`), and Google setup pointer.
+
+4. Update the Homebrew stable pin in **both** places (keep them identical):
+   - `Formula/mytime.rb` in this repo
+   - `Formula/mytime.rb` in [homebrew-mytime](https://github.com/alexapvl/homebrew-mytime)
+
+   ```bash
+   curl -fsL "https://github.com/alexapvl/mytime/archive/refs/tags/vX.Y.Z.tar.gz" | shasum -a 256
+   ```
+
+   Set `url`, `sha256`, and `version` in the formula. Leave the `head` stanza for `--HEAD` installs.
+
+5. Commit formula changes here; push `homebrew-mytime` tap.
+6. Confirm `brew update && brew info alexapvl/mytime/mytime` shows the new version.
+
+### What not to release
+
+- WIP branches, unreleased experiments, or doc-only commits that do not change the installed app (unless the user asks).
+- Every single commit — batch stable changes into sensible `v0.x.y` releases.
