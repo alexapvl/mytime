@@ -15,10 +15,10 @@ pnpm link --global   # optional: global `mytime` command
 **Homebrew** (macOS):
 
 ```bash
-brew install alexapvl/mytime/mytime --HEAD
+brew install alexapvl/mytime/mytime
 ```
 
-Installs from [homebrew-mytime](https://github.com/alexapvl/homebrew-mytime) and builds from the latest `main` branch. Requires Node (installed automatically). After install, run `mytime setup` for Google Calendar onboarding.
+Installs v0.1.0 from [homebrew-mytime](https://github.com/alexapvl/homebrew-mytime). For the latest `main` branch: `brew install alexapvl/mytime/mytime --HEAD`.
 
 The TUI checks GitHub once per day for updates and shows an upgrade command when a newer `main` commit is available.
 
