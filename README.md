@@ -18,34 +18,71 @@ pnpm dev
 
 ## Google Calendar setup
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a project (or pick an existing one)
-3. Enable **Google Calendar API**
-4. Configure **OAuth consent screen** (External is fine for personal use; add yourself as a test user)
-5. Create **Credentials → OAuth client ID → Desktop app**
-6. Download the JSON and save it as:
+Google sync needs two local files under `~/.mytime/`:
 
-   ```
-   ~/.mytime/credentials.json
+| File | Created by | Purpose |
+|------|------------|---------|
+| `credentials.json` | You (from Google Cloud) | OAuth client ID + secret |
+| `token.json` | `mytime auth` | Your signed-in Google account |
+
+mytime only **writes** to a dedicated calendar named **"mytime"**. Other Google calendars can be pulled read-only for display in Daily, Week, and Month views.
+
+### Google Cloud Console (manual)
+
+You only do this once per machine (or per Google Cloud project).
+
+1. **Open Google Cloud Console** — [console.cloud.google.com](https://console.cloud.google.com/)
+
+2. **Create or select a project**
+   - Top bar → project picker → **New Project** (e.g. `mytime-personal`) or pick an existing one.
+
+3. **Enable the Google Calendar API**
+   - **APIs & Services → Library** ([direct link](https://console.cloud.google.com/apis/library/calendar-json.googleapis.com))
+   - Search for **Google Calendar API** → **Enable**.
+
+4. **Configure the OAuth consent screen**
+   - **APIs & Services → OAuth consent screen** ([direct link](https://console.cloud.google.com/apis/credentials/consent))
+   - User type: **External** (fine for personal use) → **Create**.
+   - **App information:** app name (e.g. `mytime`), user support email, developer contact email → **Save and Continue**.
+   - **Scopes:** **Save and Continue** (mytime requests `calendar` scope at sign-in; you do not need to add scopes here).
+   - **Test users:** **Add users** → your Google account email → **Save and Continue**.
+   - Leave the app in **Testing** — that is enough for a single-user setup.
+
+   > **Note:** While the app is in Testing, only test users you add can sign in. If auth fails with *access blocked*, add your account under **OAuth consent screen → Test users**.
+
+5. **Create OAuth credentials (Desktop app)**
+   - **APIs & Services → Credentials** ([direct link](https://console.cloud.google.com/apis/credentials))
+   - **Create Credentials → OAuth client ID**
+   - Application type: **Desktop app**
+   - Name: e.g. `mytime desktop` → **Create**
+   - **Download JSON** (or use the download icon on the new client).
+
+6. **Install the credentials file**
+
+   ```bash
+   mkdir -p ~/.mytime
+   mv ~/Downloads/client_secret_*.json ~/.mytime/credentials.json
    ```
 
-7. Authenticate:
+   The JSON must contain an `installed` object with `client_id` and `client_secret` (the default format for Desktop app downloads). Do not commit this file.
+
+7. **Authenticate**
 
    ```bash
    mytime auth
    ```
 
-   This opens your browser, completes OAuth, and saves a token to `~/.mytime/token.json`.
+   This starts a local server on `127.0.0.1:3847`, opens your browser for Google sign-in, and saves a token to `~/.mytime/token.json`. Complete the flow in the browser; you can close the tab when you see *mytime authenticated*.
 
-8. Sync:
+8. **Sync**
 
    ```bash
    mytime sync
    ```
 
-   mytime creates a calendar named **"mytime"** and only writes to that calendar.
+   mytime creates the **"mytime"** calendar if it does not exist and runs the first two-way sync.
 
-9. Choose which calendars to fetch locally (requires auth):
+9. **Choose which calendars to fetch locally**
 
    ```bash
    mytime settings
@@ -53,47 +90,95 @@ pnpm dev
 
    Toggle external Google calendars on or off. Disabled calendars are not pulled during sync, and their events are removed from the local database. The dedicated **mytime** calendar is always enabled.
 
+### Agent-assisted setup
+
+If you use Cursor, Claude Code, or another agent with browser access, paste this prompt and let it walk you through (or drive) the Cloud Console steps above:
+
+```text
+Help me set up Google Calendar for mytime (https://github.com/alexapvl/mytime).
+
+Goal: mytime needs a Google Cloud OAuth Desktop client saved at ~/.mytime/credentials.json, then I will run `mytime auth` and `mytime sync` locally.
+
+Please do the following:
+
+1. In Google Cloud Console (https://console.cloud.google.com/):
+   - Create or select a project for personal mytime use.
+   - Enable the Google Calendar API (APIs & Services → Library → "Google Calendar API").
+   - Configure OAuth consent screen: External user type, app name "mytime", add my Google account as a Test user. Testing mode is fine.
+   - Create Credentials → OAuth client ID → Application type "Desktop app".
+   - Download the client JSON.
+
+2. On my machine:
+   - Create ~/.mytime if it does not exist.
+   - Save the downloaded JSON as ~/.mytime/credentials.json (must have an "installed" key with client_id and client_secret).
+   - Do NOT commit credentials.json to git.
+
+3. Tell me when credentials.json is in place. I will run `mytime auth` myself in the terminal (browser OAuth — you cannot complete this step for me). After auth succeeds, I will run `mytime sync` to verify.
+
+If you can control a browser (e.g. chrome-devtools-axi), navigate the Console for me step by step. Otherwise, give exact click-by-click instructions and pause after each step for confirmation.
+```
+
+After the agent finishes step 2, run `mytime auth` and `mytime sync` as described in the manual steps above.
+
 ## Usage
 
 ```bash
 mytime                          # interactive TUI
 mytime add "review PR tomorrow 3pm @work p2 #swe"
+mytime event "dentist tomorrow 2pm"   # calendar event (requires date/time)
 mytime today                    # print today's blocks
 mytime sync                     # push/pull Google Calendar
 mytime auth                     # (re)connect Google
 mytime settings                 # choose which Google calendars to fetch locally
+mytime agent                    # agent CLI for AI assistants (preferred)
 mytime mcp                      # run the MCP server (stdio) for AI agents
 mytime help                     # show CLI help
 ```
 
 ### TUI
 
+Five tabs — switch with number keys or click the tab bar:
+
+| Tab | Key | What it shows |
+|-----|-----|---------------|
+| Backlog | `1` | Open tasks in P0–P3 columns (scheduled and unscheduled) |
+| Daily | `2` | Hour grid + all-day row for one day |
+| Week | `3` | Seven-day grid with timed blocks |
+| Month | `4` | Month calendar grid; press `enter` to open a day in Daily |
+| Past Due | `5` | Open tasks that missed their scheduled time |
+
+**Global keys**
+
 | Key | Action |
 |-----|--------|
-| `1` / `2` / `3` / `4` | Backlog / Daily / Week / Past Due |
+| `1` / `2` / `3` / `4` / `5` | Backlog / Daily / Week / Month / Past Due |
 | `r` | Sync with Google |
 | `u` | Undo last delete or done toggle |
 | `esc` | Quit |
 
 Mouse clicks work in supported terminals (tabs, items, calendar cells).
 
-**Backlog:** `←/→` priority column · `⇧←/→` move task between priorities · `↑/↓` navigate · `a` add · `q` quick-add (NLP) · `e` edit · `s` schedule/reschedule · `x` done · `d` delete
+**Backlog** — `←/→` priority column · `⇧←/→` move task between priorities · `↑/↓` navigate · `a` add · `q` quick-add (NLP) · `e` edit · `s` schedule/reschedule · `x` done · `d` delete
 
 Opens on the lowest non-empty priority column (P0 first, then P1, P2, P3).
 
-**Past Due:** open tasks that missed their scheduled time · `↑/↓` navigate · `e` edit · `s` reschedule · `x` done · `d` delete
-
-**Daily:** `←/→` prev/next day · `t` today · `↑/↓` select · `a`/`q` add · `⇧↑/↓` move selected task by 1h · `+/-` resize · `s` reschedule · `x` done · `d` delete
+**Daily** — `←/→` prev/next day · `t` today · `↑/↓` select · `a`/`q` add task / quick-add · `⇧a`/`⇧q` add event / quick-event · `e` edit · `s` reschedule · `⇧↑/↓` move selected task by 1h · `+/-` end ±15m · `⇧+/-` start ±15m · `x` done · `d` delete
 
 Defaults to the first open (not done) item for the day, including all-day tasks.
 
-**Week:** `←/→` prev/next day · `⇧←/→` prev/next week · `t` this week/today · `↑/↓` select · `a`/`q` add · `s` reschedule · `x` done · `d` delete
+**Week** — `←/→` prev/next day · `⇧←/→` prev/next week · `t` this week/today · `↑/↓` select · `a`/`q` add task / quick-add · `⇧a`/`⇧q` add event / quick-event · `e` edit · `s` reschedule · `⇧↑/↓` move 1h · `+/-` end ±15m · `⇧+/-` start ±15m · `x` done · `d` delete
 
 Defaults to today with the first event on that day selected.
 
+**Month** — `←/→` prev/next day · `↑/↓` prev/next week · `⇧←/→` prev/next month · `t` today · `enter` open focused day in Daily · `a`/`q` add task / quick-add on focused day · `⇧a`/`⇧q` add event / quick-event on focused day
+
+Shows a month grid with event previews per day. Navigation wraps within the visible month when changing months.
+
+**Past Due** — `↑/↓` navigate · `e` edit · `s` reschedule · `x` done · `d` delete
+
 **Schedule editor** (when you press `s`): shows existing events on the chosen day · `←/→` change day · `↑/↓` pick slot · type digits to filter times · `f` free slots only · `+/-` slot step (15–240 min) · `a` all-day · `enter` confirm · `esc` cancel
 
-External Google events appear in Daily/Week but are read-only (`s`/`x`/`d` only apply to your tasks).
+External Google events appear in Daily/Week/Month but are read-only (`s`/`x`/`d` only apply to your tasks).
 
 ## Agent CLI (preferred)
 
