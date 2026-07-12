@@ -68,6 +68,7 @@ export function parseQuickAdd(input: string, referenceDate: Date = new Date()): 
       day = DateTime.fromJSDate(r.start.date()).startOf('day');
       title = text.slice(0, r.index).trim() + text.slice(r.index + r.text.length).trim();
       title = title.replace(/\s+/g, ' ').trim();
+      if (!title) title = text.trim();
     }
     const startParts = DateTime.fromISO(embeddedRange.start);
     const endParts = DateTime.fromISO(embeddedRange.end);

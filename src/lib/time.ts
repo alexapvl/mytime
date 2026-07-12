@@ -273,7 +273,7 @@ export function parseScheduleRangeInput(input: string, baseDate: string): { star
     const start = parseTimeNlp(parts[0]!, base);
     let end = parseTimeNlp(parts[1]!, base);
     if (start && end) {
-      if (end <= start) end = end.plus({ days: 1 });
+      if (end <= start && parts[1]!.trim().toLowerCase() !== 'eod') end = end.plus({ days: 1 });
       return { start: start.toISO()!, end: end.toISO()! };
     }
   }
@@ -311,12 +311,42 @@ export type ParsedEmbeddedTimeRange = {
 const MONTH_BEFORE_HOUR_RANGE =
   /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*$/i;
 
-/** Find a start–end time range embedded in quick-add text (e.g. 1300-1400, 13-14). */
+function finalizeRangeEnd(start: DateTime, end: DateTime, endToken: string): DateTime {
+  if (end <= start && endToken.toLowerCase() !== 'eod') return end.plus({ days: 1 });
+  return end;
+}
+
+function buildEmbeddedTimeRange(
+  start: DateTime,
+  end: DateTime,
+  endToken: string,
+  match: string,
+  index: number,
+): ParsedEmbeddedTimeRange {
+  return {
+    start: start.toISO()!,
+    end: finalizeRangeEnd(start, end, endToken).toISO()!,
+    match,
+    index,
+  };
+}
+
+/** Find a start–end time range embedded in quick-add text (e.g. 19:00-eod, sod-08:00, 1300-1400, 13-14). */
 export function findTimeRangeInText(text: string, baseDate: string | Date): ParsedEmbeddedTimeRange | null {
   const base =
     typeof baseDate === 'string'
       ? DateTime.fromISO(baseDate).startOf('day')
       : DateTime.fromJSDate(baseDate).startOf('day');
+
+  const colonOrEdgeRange = /(\d{1,2}:\d{2}|sod|eod)\s*[-–—]\s*(sod|eod|\d{1,2}(?::\d{2})?)\b/i;
+  const mColonOrEdge = colonOrEdgeRange.exec(text);
+  if (mColonOrEdge?.index != null) {
+    const start = parseSingleTime(mColonOrEdge[1]!, base);
+    const end = parseSingleTime(mColonOrEdge[2]!, base);
+    if (start && end) {
+      return buildEmbeddedTimeRange(start, end, mColonOrEdge[2]!, mColonOrEdge[0], mColonOrEdge.index);
+    }
+  }
 
   const military = /(\d{3,4})\s*[-–—]\s*(\d{3,4})/;
   const mMil = military.exec(text);
@@ -329,18 +359,19 @@ export function findTimeRangeInText(text: string, baseDate: string | Date): Pars
     }
   }
 
-  const hourRange = /\b(\d{1,2})\s*[-–—]\s*(\d{1,2})\b/g;
+  const hourRange = /\b(\d{1,2})\s*[-–—]\s*(sod|eod|\d{1,2})\b/gi;
   for (const match of text.matchAll(hourRange)) {
     const index = match.index;
     if (index == null) continue;
     const before = text.slice(0, index);
     if (MONTH_BEFORE_HOUR_RANGE.test(before)) continue;
+    // Skip minutes inside HH:MM (e.g. don't match 00-22 inside 19:00-22:00).
+    if (/\d:$/.test(before)) continue;
 
     const start = parseSingleTime(match[1]!, base);
-    let end = parseSingleTime(match[2]!, base);
+    const end = parseSingleTime(match[2]!, base);
     if (start && end) {
-      if (end <= start) end = end.plus({ days: 1 });
-      return { start: start.toISO()!, end: end.toISO()!, match: match[0], index };
+      return buildEmbeddedTimeRange(start, end, match[2]!, match[0], index);
     }
   }
 
@@ -349,6 +380,9 @@ export function findTimeRangeInText(text: string, baseDate: string | Date): Pars
 
 function parseSingleTime(input: string, base: DateTime): DateTime | null {
   const t = input.trim().toLowerCase().replace(/(\d)\.(\d{2})\b/g, '$1:$2');
+
+  if (t === 'sod') return base.startOf('day');
+  if (t === 'eod') return base.endOf('day');
 
   const hm = t.match(/^(\d{1,2}):(\d{2})$/);
   if (hm) {

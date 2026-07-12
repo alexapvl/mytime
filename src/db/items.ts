@@ -172,17 +172,21 @@ export function listBacklog(): Item[] {
 }
 
 export function listScheduledInRange(start: string, end: string): Item[] {
+  // Use local date-only bounds for all-day rows. SQLite date() misparses ISO strings with
+  // timezone offsets (e.g. midnight +03:00 becomes the previous UTC day).
+  const rangeStartDate = DateTime.fromISO(start).toISODate()!;
+  const rangeEndDate = DateTime.fromISO(end).toISODate()!;
   const rows = getDb()
     .prepare(
       `${SELECT}
        WHERE start IS NOT NULL
          AND (
-           (all_day = 1 AND start <= date(?) AND (end IS NULL OR end > date(?)))
+           (all_day = 1 AND start <= ? AND (end IS NULL OR end > ?))
            OR (all_day = 0 AND start < ? AND (end IS NULL OR end > ?))
          )
        ORDER BY all_day DESC, start ASC`,
     )
-    .all(end, start, end, start) as ItemRow[];
+    .all(rangeEndDate, rangeStartDate, end, start) as ItemRow[];
   return rows.map(rowToItem);
 }
 
