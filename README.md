@@ -1,6 +1,6 @@
 # mytime
 
-[![Agent conversation demo — mytime CLI behind the scenes](docs/hero.png)](https://mytime.apvl.dev)
+[![Agent conversation demo — mytime CLI behind the scenes](docs/hero.png?v=2)](https://mytime.apvl.dev)
 
 One terminal app for tasks and calendar. Open tasks live in your **Backlog**; schedule them and they sync to a dedicated **Google Calendar**.
 
