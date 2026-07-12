@@ -1,6 +1,10 @@
 # mytime
 
+[![Agent conversation demo — mytime CLI behind the scenes](docs/hero.png)](https://mytime.apvl.dev)
+
 One terminal app for tasks and calendar. Open tasks live in your **Backlog**; schedule them and they sync to a dedicated **Google Calendar**.
+
+Site: [mytime.apvl.dev](https://mytime.apvl.dev)
 
 ## Install
 
