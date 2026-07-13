@@ -34,8 +34,7 @@ import { installCmd } from "../data/install";
 
 <style>
   .hero {
-    min-height: calc(100svh - var(--header-height));
-    padding-block: clamp(2.5rem, 5vh, 3.5rem) calc(var(--section-peek) + 3.5rem);
+    padding-block: clamp(2.5rem, 5vh, 3.5rem) calc(var(--section-peek) + 1.5rem);
   }
 
   .hero-stack {
@@ -79,11 +78,6 @@ import { installCmd } from "../data/install";
 
   .hero-intro :global(.copy-block) {
     width: 100%;
-  }
-
-  .hero-intro :global(.copy-block code) {
-    white-space: pre-wrap;
-    word-break: break-word;
   }
 
   .hero-meta {
