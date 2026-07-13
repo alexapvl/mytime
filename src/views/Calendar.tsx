@@ -622,6 +622,7 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
                 item={item}
                 rowWidth={viewWidth}
                 selected={selectedHere}
+                compactLabel={hasWeekTime(item) ? undefined : 'all day'}
               />
               {selectedHere ? (
                 <ItemDetailLines item={item} maxWidth={viewWidth} showSchedule={false} />

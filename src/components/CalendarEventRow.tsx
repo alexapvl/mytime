@@ -3,7 +3,7 @@ import { Box, Text } from 'ink';
 import { DateTime } from 'luxon';
 import type { Item } from '../db/types.js';
 import { formatScheduleTime } from '../lib/time.js';
-import { padToWidth } from '../lib/textWidth.js';
+import { padToWidth, textWidth } from '../lib/textWidth.js';
 import { MarqueeText } from './MarqueeText.js';
 
 export const CALENDAR_LABEL_COL = 11;
@@ -44,6 +44,7 @@ type Props = {
   underline?: boolean;
   titleSuffix?: string;
   showTime?: boolean;
+  compactLabel?: string;
 };
 
 export function CalendarEventRow({
@@ -55,6 +56,7 @@ export function CalendarEventRow({
   underline,
   titleSuffix = '',
   showTime = true,
+  compactLabel,
 }: Props) {
   const external = item.source === 'external';
   const done = isDoneTask(item);
@@ -63,6 +65,27 @@ export function CalendarEventRow({
   const lineColor = color ?? (selected ? 'cyanBright' : undefined);
   const lineDim = selected ? false : (dimColor ?? (external || done));
   const lineUnderline = underline ?? false;
+
+  if (compactLabel) {
+    const marker = selected ? '▸' : '·';
+    const prefix = `${compactLabel} ${marker}  `;
+    return (
+      <Box width={rowWidth} height={1} flexDirection="row" overflow="hidden">
+        <Text color={lineColor} bold={selected} dimColor={lineDim} wrap="truncate">
+          {prefix}
+        </Text>
+        <MarqueeText
+          text={title}
+          maxWidth={Math.max(1, rowWidth - textWidth(prefix))}
+          active={selected}
+          color={lineColor}
+          bold={selected}
+          dimColor={lineDim}
+          underline={lineUnderline}
+        />
+      </Box>
+    );
+  }
 
   if (!timed) {
     return (
