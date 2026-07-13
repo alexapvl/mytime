@@ -23,6 +23,7 @@ import type {
 } from './types.js';
 import { listAccountCalendars, setCalendarEnabled as setGoogleCalendarEnabled } from '../google/calendar.js';
 import { listAppleCalendars } from '../apple/client.js';
+import { isMytimeCalendarName } from './backend.js';
 
 export type ProviderSwitchOptions = {
   deleteOldCalendar?: boolean;
@@ -76,10 +77,10 @@ export async function listActiveProviderCalendars(): Promise<ProviderCalendarInf
       id: calendar.id,
       summary: calendar.summary,
       primary: calendar.primary,
-      enabled:
-        calendar.id === mytimeId ||
-        (calendar.id in prefs ? prefs[calendar.id]! : calendar.googleSelected !== false),
-      locked: calendar.id === mytimeId,
+      enabled: calendar.id === mytimeId ||
+        (!isMytimeCalendarName(calendar.summary) &&
+          (calendar.id in prefs ? prefs[calendar.id]! : calendar.googleSelected !== false)),
+      locked: calendar.id === mytimeId || isMytimeCalendarName(calendar.summary),
     }));
   }
   const mytimeId = getMeta(META_KEYS.appleCalendarId);
@@ -87,8 +88,8 @@ export async function listActiveProviderCalendars(): Promise<ProviderCalendarInf
     id: calendar.id,
     summary: calendar.title,
     sourceTitle: calendar.sourceTitle,
-    enabled: calendar.id === mytimeId || prefs[calendar.id] !== false,
-    locked: calendar.id === mytimeId,
+    enabled: calendar.id === mytimeId || (!isMytimeCalendarName(calendar.title) && prefs[calendar.id] !== false),
+    locked: calendar.id === mytimeId || isMytimeCalendarName(calendar.title),
   }));
 }
 
@@ -158,6 +159,24 @@ export async function switchCalendarProvider(
 ): Promise<ProviderSwitchResult> {
   assertNoProviderSwitch();
   const previousProvider = getActiveProvider();
+  const googleAdapterPair =
+    (previousProvider === 'google' && nextProvider === 'apple') ||
+    (previousProvider === 'apple' && nextProvider === 'google');
+  const sameGoogleCalendar =
+    getMeta(META_KEYS.appleSharesGoogleCalendar) === 'true' &&
+    googleAdapterPair;
+  const googleBackendRelationship =
+    googleAdapterPair && getMeta(META_KEYS.appleBackend) === 'google';
+  if (googleBackendRelationship && options.deleteOldCalendar) {
+    throw new Error(
+      'Apple EventKit uses a Google backend, so deleting either calendar could remove the shared remote calendar. ' +
+      'Use --keep-old-calendar. Delete a confirmed separate calendar manually if needed.',
+    );
+  }
+  if (previousProvider === 'google' && nextProvider === 'apple' && !sameGoogleCalendar) {
+    const { refreshGoogleLinkedItemRanges } = await import('../google/cleanup.js');
+    await refreshGoogleLinkedItemRanges();
+  }
   const nextAdapter = await adapterFor(nextProvider);
   const nextStatus = await nextAdapter.status();
   if (!nextStatus.connected) {
@@ -183,7 +202,11 @@ export async function switchCalendarProvider(
       setActiveProvider(nextProvider);
     })();
 
-    const warnings: string[] = [];
+    const warnings: string[] = sameGoogleCalendar
+      ? ['Google API and Apple EventKit share one verified remote mytime calendar; no calendar was copied or deleted.']
+      : googleBackendRelationship
+        ? ['Apple EventKit uses a Google backend, but the remote calendar relationship is unverified; automatic deletion is disabled.']
+        : [];
     let oldCalendarDeleted = false;
     if (previousProvider && previousProvider !== nextProvider && options.deleteOldCalendar) {
       try {

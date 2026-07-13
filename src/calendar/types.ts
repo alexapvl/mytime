@@ -1,6 +1,7 @@
 import type { Item } from '../db/types.js';
 
 export type CalendarProvider = 'google' | 'apple';
+export type CalendarBackend = 'google' | 'icloud' | 'exchange' | 'local' | 'caldav' | 'unknown';
 
 export type SyncResult = {
   pushed: number;

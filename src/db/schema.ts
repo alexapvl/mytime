@@ -91,10 +91,28 @@ function migrateSchema(database: Database.Database): void {
   }
   migrateGoogleRemoteLinks(database);
   normalizeAllDayDates(database);
+  normalizeAllDayRanges(database);
   normalizeTimedOvernightRanges(database);
   removeLegacyRemoteEventDuplicates(database);
   stripEmojiFromStoredTitles(database);
   normalizeEventTaskFields(database);
+}
+
+function normalizeAllDayRanges(database: Database.Database): void {
+  const rows = database
+    .prepare(
+      `SELECT id, start, end
+       FROM items
+       WHERE all_day = 1 AND start IS NOT NULL AND end IS NOT NULL AND end <= start`,
+    )
+    .all() as { id: string; start: string; end: string }[];
+  const update = database.prepare('UPDATE items SET end = ?, updated_at = ? WHERE id = ?');
+  const updatedAt = DateTime.local().toISO();
+
+  for (const row of rows) {
+    const exclusiveEnd = DateTime.fromISO(row.start).plus({ days: 1 }).toISODate();
+    if (exclusiveEnd) update.run(exclusiveEnd, updatedAt, row.id);
+  }
 }
 
 function normalizeTimedOvernightRanges(database: Database.Database): void {

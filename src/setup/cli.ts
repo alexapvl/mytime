@@ -18,6 +18,7 @@ import {
   setActiveProvider,
   switchCalendarProvider,
 } from '../calendar/provider.js';
+import { ensureMytimeGoogleCalendarName } from '../google/calendar.js';
 
 type SetupOptions = {
   doctor?: boolean;
@@ -108,6 +109,7 @@ async function runGoogleSetup(args: string[], doctor = false): Promise<number> {
   }
 
   if (status.ready && !doctor) {
+    await ensureMytimeGoogleCalendarName();
     const active = getActiveProvider();
     if (!active || active === 'google') {
       setActiveProvider('google');

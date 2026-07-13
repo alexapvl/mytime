@@ -48,7 +48,8 @@
           <p>
             Run <code>mytime setup apple</code> on macOS 14 or newer. mytime uses
             Calendar.app accounts through EventKit, so there is no separate Apple CLI
-            or hosted login. Approve Calendar access when macOS asks.
+            or hosted login. Approve Calendar access when macOS asks. Dedicated calendars
+            are named by backend, such as <code>mytime-icloud</code> or <code>mytime-google</code>.
           </p>
         </div>
       </div>
@@ -67,7 +68,8 @@
             Only the active provider is writable. mytime clears the old provider's
             fetched events from its local cache, preserves your local tasks and events,
             then fetches from the new provider. Setup asks whether to delete the old
-            dedicated mytime calendar. Keeping it is the default.
+            dedicated mytime calendar. Keeping it is the default. If Google API and
+            EventKit access the same Google calendar, mytime adopts it instead of copying events.
           </p>
         </div>
       </div>

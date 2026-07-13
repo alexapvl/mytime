@@ -13,8 +13,10 @@ import {
 import { isSyncTokenExpired } from './errors.js';
 import type { Reminder } from '../db/types.js';
 import { remindersToGoogle } from '../lib/reminders.js';
+import { isMytimeCalendarName } from '../calendar/backend.js';
 
-const CALENDAR_NAME = 'mytime';
+const CALENDAR_NAME = 'mytime-google';
+const LEGACY_CALENDAR_NAME = 'mytime';
 const CALENDAR_COLOR = '#4285F4';
 
 export type CalendarInfo = {
@@ -58,7 +60,9 @@ export async function getOrCreateMytimeCalendarId(): Promise<string> {
 
   const calendar = getCalendarClient();
   const list = await calendar.calendarList.list();
-  const existing = list.data.items?.find((c) => c.summary === CALENDAR_NAME);
+  const existing = list.data.items?.find((c) =>
+    c.summary === CALENDAR_NAME || c.summary === LEGACY_CALENDAR_NAME,
+  );
   if (existing?.id) {
     setMeta(META_KEYS.googleCalendarId, existing.id);
     return existing.id;
@@ -81,6 +85,19 @@ export async function getOrCreateMytimeCalendarId(): Promise<string> {
   });
 
   setMeta(META_KEYS.googleCalendarId, calendarId);
+  return calendarId;
+}
+
+export async function ensureMytimeGoogleCalendarName(): Promise<string> {
+  const calendarId = await getOrCreateMytimeCalendarId();
+  const calendar = getCalendarClient();
+  const current = await calendar.calendars.get({ calendarId });
+  if (current.data.summary !== CALENDAR_NAME) {
+    await calendar.calendars.patch({
+      calendarId,
+      requestBody: { summary: CALENDAR_NAME },
+    });
+  }
   return calendarId;
 }
 
@@ -107,7 +124,10 @@ export async function listSelectedCalendars(): Promise<CalendarInfo[]> {
   const all = await listAccountCalendars();
   const mytimeCalendarId = getMeta(META_KEYS.googleCalendarId) ?? (await getOrCreateMytimeCalendarId());
   const prefs = getCalendarFetchPrefs();
-  return all.filter((c) => isCalendarFetchEnabled(c, mytimeCalendarId, prefs));
+  return all.filter((c) =>
+    c.id === mytimeCalendarId ||
+    (!isMytimeCalendarName(c.summary) && isCalendarFetchEnabled(c, mytimeCalendarId, prefs)),
+  );
 }
 
 export type GoogleEventPayload = {
@@ -178,6 +198,29 @@ export async function listEventsIncremental(calendarId: string, syncToken?: stri
 }
 
 type CalendarEvent = calendar_v3.Schema$Event;
+
+export type GoogleEventIdentity = {
+  eventId: string;
+  iCalUID: string;
+  mytimeItemId?: string;
+  mytimeItemType?: 'task' | 'event';
+};
+
+export async function listMytimeGoogleEventIdentities(): Promise<GoogleEventIdentity[]> {
+  if (!getMeta(META_KEYS.googleCalendarId)) return [];
+  const calendarId = getMeta(META_KEYS.googleCalendarId)!;
+  const response = await listEventsFull(calendarId);
+  return (response.data.items ?? []).flatMap((event) => {
+    if (!event.id || !event.iCalUID || event.status === 'cancelled') return [];
+    const type = event.extendedProperties?.private?.mytime_type;
+    return [{
+      eventId: event.id,
+      iCalUID: event.iCalUID,
+      mytimeItemId: event.extendedProperties?.private?.mytime_id,
+      mytimeItemType: type === 'task' || type === 'event' ? type : undefined,
+    }];
+  });
+}
 
 async function listEventsFull(calendarId: string) {
   const calendar = getCalendarClient();

@@ -20,6 +20,7 @@ export type AppleSource = {
   type: string;
   canCreateCalendar: boolean;
   writableCalendarCount: number;
+  default: boolean;
 };
 
 export type AppleCalendar = {
@@ -122,20 +123,29 @@ export async function listAppleCalendars(): Promise<AppleCalendar[]> {
   return data.calendars;
 }
 
-export async function createAppleCalendar(sourceId: string): Promise<AppleCalendar> {
+export async function createAppleCalendar(sourceId: string, title = 'mytime'): Promise<AppleCalendar> {
   const data = await callEventKit<{ calendar: AppleCalendar }>({
     command: 'calendar.create',
-    title: 'mytime',
+    title,
     sourceId,
   });
   return data.calendar;
 }
 
-export async function deleteAppleCalendar(calendarId: string): Promise<boolean> {
+export async function renameAppleCalendar(calendarId: string, title: string): Promise<AppleCalendar> {
+  const data = await callEventKit<{ calendar: AppleCalendar }>({
+    command: 'calendar.rename',
+    calendarId,
+    title,
+  });
+  return data.calendar;
+}
+
+export async function deleteAppleCalendar(calendarId: string, confirmTitle = 'mytime'): Promise<boolean> {
   const data = await callEventKit<{ deleted: boolean }>({
     command: 'calendar.delete',
     calendarId,
-    confirmTitle: 'mytime',
+    confirmTitle,
   });
   return data.deleted;
 }

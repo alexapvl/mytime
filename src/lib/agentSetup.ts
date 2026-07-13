@@ -18,12 +18,14 @@ I have mytime installed on PATH. When shell execution works, always use \`mytime
 Please do the following:
 
 1. Run \`command -v mytime\`, then \`mytime agent\`, and confirm the dashboard works. Only use mytime MCP if shell execution or the binary is unavailable.
-2. If calendar provider is unknown, ask me whether I want Google or Apple Calendar. Infer project context from this conversation, but never infer calendar provider.
-3. For Google, tell me to run \`mytime setup google\` then \`mytime auth google\`. For Apple, tell me to run \`mytime setup apple\` and approve the macOS Calendar permission prompt.
-4. Install the mytime skill if missing:
+2. Run \`mytime agent calendar\` for live adapter/backend state. Use \`mytime agent calendar setup\`, \`calendar switch\`, or \`calendar cleanup\` to explain exact effects before suggesting commands.
+3. If calendar provider is unknown, ask me whether I want Google or Apple Calendar. Infer project context from this conversation, but never infer calendar provider.
+4. For Google, tell me to run \`mytime setup google\` then \`mytime auth google\`. For Apple, tell me to run \`mytime setup apple\` and approve the macOS Calendar permission prompt.
+5. Before switching or cleanup, explain local and remote effects. Get explicit approval before deleting a calendar or applying duplicate cleanup.
+6. Install the mytime skill if missing:
    ${AGENT_SKILL_INSTALL}
-5. Give every new task an \`@project\`. Infer the project from the conversation origin (current repository, workspace, issue, PR, or product), even if I do not repeat it. If no project can be inferred, ask me before adding the task.
-6. Use \`mytime agent slots\` before scheduling timed work; \`mytime agent task quick "<text>"\` for NLP adds; \`mytime agent sync\` after writes if needed.
+7. Give every new task an \`@project\`. Infer the project from the conversation origin (current repository, workspace, issue, PR, or product), even if I do not repeat it. If no project can be inferred, ask me before adding the task.
+8. Use \`mytime agent slots\` before scheduling timed work; \`mytime agent task quick "<text>"\` for NLP adds; \`mytime agent sync\` after writes if needed.
 
 Only set up MCP (\`mytime setup --mcp-config\`) if this environment cannot run shell commands.
 
@@ -36,6 +38,7 @@ export function printAgentIntegrationGuide(): void {
 
   console.log('Quick start:\n');
   console.log('  mytime agent                              # dashboard');
+  console.log('  mytime agent calendar                     # provider/backend state + effects');
   console.log('  mytime agent task quick "buy milk tomorrow 5pm @personal"');
   console.log('  mytime agent slots --date tomorrow');
   console.log('  mytime agent sync\n');

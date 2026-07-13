@@ -190,6 +190,10 @@ Usage:
 Setup flags:
   mytime setup google --links             Print Google Cloud Console URLs
   mytime setup apple --source <id>        Choose Calendar.app account/source
+  mytime setup apple --list-sources       List writable Calendar.app accounts
+  mytime setup apple --calendar <id>      Adopt one existing mytime calendar
+  mytime setup apple --cleanup-duplicates Preview safe duplicate cleanup
+  mytime setup apple --cleanup-duplicates --apply
   mytime setup <provider> --keep-old-calendar
   mytime setup <provider> --delete-old-calendar
   mytime setup --agent-prompt             Prompt for Google OAuth setup (paste into agent)

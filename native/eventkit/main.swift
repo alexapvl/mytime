@@ -248,11 +248,15 @@ private func parseReminderMinutes(_ request: [String: Any]) throws -> [Int]? {
 }
 
 private func eventJSON(_ event: EKEvent) -> [String: Any] {
+    let storedEnd = event.endDate!
+    let outputEnd = event.isAllDay
+        ? Calendar.autoupdatingCurrent.date(byAdding: .day, value: 1, to: storedEnd) ?? storedEnd
+        : storedEnd
     var result: [String: Any] = [
         "calendarId": event.calendar.calendarIdentifier,
         "title": event.title ?? "",
         "start": formatDate(event.startDate, allDay: event.isAllDay),
-        "end": formatDate(event.endDate, allDay: event.isAllDay),
+        "end": formatDate(outputEnd, allDay: event.isAllDay),
         "allDay": event.isAllDay,
         "status": eventStatus(event.status),
         "availability": eventAvailability(event.availability),
@@ -312,6 +316,7 @@ private func sourceJSON(_ source: EKSource) -> [String: Any] {
         "type": sourceType(source.sourceType),
         "canCreateCalendar": sourceCanCreateCalendar(source),
         "writableCalendarCount": writableCount,
+        "default": eventStore.defaultCalendarForNewEvents?.source.sourceIdentifier == source.sourceIdentifier,
     ]
 }
 
@@ -403,6 +408,16 @@ private func handle(_ request: [String: Any]) throws -> Never {
         catch { throw HelperError("calendar_delete_failed", error.localizedDescription) }
         succeed(["calendarId": calendarId, "deleted": true])
 
+    case "calendar.rename":
+        try requireFullAccess()
+        let calendarId = try string(request, "calendarId")!
+        let title = try string(request, "title")!
+        let target = try writableCalendar(id: calendarId)
+        target.title = title
+        do { try eventStore.saveCalendar(target, commit: true) }
+        catch { throw HelperError("calendar_rename_failed", error.localizedDescription) }
+        succeed(["calendar": calendarJSON(target)])
+
     case "event.query":
         try requireFullAccess()
         let start = try parseDate(try string(request, "start")!, key: "start")
@@ -446,10 +461,13 @@ private func handle(_ request: [String: Any]) throws -> Never {
                 throw HelperError("invalid_request", "All-day start and end must use yyyy-MM-dd; end is exclusive")
             }
         }
-        event.startDate = try parseDate(rawStart, key: "start")
-        event.endDate = try parseDate(rawEnd, key: "end")
-        guard event.endDate > event.startDate else { throw HelperError("invalid_request", "end must be after start") }
         event.isAllDay = allDay
+        event.startDate = try parseDate(rawStart, key: "start")
+        let exclusiveEnd = try parseDate(rawEnd, key: "end")
+        guard exclusiveEnd > event.startDate else { throw HelperError("invalid_request", "end must be after start") }
+        event.endDate = allDay
+            ? Calendar.autoupdatingCurrent.date(byAdding: .day, value: -1, to: exclusiveEnd) ?? exclusiveEnd
+            : exclusiveEnd
         if request.keys.contains("notes") { event.notes = try string(request, "notes", required: false) }
         if request.keys.contains("location") { event.location = try string(request, "location", required: false) }
         if let reminderMinutes = try parseReminderMinutes(request) {
@@ -492,7 +510,7 @@ private func handle(_ request: [String: Any]) throws -> Never {
         throw HelperError(
             "unknown_command",
             "Unknown command: \(command)",
-            hint: "Valid commands: auth.status, auth.request, source.list, calendar.list, calendar.create, calendar.delete, event.query, event.upsert, event.delete"
+            hint: "Valid commands: auth.status, auth.request, source.list, calendar.list, calendar.create, calendar.rename, calendar.delete, event.query, event.upsert, event.delete"
         )
     }
 }

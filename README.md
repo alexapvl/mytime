@@ -63,7 +63,7 @@ mytime setup apple
 mytime sync
 ```
 
-macOS asks you to grant Calendar access. mytime then selects or creates a dedicated **"mytime"** calendar. Other visible calendars can be fetched read-only for Daily, Week, and Month views.
+macOS asks you to grant Calendar access. mytime then selects or creates a dedicated calendar named for its actual backend, such as **"mytime-icloud"** or **"mytime-google"**. Other visible calendars can be fetched read-only for Daily, Week, and Month views.
 
 An agent can start setup, inspect permission status, and run sync, but you must approve the macOS Calendar permission prompt yourself. If your Apple Account or another calendar account is not yet in Calendar.app, add it in **System Settings → Internet Accounts** first.
 
@@ -78,13 +78,15 @@ Google sync needs two local files under `~/.mytime/`:
 | `credentials.json` | You (from Google Cloud) | OAuth client ID + secret |
 | `token.json` | `mytime auth` | Your signed-in Google account |
 
-mytime only **writes** to a dedicated calendar named **"mytime"**. Other Google calendars can be pulled read-only for display in Daily, Week, and Month views.
+mytime only **writes** to a dedicated calendar named **"mytime-google"**. Other Google calendars can be pulled read-only for display in Daily, Week, and Month views.
 
 ### Switching providers
 
 Only one provider is writable at a time. When switching, mytime stops syncing the old provider, removes its fetched external events from the local cache, preserves your local tasks and events, then fetches from the newly active provider.
 
-Setup asks whether you also want to delete the old provider's dedicated **"mytime"** calendar. The safe default is to keep it. mytime never deletes or writes to unrelated calendars.
+Calendar names follow the backend: **"mytime-google"**, **"mytime-icloud"**, or **"mytime-local"**. If EventKit accesses the same Google calendar as the Google API, mytime adopts that calendar and changes only the sync adapter. It never copies or deletes the shared calendar.
+
+For different backends, setup asks whether you also want to delete the old dedicated calendar. The safe default is to keep it. mytime never deletes or writes to unrelated calendars.
 
 Provider switches stay explicit and agent-safe:
 
@@ -95,7 +97,14 @@ mytime setup google --keep-old-calendar
 mytime setup google --delete-old-calendar
 ```
 
-If Calendar.app contains multiple writable accounts, Apple setup lists them and asks you to rerun with `--source <source-id>`. It never guesses which account should contain the dedicated **"mytime"** calendar.
+If Calendar.app contains multiple writable accounts or dedicated calendars, Apple setup lists them and asks you to rerun with `--source <source-id> --calendar <calendar-id>`. It never guesses which account or calendar to use.
+
+Duplicate cleanup always starts with a read-only preview:
+
+```bash
+mytime setup apple --cleanup-duplicates
+mytime setup apple --cleanup-duplicates --apply  # only after reviewing preview
+```
 
 ### Google agent-assisted setup
 
@@ -282,6 +291,10 @@ The onboarding prompt tells your agent to run `mytime agent`, install the skill,
 
 ```bash
 mytime agent                              # dashboard: backlog, past due, today
+mytime agent calendar                     # live adapter/backend state + effects
+mytime agent calendar setup               # explain setup commands and side effects
+mytime agent calendar switch              # explain keep/delete and migration effects
+mytime agent calendar cleanup             # explain preview/apply safety
 mytime agent backlog list
 mytime agent schedule list                # today by default
 mytime agent slots --date tomorrow

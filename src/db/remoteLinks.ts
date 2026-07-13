@@ -68,13 +68,19 @@ export function findItemByRemote(
   return legacy ? rowToItem(legacy) : null;
 }
 
-export function findUnlinkedLocalItemMatch(input: {
+export function findUnlinkedLocalItemMatches(input: {
   source: 'task' | 'event';
   title: string;
   start: string;
   end: string;
   allDay: boolean;
-}): Item | null {
+  withoutProvider?: CalendarProvider;
+}): Item[] {
+  const linkClause = input.withoutProvider
+    ? 'AND NOT EXISTS (SELECT 1 FROM remote_links r WHERE r.item_id = i.id AND r.provider = ?)'
+    : 'AND NOT EXISTS (SELECT 1 FROM remote_links r WHERE r.item_id = i.id)';
+  const params: unknown[] = [input.source, input.title, input.start, input.end, input.allDay ? 1 : 0];
+  if (input.withoutProvider) params.push(input.withoutProvider);
   const rows = getDb()
     .prepare(
       `${ITEM_SELECT}
@@ -83,10 +89,17 @@ export function findUnlinkedLocalItemMatch(input: {
          AND i.start = ?
          AND i.end = ?
          AND i.all_day = ?
-         AND NOT EXISTS (SELECT 1 FROM remote_links r WHERE r.item_id = i.id)`,
+         ${linkClause}`,
     )
-    .all(input.source, input.title, input.start, input.end, input.allDay ? 1 : 0) as ItemRow[];
-  return rows.length === 1 ? rowToItem(rows[0]!) : null;
+    .all(...params) as ItemRow[];
+  return rows.map(rowToItem);
+}
+
+export function findUnlinkedLocalItemMatch(
+  input: Parameters<typeof findUnlinkedLocalItemMatches>[0],
+): Item | null {
+  const rows = findUnlinkedLocalItemMatches(input);
+  return rows.length === 1 ? rows[0]! : null;
 }
 
 export function upsertRemoteLink(
@@ -177,4 +190,19 @@ export function listExternalRemoteLinks(provider: CalendarProvider): RemoteLink[
     )
     .all(provider) as RemoteLinkRow[];
   return rows.map(rowToLink);
+}
+
+export function listProviderLinkedAllDayOwnedItems(provider: CalendarProvider): Item[] {
+  const rows = getDb()
+    .prepare(
+      `${ITEM_SELECT}
+       JOIN remote_links r ON r.item_id = i.id
+       WHERE r.provider = ?
+         AND i.source IN ('task', 'event')
+         AND i.all_day = 1
+         AND i.start IS NOT NULL
+         AND i.end IS NOT NULL`,
+    )
+    .all(provider) as ItemRow[];
+  return rows.map(rowToItem);
 }

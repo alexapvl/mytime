@@ -55,6 +55,10 @@ if [[ -n "$SIGNING_IDENTITY" ]]; then
     "$OUTPUT"
   echo "Signed EventKit helper with $SIGNING_IDENTITY"
 else
+  if [[ "${MYTIME_REQUIRE_SIGNING:-0}" == "1" ]]; then
+    echo "Developer ID signing identity is required for release builds" >&2
+    exit 1
+  fi
   codesign --force --sign - --identifier dev.apvl.mytime.calendar-helper "$OUTPUT"
   echo "Warning: ad-hoc EventKit signature; Calendar permission may reset after upgrades" >&2
 fi

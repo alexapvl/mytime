@@ -9,9 +9,11 @@ import {
 import {
   deleteRemoteLink,
   findItemByRemote,
+  findUnlinkedLocalItemMatches,
   getRemoteLink,
   listExternalRemoteLinks,
   listItemsNeedingProviderSync,
+  listProviderLinkedAllDayOwnedItems,
   upsertRemoteLink,
 } from '../db/remoteLinks.js';
 import {
@@ -19,9 +21,12 @@ import {
   getMeta,
   getProviderCalendarFetchPrefs,
   META_KEYS,
+  setMeta,
 } from '../db/meta.js';
 import type { Item, ItemSource } from '../db/types.js';
 import { cleanTitle } from '../lib/textClean.js';
+import { listMytimeGoogleEventIdentities, type GoogleEventIdentity } from '../google/calendar.js';
+import { isMytimeCalendarName } from '../calendar/backend.js';
 import {
   deleteAppleCalendar,
   deleteAppleEvent,
@@ -71,6 +76,8 @@ function eventSource(event: AppleEvent, isMytimeCalendar: boolean, local: Item |
   if (!isMytimeCalendar) return 'external';
   if (event.mytimeItemType === 'task' || event.mytimeItemType === 'event') return event.mytimeItemType;
   if (local?.source === 'task' || local?.source === 'event') return local.source;
+  if (event.notes?.split('\n').includes('- synced via mytime')) return 'task';
+  if (event.notes?.split('\n').includes('- mytime event')) return 'event';
   return 'event';
 }
 
@@ -88,6 +95,7 @@ function localFromAppleEvent(
   event: AppleEvent,
   isMytimeCalendar: boolean,
   scopedEventId: string,
+  googleIdentities: Map<string, GoogleEventIdentity>,
 ): Item | null {
   let local = findItemByRemote('apple', event.calendarId, scopedEventId);
   if (!local && isMytimeCalendar && event.mytimeItemId) {
@@ -103,6 +111,55 @@ function localFromAppleEvent(
       );
     }
   }
+  if (!local && isMytimeCalendar && event.externalId) {
+    const googleIdentity = googleIdentities.get(event.externalId.toLowerCase());
+    if (googleIdentity) {
+      local = googleIdentity.mytimeItemId ? getItem(googleIdentity.mytimeItemId) : null;
+      if (!local) {
+        const googleCalendarId = getMeta(META_KEYS.googleCalendarId);
+        if (googleCalendarId) {
+          local = findItemByRemote('google', googleCalendarId, googleIdentity.eventId);
+        }
+      }
+      if (local?.source === 'task' || local?.source === 'event') {
+        upsertRemoteLink(
+          local.id,
+          'apple',
+          event.calendarId,
+          scopedEventId,
+          event.lastModified ?? '1970-01-01T00:00:00.000Z',
+        );
+      } else {
+        local = null;
+      }
+    }
+  }
+  if (!local && isMytimeCalendar && event.start && event.end) {
+    const source = eventSource(event, true, null);
+    if (source === 'task' || source === 'event') {
+      const matches = findUnlinkedLocalItemMatches({
+        source,
+        title: cleanPulledTitle(event.title || 'Untitled', true),
+        start: event.start,
+        end: event.end,
+        allDay: event.allDay,
+        withoutProvider: 'apple',
+      });
+      if (matches.length > 1) {
+        throw new Error(`Ambiguous existing event match for "${event.title}". No events were pushed.`);
+      }
+      local = matches[0] ?? null;
+      if (local) {
+        upsertRemoteLink(
+          local.id,
+          'apple',
+          event.calendarId,
+          scopedEventId,
+          event.lastModified ?? '1970-01-01T00:00:00.000Z',
+        );
+      }
+    }
+  }
   return local;
 }
 
@@ -116,12 +173,20 @@ async function syncWithApple(): Promise<SyncResult> {
 
   const mytimeCalendarId = getMeta(META_KEYS.appleCalendarId)!;
 
-  for (const item of listItemsNeedingProviderSync('apple')) {
-    try {
-      if (await pushAppleItem(item)) result.pushed++;
-    } catch (error) {
-      result.errors.push(`Push failed for "${item.title}": ${appleError(error)}`);
+  if (getMeta(META_KEYS.appleAllDayBoundaryVersion) !== '2') {
+    let repairFailed = false;
+    for (const item of listProviderLinkedAllDayOwnedItems('apple')) {
+      const link = getRemoteLink(item.id, 'apple');
+      if (link?.remoteCalendarId !== mytimeCalendarId) continue;
+      try {
+        if (await pushAppleItem(item)) result.pushed++;
+      } catch (error) {
+        repairFailed = true;
+        result.errors.push(`All-day repair failed for "${item.title}": ${appleError(error)}`);
+      }
     }
+    if (repairFailed) return result;
+    setMeta(META_KEYS.appleAllDayBoundaryVersion, '2');
   }
 
   let calendars;
@@ -134,13 +199,24 @@ async function syncWithApple(): Promise<SyncResult> {
 
   const prefs = getProviderCalendarFetchPrefs('apple');
   const selected = calendars.filter((calendar) =>
-    calendar.id === mytimeCalendarId || prefs[calendar.id] !== false,
+    calendar.id === mytimeCalendarId || (!isMytimeCalendarName(calendar.title) && prefs[calendar.id] !== false),
   );
   result.calendars = selected.length;
 
   const rangeStart = DateTime.local().minus({ days: 30 }).startOf('day').toISO()!;
   const rangeEnd = DateTime.local().plus({ days: 365 }).endOf('day').toISO()!;
   const seen = new Set<string>();
+  let googleIdentities = new Map<string, GoogleEventIdentity>();
+  if (getMeta(META_KEYS.appleSharesGoogleCalendar) === 'true') {
+    try {
+      googleIdentities = new Map(
+        (await listMytimeGoogleEventIdentities()).map((identity) => [identity.iCalUID.toLowerCase(), identity]),
+      );
+    } catch (error) {
+      result.errors.push(`Could not verify adopted Google calendar: ${appleError(error)}`);
+      return result;
+    }
+  }
 
   for (const calendar of selected) {
     try {
@@ -151,7 +227,7 @@ async function syncWithApple(): Promise<SyncResult> {
         if (!event.id) continue;
         const scopedEventId = remoteEventId(event, isMytimeCalendar);
         seen.add(`${calendar.id}\0${scopedEventId}`);
-        const local = localFromAppleEvent(event, isMytimeCalendar, scopedEventId);
+        const local = localFromAppleEvent(event, isMytimeCalendar, scopedEventId, googleIdentities);
 
         if (event.status === 'canceled') {
           if (local) {
@@ -214,6 +290,15 @@ async function syncWithApple(): Promise<SyncResult> {
     }
   }
 
+  if (result.errors.length) return result;
+  for (const item of listItemsNeedingProviderSync('apple')) {
+    try {
+      if (await pushAppleItem(item)) result.pushed++;
+    } catch (error) {
+      result.errors.push(`Push failed for "${item.title}": ${appleError(error)}`);
+    }
+  }
+
   return result;
 }
 
@@ -271,7 +356,9 @@ async function deleteMytimeAppleCalendar(): Promise<boolean> {
   if (!calendarId) return false;
   let deleted: boolean;
   try {
-    deleted = await deleteAppleCalendar(calendarId);
+    const calendar = (await listAppleCalendars()).find((candidate) => candidate.id === calendarId);
+    if (!calendar || !isMytimeCalendarName(calendar.title)) return false;
+    deleted = await deleteAppleCalendar(calendarId, calendar.title);
   } catch (error) {
     if ((error as Error & { code?: string }).code !== 'calendar_not_found') throw error;
     deleted = true;

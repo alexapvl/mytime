@@ -17,19 +17,22 @@ Use for: listing or adding tasks, scheduling/rescheduling, finding free slots, v
 
 1. Run `command -v mytime`, then use `mytime agent` when it succeeds. Only fall back to mytime MCP when shell execution or the binary is unavailable.
 2. Check the configured calendar provider. Infer Google or Apple from the conversation's origin when that origin makes the choice explicit, even if the provider is not repeated in the immediate request. Otherwise ask the user which provider they want before setup. Never silently default to Google.
-3. Run `mytime setup google` for Google OAuth, or `mytime setup apple` for EventKit on macOS 14+. The user must complete browser sign-in or approve the macOS Calendar permission prompt when requested.
-4. Run `mytime agent` with no args for a live dashboard: backlog preview, past due, today's schedule, counts.
-5. Read lists with `backlog list`, `schedule list`, `past-due`, or `search <query>`.
-6. Before scheduling timed work, run `mytime agent slots [--date <day>]` and pick a slot.
-7. Give every new task a project. Infer it from the conversation's origin first, including the current repository, workspace, issue, PR, or named product, even when the user does not repeat it in the task text. Add it as `@project` with `task quick`, or `--project <project>` with `task add`. If no project can be inferred, ask the user before creating the task. Never silently create a projectless task.
-8. Schedule with `task schedule <id> --start <iso> [--duration-minutes 60]`.
-9. Follow `help:` lines in output for next steps.
+3. Run `mytime agent calendar` for live adapter, backend, source, dedicated calendar, and switching effects. Use `calendar setup`, `calendar switch`, or `calendar cleanup` to explain relevant commands before suggesting a mutation.
+4. Run `mytime setup google` for Google OAuth, or `mytime setup apple` for EventKit on macOS 14+. The user must complete browser sign-in or approve the macOS Calendar permission prompt when requested.
+5. Before switching, let setup detect whether EventKit points to the same Google calendar. If it does, use `--keep-old-calendar`; never delete the shared remote calendar.
+6. If setup reports duplicate calendars, run `mytime setup apple --cleanup-duplicates` for a read-only preview. Ask for explicit confirmation before adding `--apply`.
+7. Run `mytime agent` with no args for a live dashboard: backlog preview, past due, today's schedule, counts.
+8. Read lists with `backlog list`, `schedule list`, `past-due`, or `search <query>`.
+9. Before scheduling timed work, run `mytime agent slots [--date <day>]` and pick a slot.
+10. Give every new task a project. Infer it from the conversation's origin first, including the current repository, workspace, issue, PR, or named product, even when the user does not repeat it in the task text. Add it as `@project` with `task quick`, or `--project <project>` with `task add`. If no project can be inferred, ask the user before creating the task. Never silently create a projectless task.
+11. Schedule with `task schedule <id> --start <iso> [--duration-minutes 60]`.
+12. Follow `help:` lines in output for next steps.
 
 ## Commands
 
 ```
-commands[9]:
-  (none)=dashboard, backlog, schedule, past-due, slots, item, search, task, event, sync
+commands[10]:
+  (none)=dashboard, backlog, schedule, past-due, slots, item, search, task, event, calendar, sync
 ```
 
 ### Reads
@@ -41,6 +44,10 @@ commands[9]:
 - `mytime agent slots [--date <iso>] [--step-minutes 60] [--time-filter 09] [--exclude-id <id>]`
 - `mytime agent item <id> [--full]` — item detail (notes truncated unless `--full`)
 - `mytime agent search <query>` — search title, project, tags
+- `mytime agent calendar` - live adapter/backend state and contextual effects
+- `mytime agent calendar sources` - Google API state and writable Calendar.app sources
+- `mytime agent calendar setup|switch|cleanup` - structured explanation of each operation
+- `mytime agent calendar guide [setup|switch|cleanup]` - full optional reference
 
 ### Writes
 
@@ -66,6 +73,7 @@ Run `mytime agent --help` or `mytime agent --help task` for concise reference.
 - External calendar events (`source: external`) are read-only. Only mytime tasks/events can be edited.
 - Write commands auto-sync only to the currently active provider.
 - Only one provider is writable at a time. When switching, setup removes old-provider external events from the local cache and asks whether to delete the old dedicated mytime calendar. The default is to keep it. Never delete unrelated calendars.
-- Confirm the user's choice, then switch with `mytime setup <provider> --keep-old-calendar` or `--delete-old-calendar`. If Apple setup lists multiple sources, ask which account they want and rerun with `--source <source-id>`.
+- Dedicated calendars use backend names: `mytime-google`, `mytime-icloud`, or `mytime-local`. EventKit using Google must adopt `mytime-google`, not create a second calendar.
+- Confirm the user's choice, then switch with `mytime setup <provider> --keep-old-calendar` or `--delete-old-calendar`. If Apple setup lists multiple sources or calendars, ask which account/calendar they want and rerun with `--source <source-id> --calendar <calendar-id>`.
 - Prefer `slots` before `task schedule` to avoid conflicts.
 - Use `--json` on any command for JSON instead of TOON.

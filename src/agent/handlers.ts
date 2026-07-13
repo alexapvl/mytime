@@ -30,6 +30,10 @@ import { parseDayArg } from './dates.js';
 import { ensureFresh, markSyncFresh } from './fresh.js';
 import { ok, err, type AgentResult } from './types.js';
 import { detailItem, listScheduleItem, listTask, pastDueItem } from './views.js';
+import { getMeta, META_KEYS } from '../db/meta.js';
+import { inferEventKitBackend, mytimeCalendarName } from '../calendar/backend.js';
+import { getAppleAuthorizationStatus, listAppleCalendars, listAppleSources } from '../apple/client.js';
+import { isAuthenticated as isGoogleAuthenticated } from '../google/auth.js';
 
 const SCHEDULE_HINT =
   'Run `mytime agent slots --date <day>` before scheduling, or `mytime agent schedule list` to inspect the day.';
@@ -89,9 +93,209 @@ export async function agentDashboard(): Promise<AgentResult> {
       'Run `mytime agent past-due` for overdue tasks',
       'Run `mytime agent task quick "<text>"` to add from natural language',
       'Run `mytime agent slots` before scheduling timed tasks',
+      'Run `mytime agent calendar` for provider, backend, and setup effects',
       'Run `mytime setup --agents` to set up Cursor / Claude integration',
     ],
   );
+}
+
+export async function agentCalendarDashboard(): Promise<AgentResult> {
+  const provider = getActiveProvider();
+  const status = await getActiveProviderStatus();
+  if (!provider) {
+    return ok(
+      {
+        calendar: {
+          adapter: 'none',
+          backend: 'none',
+          connected: false,
+          writes: 'No remote calendar writes until user chooses Google or Apple setup',
+        },
+      },
+      [
+        'Ask user whether they want Google API or Apple EventKit access',
+        'Run `mytime agent calendar setup` to explain both setup paths',
+        'Run `mytime setup google` or `mytime setup apple` only after user chooses',
+      ],
+    );
+  }
+
+  const backend = provider === 'google' ? 'google' : getMeta(META_KEYS.appleBackend) ?? 'unknown';
+  const calendarId = getMeta(
+    provider === 'google' ? META_KEYS.googleCalendarId : META_KEYS.appleCalendarId,
+  );
+  let calendarName = mytimeCalendarName(backend as Parameters<typeof mytimeCalendarName>[0]);
+  let sourceTitle: string | null = provider === 'google' ? 'Google API' : null;
+  if (provider === 'apple' && status?.connected && calendarId) {
+    try {
+      const calendar = (await listAppleCalendars()).find((candidate) => candidate.id === calendarId);
+      if (calendar) {
+        calendarName = calendar.title;
+        sourceTitle = calendar.sourceTitle;
+      }
+    } catch {
+      // Status already carries the actionable permission error.
+    }
+  }
+  const sharedGoogleCalendar =
+    provider === 'apple' && getMeta(META_KEYS.appleSharesGoogleCalendar) === 'true';
+  const separateBackend = provider === 'apple' && backend !== 'google';
+  const googleBackendRelation = provider !== 'apple' || backend !== 'google'
+    ? 'not-applicable'
+    : sharedGoogleCalendar
+      ? 'verified-same'
+      : 'unknown';
+
+  return ok(
+    {
+      calendar: {
+        adapter: provider === 'google' ? 'google-api' : 'apple-eventkit',
+        backend,
+        source: sourceTitle,
+        calendar: calendarName,
+        connected: status?.connected ?? false,
+        detail: status?.detail ?? null,
+        sharedGoogleCalendar,
+        googleBackendRelation,
+        writes: `Only ${calendarName} is writable through the active adapter`,
+        switchingEffect: sharedGoogleCalendar
+          ? 'Google API and EventKit share one remote calendar; switching adapter does not copy or delete events'
+          : googleBackendRelation === 'unknown'
+            ? 'EventKit uses Google storage, but calendar identity is unverified; remote calendar deletion is disabled'
+          : separateBackend
+            ? 'Google and Apple use separate backend calendars; switching migrates owned items once'
+            : 'Only one adapter writes at a time',
+        visibility: separateBackend
+          ? 'If both backend calendars are visible, the same migrated schedule appears twice by design'
+          : 'One backend calendar should produce one visible schedule',
+      },
+    },
+    [
+      'Run `mytime agent calendar setup` for setup commands and effects',
+      'Run `mytime agent calendar switch` before changing active backend',
+      'Run `mytime agent calendar cleanup` before deleting duplicate copies',
+      'Run `mytime agent calendar sources` to inspect Calendar.app accounts',
+    ],
+  );
+}
+
+export async function agentCalendarSources(): Promise<AgentResult> {
+  let authorization = 'unavailable';
+  let sources: Array<Record<string, unknown>> = [];
+  let sourceError: string | null = null;
+  if (process.platform === 'darwin') {
+    try {
+      authorization = await getAppleAuthorizationStatus();
+      if (authorization === 'full_access') {
+        sources = (await listAppleSources())
+          .filter((source) => source.canCreateCalendar)
+          .map((source) => ({
+            id: source.id,
+            title: source.title,
+            backend: inferEventKitBackend(source),
+            type: source.type,
+            default: source.default,
+            writableCalendars: source.writableCalendarCount,
+          }));
+      }
+    } catch (error) {
+      sourceError = (error as Error).message;
+    }
+  }
+  return ok(
+    {
+      googleApi: {
+        connected: isGoogleAuthenticated(),
+        calendarConfigured: Boolean(getMeta(META_KEYS.googleCalendarId)),
+      },
+      eventKit: {
+        permission: authorization,
+        error: sourceError,
+        count: sources.length,
+        sources: sources.length ? sources : '0 writable sources available',
+      },
+    },
+    authorization === 'full_access'
+      ? ['Use `mytime setup apple --source <id>` only after user chooses the account/backend']
+      : ['User must run `mytime setup apple` and approve Full Calendar access'],
+  );
+}
+
+export function agentCalendarGuide(topic: 'all' | 'setup' | 'switch' | 'cleanup' = 'all'): AgentResult {
+  const setup = {
+    purpose: 'Configure one writable calendar adapter after user chooses Google or Apple',
+    commands: [
+      {
+        command: 'mytime setup google',
+        effect: 'Checks Google OAuth files and selects Google API when ready',
+        remote: 'Creates or adopts mytime-google only when authenticated sync needs it',
+        userAction: 'User completes Google browser OAuth with mytime auth google',
+      },
+      {
+        command: 'mytime setup apple',
+        effect: 'Requests EventKit permission and selects or creates a backend-named calendar',
+        remote: 'Uses mytime-google, mytime-icloud, mytime-local, or backend equivalent',
+        userAction: 'User approves Full Calendar access and chooses source when needed',
+      },
+      {
+        command: 'mytime setup apple --source <id> [--calendar <id>]',
+        effect: 'Chooses exact Calendar.app account and optionally adopts exact existing calendar',
+        remote: 'Does not guess when multiple matching calendars exist',
+        userAction: 'Agent summarizes source/backend before running',
+      },
+    ],
+  };
+  const switching = {
+    purpose: 'Change active writer while preserving local owned tasks and events',
+    rules: [
+      'Same Google backend through Google API and EventKit: adopt same calendar; no event copy',
+      'Different backends such as Google and iCloud: migrate owned items once into separate calendars',
+      'Google-backed EventKit with unknown calendar identity: never delete a remote calendar automatically',
+      'Only active adapter may push, update, or delete remote owned events',
+      'Old-provider external cache is removed locally and new-provider calendars are fetched',
+    ],
+    commands: [
+      {
+        command: 'mytime setup <provider> --keep-old-calendar',
+        effect: 'Switches active writer and preserves old remote dedicated calendar',
+        reversible: true,
+        warning: 'Both separate backend calendars may show the same migrated schedule when visible',
+      },
+      {
+        command: 'mytime setup <provider> --delete-old-calendar',
+        effect: 'Switches, verifies new backend, then deletes old remote dedicated calendar last',
+        reversible: false,
+        confirmation: 'Agent must obtain explicit user approval',
+      },
+    ],
+  };
+  const cleanup = {
+    purpose: 'Remove only verified copies while preserving canonical events',
+    commands: [
+      {
+        command: 'mytime setup apple --cleanup-duplicates',
+        effect: 'Read-only preview of verified duplicate candidates',
+        remote: 'No events deleted',
+      },
+      {
+        command: 'mytime setup apple --cleanup-duplicates --apply',
+        effect: 'Deletes only candidates from preview and keeps canonical events',
+        reversible: false,
+        confirmation: 'Agent must show preview and obtain explicit user approval',
+      },
+    ],
+  };
+  const selected = topic === 'setup' ? { setup } : topic === 'switch' ? { switching } : topic === 'cleanup' ? { cleanup } : {
+    concepts: {
+      adapter: 'How mytime accesses a calendar: Google API or Apple EventKit',
+      backend: 'Where calendar data lives: Google, iCloud, Exchange, CalDAV, or local',
+      naming: 'Dedicated calendars are named by backend, not adapter',
+    },
+    setup,
+    switching,
+    cleanup,
+  };
+  return ok(selected, ['Run `mytime agent calendar` for current live state']);
 }
 
 export async function agentBacklogList(): Promise<AgentResult> {
