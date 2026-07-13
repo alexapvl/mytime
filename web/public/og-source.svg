@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="translate(285 80) rotate(67) scale(520 690)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5dd4e8" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#5dd4e8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="terminalFade" x1="640" y1="70" x2="1138" y2="570" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#131820"/>
+      <stop offset="1" stop-color="#090c11"/>
+    </linearGradient>
+    <filter id="shadow" x="580" y="20" width="620" height="610" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="24" stdDeviation="30" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+    <clipPath id="terminalClip">
+      <rect x="630" y="62" width="510" height="506" rx="18"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1200" height="630" fill="#0c0f14"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace">
+    <text x="68" y="78" fill="#5dd4e8" font-size="25" font-weight="700">mytime</text>
+    <text x="172" y="78" fill="#8b95a8" font-size="15" letter-spacing="2">LOCAL-FIRST · OPEN SOURCE</text>
+
+    <text x="68" y="186" fill="#e6eaf0" font-family="system-ui, -apple-system, sans-serif" font-size="64" font-weight="680" letter-spacing="-2.5">
+      <tspan x="68" dy="0">Your calendar</tspan>
+      <tspan x="68" dy="72">speaks shell.</tspan>
+    </text>
+
+    <text x="70" y="362" fill="#a9b2c2" font-family="system-ui, -apple-system, sans-serif" font-size="24">
+      <tspan x="70" dy="0">Tasks, Google Calendar, and agents.</tspan>
+      <tspan x="70" dy="34">One local terminal workflow.</tspan>
+    </text>
+
+    <text x="70" y="520" fill="#5dd4e8" font-size="20" font-weight="600">mytime.apvl.dev</text>
+
+    <g filter="url(#shadow)">
+      <rect x="630" y="62" width="510" height="506" rx="18" fill="url(#terminalFade)" stroke="#303947" stroke-width="2"/>
+    </g>
+    <g clip-path="url(#terminalClip)">
+      <rect x="630" y="62" width="510" height="52" fill="#171c25"/>
+      <line x1="630" y1="114" x2="1140" y2="114" stroke="#303947"/>
+      <circle cx="658" cy="88" r="6" fill="#f07178"/>
+      <circle cx="680" cy="88" r="6" fill="#e8c547"/>
+      <circle cx="702" cy="88" r="6" fill="#5fd08a"/>
+      <text x="730" y="94" fill="#8b95a8" font-size="15">mytime</text>
+
+      <text x="658" y="150" fill="#5dd4e8" font-size="16" font-weight="700">mytime</text>
+      <text x="720" y="150" fill="#8b95a8" font-size="16"> - tasks + calendar</text>
+
+      <text x="658" y="184" fill="#8b95a8" font-size="14">[1] Backlog</text>
+      <text x="768" y="184" fill="#5dd4e8" font-size="14" font-weight="700">[2] Daily</text>
+      <text x="858" y="184" fill="#8b95a8" font-size="14">[3] Week</text>
+      <text x="944" y="184" fill="#8b95a8" font-size="14">[4] Month</text>
+
+      <text x="658" y="222" fill="#e6eaf0" font-size="16" font-weight="700">Mon Jul 13, 2026 (today)</text>
+      <text x="658" y="252" fill="#8b95a8" font-size="12">←/→ day · ↑/↓ select · q quick-add · s reschedule</text>
+
+      <text x="658" y="288" fill="#e6eaf0" font-size="14">all day · release prep</text>
+      <line x1="658" y1="304" x2="1110" y2="304" stroke="#536071"/>
+
+      <text x="658" y="334" fill="#8b95a8" font-size="14">09:00-09:30 · standup #gcal</text>
+      <text x="658" y="370" fill="#8b95a8" font-size="14">10:00 ·</text>
+      <rect x="648" y="390" width="470" height="42" rx="7" fill="#5dd4e8" fill-opacity="0.09"/>
+      <text x="658" y="417" fill="#5dd4e8" font-size="14" font-weight="700">11:00-12:30 ▸ ship terminal demo</text>
+      <text x="658" y="458" fill="#e6eaf0" font-size="14">14:00-15:00 · review PR @work</text>
+      <text x="658" y="494" fill="#8b95a8" font-size="14">15:30-16:00 · sync with Sam #gcal</text>
+
+      <rect x="648" y="526" width="470" height="28" fill="none" stroke="#394453"/>
+      <text x="660" y="545" fill="#8b95a8" font-size="12">Google connected</text>
+    </g>
+  </g>
+</svg>
