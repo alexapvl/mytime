@@ -1,7 +1,11 @@
+import { emitUsage } from './format.js';
+
 export type ParsedArgs = {
   positional: string[];
   flags: Map<string, string | boolean>;
 };
+
+const BOOLEAN_FLAGS = new Set(['all-day', 'full', 'help', 'json']);
 
 export function parseArgs(argv: string[]): ParsedArgs {
   const positional: string[] = [];
@@ -20,6 +24,10 @@ export function parseArgs(argv: string[]): ParsedArgs {
         continue;
       }
       const key = arg.slice(2);
+      if (BOOLEAN_FLAGS.has(key)) {
+        flags.set(key, true);
+        continue;
+      }
       const next = argv[i + 1];
       if (next && !next.startsWith('-')) {
         flags.set(key, next);
@@ -70,13 +78,12 @@ export function flagDone(flags: Map<string, string | boolean>): boolean | undefi
   return undefined;
 }
 
-export function requirePos(positional: string[], index: number, label: string): string {
+export function requirePos(positional: string[], index: number, label: string, help: string[] = []): string {
   const value = positional[index];
-  if (!value) emitMissing(label);
+  if (!value) emitMissing(label, help);
   return value;
 }
 
-function emitMissing(label: string): never {
-  console.log(`error: missing ${label}`);
-  process.exit(2);
+function emitMissing(label: string, help: string[]): never {
+  emitUsage(`Missing ${label}`, help);
 }

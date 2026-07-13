@@ -20,7 +20,7 @@ import {
   agentUpdateTask,
 } from './handlers.js';
 import { flagBool, flagDone, flagInt, flagString, flagStringList, parseArgs, requirePos } from './argv.js';
-import { AGENT_DESCRIPTION, emitResult, emitUsage } from './format.js';
+import { AGENT_DESCRIPTION, emitHelp, emitResult, emitUsage } from './format.js';
 import type { Reminder } from '../db/types.js';
 
 const TOP_HELP = [
@@ -32,12 +32,35 @@ const TOP_HELP = [
   'Run `mytime agent --help <command>` for subcommand help',
 ];
 
-function printAgentHelp(topic?: string): never {
+const GLOBAL_FLAGS = ['help', 'json'];
+const BOOLEAN_COMMAND_FLAGS = new Set(['all-day', 'done', 'full']);
+
+function validateFlags(
+  flags: Map<string, string | boolean>,
+  allowed: string[],
+  command: string,
+  help: string[],
+): void {
+  const valid = new Set([...GLOBAL_FLAGS, ...allowed]);
+  const unknown = [...flags.keys()].find((flag) => !valid.has(flag));
+  const validList = [...valid].map((flag) => `--${flag}`).join(', ');
+  if (unknown) {
+    emitUsage(`Unknown flag --${unknown} for \`${command}\``, [`Valid flags: ${validList}`, ...help]);
+  }
+  const missingValue = allowed.find((flag) => flags.get(flag) === true && !BOOLEAN_COMMAND_FLAGS.has(flag));
+  if (missingValue) {
+    emitUsage(`Flag --${missingValue} requires a value for \`${command}\``, [`Valid flags: ${validList}`, ...help]);
+  }
+}
+
+function printAgentHelp(topic?: string, requested = false, json = false): never {
   if (!topic) {
-    emitUsage('mytime agent — agent-ergonomic tasks + calendar CLI', [
+    const help = [
       ...TOP_HELP,
       'Commands: backlog, schedule, past-due, slots, item, search, task, event, sync',
-    ]);
+    ];
+    if (requested) emitHelp('mytime agent - agent-ergonomic tasks + calendar CLI', help, json);
+    emitUsage('mytime agent - agent-ergonomic tasks + calendar CLI', help);
   }
 
   const guides: Record<string, string[]> = {
@@ -69,6 +92,7 @@ function printAgentHelp(topic?: string): never {
   if (!help) {
     emitUsage(`Unknown help topic: ${topic}`, ['Topics: backlog, schedule, past-due, slots, item, search, task, event, sync']);
   }
+  if (requested) emitHelp(`mytime agent ${topic}`, help, json);
   emitUsage(`mytime agent ${topic}`, help);
 }
 
@@ -86,10 +110,12 @@ export async function runAgentCli(argv: string[]): Promise<number> {
   const json = flagBool(flags, 'json');
 
   if (flagBool(flags, 'help')) {
-    printAgentHelp(positional[0]);
+    validateFlags(flags, [], 'mytime agent --help', TOP_HELP);
+    printAgentHelp(positional[0], true, json);
   }
 
   if (positional.length === 0) {
+    validateFlags(flags, [], 'mytime agent', TOP_HELP);
     return emitResult(await agentDashboard(), { json, description: AGENT_DESCRIPTION });
   }
 
@@ -97,20 +123,26 @@ export async function runAgentCli(argv: string[]): Promise<number> {
 
   switch (command) {
     case 'backlog': {
+      validateFlags(flags, [], 'mytime agent backlog list', ['Usage: mytime agent backlog list']);
       if (sub !== 'list') emitUsage('Usage: mytime agent backlog list', ['Run `mytime agent backlog list`']);
       return emitResult(await agentBacklogList(), { json });
     }
 
     case 'schedule': {
+      validateFlags(flags, ['from', 'to'], 'mytime agent schedule list', ['Usage: mytime agent schedule list [--from <iso>] [--to <iso>]']);
       if (sub !== 'list') emitUsage('Usage: mytime agent schedule list [--from] [--to]', ['Run `mytime agent schedule list`']);
       return emitResult(await agentScheduleList(flagString(flags, 'from'), flagString(flags, 'to')), { json });
     }
 
     case 'past-due':
+      validateFlags(flags, [], 'mytime agent past-due', ['Usage: mytime agent past-due']);
       if (sub) emitUsage('Usage: mytime agent past-due', ['Run `mytime agent past-due`']);
       return emitResult(await agentPastDue(), { json });
 
     case 'slots':
+      validateFlags(flags, ['date', 'step-minutes', 'time-filter', 'exclude-id'], 'mytime agent slots', [
+        'Usage: mytime agent slots [--date <iso>] [--step-minutes 60] [--time-filter 09] [--exclude-id <id>]',
+      ]);
       if (sub) emitUsage('Usage: mytime agent slots [--date] [--step-minutes] [--time-filter] [--exclude-id]', ['Run `mytime agent slots`']);
       return emitResult(
         await agentFreeSlots({
@@ -123,11 +155,13 @@ export async function runAgentCli(argv: string[]): Promise<number> {
       );
 
     case 'item': {
-      const id = requirePos(positional, 1, 'item id');
+      validateFlags(flags, ['full'], 'mytime agent item', ['Usage: mytime agent item <id> [--full]']);
+      const id = requirePos(positional, 1, 'item id', ['Usage: mytime agent item <id> [--full]']);
       return emitResult(await agentGetItem(id, flagBool(flags, 'full')), { json });
     }
 
     case 'search': {
+      validateFlags(flags, [], 'mytime agent search', ['Usage: mytime agent search <query>']);
       const query = positional.slice(1).join(' ');
       if (!query) emitUsage('Usage: mytime agent search <query>', ['Example: mytime agent search meloDL']);
       return emitResult(await agentSearch(query), { json });
@@ -140,6 +174,7 @@ export async function runAgentCli(argv: string[]): Promise<number> {
       return runEventCommand(sub, rest, flags, json);
 
     case 'sync':
+      validateFlags(flags, [], 'mytime agent sync', ['Usage: mytime agent sync']);
       if (sub) emitUsage('Usage: mytime agent sync', ['Run `mytime agent sync`']);
       return emitResult(await agentSync(), { json });
 
@@ -156,6 +191,9 @@ async function runTaskCommand(
 ): Promise<number> {
   switch (sub) {
     case 'add': {
+      validateFlags(flags, ['title', 'notes', 'project', 'tags', 'priority'], 'mytime agent task add', [
+        'Usage: mytime agent task add --title <text> [--notes] [--project] [--tags a,b] [--priority 0-3]',
+      ]);
       const title = flagString(flags, 'title');
       if (!title) emitUsage('Usage: mytime agent task add --title <text>', ['Run `mytime agent task add --title "Fix bug"`']);
       return emitResult(
@@ -170,12 +208,16 @@ async function runTaskCommand(
       );
     }
     case 'quick': {
+      validateFlags(flags, [], 'mytime agent task quick', ['Usage: mytime agent task quick "<natural language>"']);
       const text = rest.join(' ');
       if (!text) emitUsage('Usage: mytime agent task quick "<text>"', ['Example: mytime agent task quick "review PR tomorrow 3pm @work p2"']);
       return emitResult(await agentQuickAddTask(text), { json });
     }
     case 'update': {
-      const id = requirePos([sub, ...rest], 1, 'task id');
+      validateFlags(flags, ['title', 'notes', 'project', 'tags', 'priority'], 'mytime agent task update', [
+        'Usage: mytime agent task update <id> [--title] [--notes] [--project] [--tags] [--priority]',
+      ]);
+      const id = requirePos([sub, ...rest], 1, 'task id', ['Usage: mytime agent task update <id> [--title] [--notes] [--project] [--tags] [--priority]']);
       return emitResult(
         await agentUpdateTask(id, {
           title: flagString(flags, 'title'),
@@ -188,7 +230,10 @@ async function runTaskCommand(
       );
     }
     case 'schedule': {
-      const id = requirePos([sub, ...rest], 1, 'task id');
+      validateFlags(flags, ['start', 'end', 'all-day', 'duration-minutes'], 'mytime agent task schedule', [
+        'Usage: mytime agent task schedule <id> --start <iso> [--end] [--all-day] [--duration-minutes 60]',
+      ]);
+      const id = requirePos([sub, ...rest], 1, 'task id', ['Usage: mytime agent task schedule <id> --start <iso>']);
       const start = flagString(flags, 'start');
       if (!start) emitUsage('Usage: mytime agent task schedule <id> --start <iso>', ['Run `mytime agent slots` first']);
       return emitResult(
@@ -203,14 +248,17 @@ async function runTaskCommand(
       );
     }
     case 'done': {
-      const id = requirePos([sub, ...rest], 1, 'task id');
+      validateFlags(flags, ['done'], 'mytime agent task done', ['Usage: mytime agent task done <id> [--done true|false]']);
+      const id = requirePos([sub, ...rest], 1, 'task id', ['Usage: mytime agent task done <id> [--done true|false]']);
       return emitResult(await agentCompleteTask(id, flagDone(flags)), { json });
     }
     case 'delete': {
-      const id = requirePos([sub, ...rest], 1, 'task id');
+      validateFlags(flags, [], 'mytime agent task delete', ['Usage: mytime agent task delete <id>']);
+      const id = requirePos([sub, ...rest], 1, 'task id', ['Usage: mytime agent task delete <id>']);
       return emitResult(await agentDeleteTask(id), { json });
     }
     default:
+      validateFlags(flags, [], 'mytime agent task', ['Run `mytime agent --help task`']);
       printAgentHelp('task');
   }
 }
@@ -223,6 +271,9 @@ async function runEventCommand(
 ): Promise<number> {
   switch (sub) {
     case 'add': {
+      validateFlags(flags, ['title', 'start', 'end', 'all-day', 'notes', 'location', 'reminders'], 'mytime agent event add', [
+        'Usage: mytime agent event add --title <text> --start <iso> [--end] [--all-day] [--notes] [--location]',
+      ]);
       const title = flagString(flags, 'title');
       const start = flagString(flags, 'start');
       if (!title || !start) {
@@ -242,12 +293,16 @@ async function runEventCommand(
       );
     }
     case 'quick': {
+      validateFlags(flags, [], 'mytime agent event quick', ['Usage: mytime agent event quick "<natural language>"']);
       const text = rest.join(' ');
       if (!text) emitUsage('Usage: mytime agent event quick "<text>"', ['Example: mytime agent event quick "team lunch tomorrow 12pm"']);
       return emitResult(await agentQuickAddEvent(text), { json });
     }
     case 'update': {
-      const id = requirePos([sub, ...rest], 1, 'event id');
+      validateFlags(flags, ['title', 'notes', 'location', 'reminders'], 'mytime agent event update', [
+        'Usage: mytime agent event update <id> [--title] [--notes] [--location] [--reminders]',
+      ]);
+      const id = requirePos([sub, ...rest], 1, 'event id', ['Usage: mytime agent event update <id> [--title] [--notes] [--location]']);
       return emitResult(
         await agentUpdateEvent(id, {
           title: flagString(flags, 'title'),
@@ -259,7 +314,10 @@ async function runEventCommand(
       );
     }
     case 'schedule': {
-      const id = requirePos([sub, ...rest], 1, 'event id');
+      validateFlags(flags, ['start', 'end', 'all-day', 'duration-minutes'], 'mytime agent event schedule', [
+        'Usage: mytime agent event schedule <id> --start <iso> [--end] [--all-day] [--duration-minutes 60]',
+      ]);
+      const id = requirePos([sub, ...rest], 1, 'event id', ['Usage: mytime agent event schedule <id> --start <iso>']);
       const start = flagString(flags, 'start');
       if (!start) emitUsage('Usage: mytime agent event schedule <id> --start <iso>', ['Run `mytime agent slots` first']);
       return emitResult(
@@ -274,10 +332,12 @@ async function runEventCommand(
       );
     }
     case 'delete': {
-      const id = requirePos([sub, ...rest], 1, 'event id');
+      validateFlags(flags, [], 'mytime agent event delete', ['Usage: mytime agent event delete <id>']);
+      const id = requirePos([sub, ...rest], 1, 'event id', ['Usage: mytime agent event delete <id>']);
       return emitResult(await agentDeleteEvent(id), { json });
     }
     default:
+      validateFlags(flags, [], 'mytime agent event', ['Run `mytime agent --help event`']);
       printAgentHelp('event');
   }
 }

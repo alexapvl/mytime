@@ -5,7 +5,7 @@ description: "Manage personal tasks and calendar through the mytime agent CLI �
 
 # mytime agent
 
-Agent-ergonomic interface for mytime (tasks + calendar). Prefer `mytime agent` over mytime MCP and raw calendar CLIs.
+Agent-ergonomic interface for mytime (tasks + calendar). When shell execution works and `mytime` is on PATH, always use `mytime agent`. Do not use mytime MCP in that environment. Use MCP only when the client cannot execute shell commands.
 
 Requires `mytime` on PATH (`brew tap alexapvl/mytime https://github.com/alexapvl/mytime && brew install mytime`, or build from source). Google: `mytime setup`, then `mytime auth`. Agent onboarding: `mytime setup --agent-onboarding-prompt`.
 
@@ -15,13 +15,14 @@ Use for: listing or adding tasks, scheduling/rescheduling, finding free slots, v
 
 ## Workflow
 
-1. Run `mytime setup` if Google is not configured (`credentials.json` / `token.json` under `~/.mytime/`).
-2. Run `mytime agent` with no args for a live dashboard — backlog preview, past due, today's schedule, counts.
-2. Read lists with `backlog list`, `schedule list`, `past-due`, or `search <query>`.
-3. Before scheduling timed work, run `mytime agent slots [--date <day>]` and pick a slot.
-4. Give every new task a project. Infer it from the conversation's origin first, including the current repository, workspace, issue, PR, or named product, even when the user does not repeat it in the task text. Add it as `@project` with `task quick`, or `--project <project>` with `task add`. If no project can be inferred, ask the user before creating the task. Never silently create a projectless task.
-5. Schedule with `task schedule <id> --start <iso> [--duration-minutes 60]`.
-6. Follow `help:` lines in output for next steps.
+1. Run `command -v mytime`, then use `mytime agent` when it succeeds. Only fall back to mytime MCP when shell execution or the binary is unavailable.
+2. Run `mytime setup` if Google is not configured (`credentials.json` / `token.json` under `~/.mytime/`).
+3. Run `mytime agent` with no args for a live dashboard — backlog preview, past due, today's schedule, counts.
+4. Read lists with `backlog list`, `schedule list`, `past-due`, or `search <query>`.
+5. Before scheduling timed work, run `mytime agent slots [--date <day>]` and pick a slot.
+6. Give every new task a project. Infer it from the conversation's origin first, including the current repository, workspace, issue, PR, or named product, even when the user does not repeat it in the task text. Add it as `@project` with `task quick`, or `--project <project>` with `task add`. If no project can be inferred, ask the user before creating the task. Never silently create a projectless task.
+7. Schedule with `task schedule <id> --start <iso> [--duration-minutes 60]`.
+8. Follow `help:` lines in output for next steps.
 
 ## Commands
 

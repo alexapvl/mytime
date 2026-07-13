@@ -41,5 +41,10 @@ export function emitUsage(message: string, help: string[]): never {
   process.exit(2);
 }
 
+export function emitHelp(description: string, help: string[], json = false): never {
+  writeOut({ description, help }, json);
+  process.exit(0);
+}
+
 export const AGENT_DESCRIPTION =
   'Unified tasks and calendar for agents — backlog, schedule, free slots, Google Calendar sync';

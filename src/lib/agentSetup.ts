@@ -13,11 +13,11 @@ export const AGENT_SKILL_INSTALL = `npx skills add ${MYTIME_REPO} --skill mytime
 
 export const AGENT_ONBOARDING_PROMPT = `Set up mytime for AI agent use (${MYTIME_REPO}).
 
-I have mytime installed on PATH. Use \`mytime agent\` for tasks and calendar — prefer it over \`mytime mcp\` (same data, fewer tokens).
+I have mytime installed on PATH. When shell execution works, always use \`mytime agent\` for tasks and calendar. Do not use \`mytime mcp\` or configure mytime MCP in that environment.
 
 Please do the following:
 
-1. Run \`mytime agent\` and confirm the dashboard works.
+1. Run \`command -v mytime\`, then \`mytime agent\`, and confirm the dashboard works. Only use mytime MCP if shell execution or the binary is unavailable.
 2. If Google shows disconnected, tell me to run \`mytime setup\` then \`mytime auth\` (browser OAuth — you cannot complete that step for me).
 3. Install the mytime skill if missing:
    ${AGENT_SKILL_INSTALL}
@@ -30,7 +30,7 @@ Show me the dashboard output and suggest one task I could add as a test.`;
 
 export function printAgentIntegrationGuide(): void {
   console.log('AI agent integration\n');
-  console.log('Prefer `mytime agent` in Cursor, Claude Code, and other shell-capable agents.');
+  console.log('Always use `mytime agent` in Cursor, Claude Code, and other shell-capable agents.');
   console.log('Same SQLite DB and Google sync as the TUI — no extra OAuth or API keys.\n');
 
   console.log('Quick start:\n');
@@ -45,7 +45,7 @@ export function printAgentIntegrationGuide(): void {
   console.log('Recommended - install the mytime skill for project-aware task handling and command hints:\n');
   console.log(`  ${AGENT_SKILL_INSTALL}\n`);
 
-  console.log('Legacy MCP (only if the client cannot run shell):\n');
+  console.log('Legacy MCP (only if the client cannot run shell; do not configure it otherwise):\n');
   console.log('  Add to Cursor MCP settings (~/.cursor/mcp.json or project .cursor/mcp.json):');
   console.log('  mytime setup --mcp-config\n');
 
