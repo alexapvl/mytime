@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ARCH="${1:-$(uname -m)}"
+OUT_DIR="${MYTIME_EVENTKIT_OUT_DIR:-$ROOT/dist/native}"
+SOURCE="$ROOT/native/eventkit/main.swift"
+INFO_PLIST="$ROOT/native/eventkit/Info.plist"
+OUTPUT="$OUT_DIR/mytime-eventkit"
+
+case "$ARCH" in
+  arm64|x86_64) ;;
+  *)
+    echo "unsupported architecture: $ARCH (use arm64 or x86_64)" >&2
+    exit 1
+    ;;
+esac
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  echo "EventKit helper can only be built on macOS" >&2
+  exit 1
+fi
+
+if [[ "$(uname -m)" != "$ARCH" ]]; then
+  echo "host architecture is $(uname -m), cannot build native $ARCH helper" >&2
+  exit 1
+fi
+
+mkdir -p "$OUT_DIR"
+
+xcrun swiftc \
+  -O \
+  -target "${ARCH}-apple-macosx14.0" \
+  -framework EventKit \
+  -Xlinker -sectcreate \
+  -Xlinker __TEXT \
+  -Xlinker __info_plist \
+  -Xlinker "$INFO_PLIST" \
+  "$SOURCE" \
+  -o "$OUTPUT"
+
+# Give TCC a stable local code identity. Release CI may replace this ad-hoc
+# signature with a Developer ID signature without changing the helper contract.
+codesign --force --sign - --identifier dev.apvl.mytime.calendar-helper "$OUTPUT"
+
+echo "Built $OUTPUT"

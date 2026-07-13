@@ -8,7 +8,8 @@
     "mytime": "./dist/cli.js"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && pnpm build:native",
+    "build:native": "scripts/build-eventkit-helper.sh",
     "dev": "tsx src/cli.tsx",
     "start": "node dist/cli.js",
     "pack:macos": "scripts/build-macos-pack.sh"
