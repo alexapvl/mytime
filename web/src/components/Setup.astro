@@ -87,8 +87,10 @@ import {
               Google uses browser OAuth. Apple uses Calendar.app and requires
               macOS 14 or newer.
             </p>
-            <CopyBlock id="setup-google-cmd-manual" text={googleSetupCmd} />
-            <CopyBlock id="setup-apple-cmd-manual" text={appleSetupCmd} />
+            <div class="provider-commands">
+              <CopyBlock id="setup-google-cmd-manual" text={googleSetupCmd} />
+              <CopyBlock id="setup-apple-cmd-manual" text={appleSetupCmd} />
+            </div>
           </div>
         </div>
       </div>
@@ -148,3 +150,10 @@ import {
 
   setupSetupTabs();
 </script>
+
+<style>
+  .provider-commands {
+    display: grid;
+    gap: 0.75rem;
+  }
+</style>
