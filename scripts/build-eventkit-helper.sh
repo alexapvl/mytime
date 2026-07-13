@@ -7,6 +7,7 @@ OUT_DIR="${MYTIME_EVENTKIT_OUT_DIR:-$ROOT/dist/native}"
 SOURCE="$ROOT/native/eventkit/main.swift"
 INFO_PLIST="$ROOT/native/eventkit/Info.plist"
 OUTPUT="$OUT_DIR/mytime-eventkit"
+DEFAULT_DEVELOPER_ID="Developer ID Application: ALEXANDRU APĂVĂLOAIEI (THZ82CJTKM)"
 
 case "$ARCH" in
   arm64|x86_64) ;;
@@ -39,8 +40,23 @@ xcrun swiftc \
   "$SOURCE" \
   -o "$OUTPUT"
 
-# Give TCC a stable local code identity. Release CI may replace this ad-hoc
-# signature with a Developer ID signature without changing the helper contract.
-codesign --force --sign - --identifier dev.apvl.mytime.calendar-helper "$OUTPUT"
+SIGNING_IDENTITY="${MYTIME_CODESIGN_IDENTITY:-}"
+if [[ -z "$SIGNING_IDENTITY" ]] && security find-identity -v -p codesigning | grep -Fq "$DEFAULT_DEVELOPER_ID"; then
+  SIGNING_IDENTITY="$DEFAULT_DEVELOPER_ID"
+fi
+
+if [[ -n "$SIGNING_IDENTITY" ]]; then
+  codesign \
+    --force \
+    --options runtime \
+    --timestamp \
+    --sign "$SIGNING_IDENTITY" \
+    --identifier dev.apvl.mytime.calendar-helper \
+    "$OUTPUT"
+  echo "Signed EventKit helper with $SIGNING_IDENTITY"
+else
+  codesign --force --sign - --identifier dev.apvl.mytime.calendar-helper "$OUTPUT"
+  echo "Warning: ad-hoc EventKit signature; Calendar permission may reset after upgrades" >&2
+fi
 
 echo "Built $OUTPUT"
