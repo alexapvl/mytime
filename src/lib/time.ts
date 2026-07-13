@@ -181,12 +181,39 @@ export type ParsedEmbeddedDateRange = {
   index: number;
 };
 
+const MONTH_WORD =
+  '(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
+
+function findExplicitCrossMonthRange(text: string, base: DateTime): ParsedEmbeddedDateRange | null {
+  const dateToken = `(?:${MONTH_WORD}\\s+\\d{1,2}|\\d{1,2}\\s+${MONTH_WORD})`;
+  const range = new RegExp(`\\b(${dateToken})\\s*(?:[-–—]|\\s+(?:to|till|until)\\s+)\\s*(${dateToken})\\b`, 'gi');
+
+  for (const match of text.matchAll(range)) {
+    const index = match.index;
+    if (index == null) continue;
+    const startDay = parseSingleDate(match[1]!, base);
+    const endDay = startDay ? parseSingleDate(match[2]!, startDay) : null;
+    if (startDay && endDay && endDay >= startDay) {
+      return {
+        ...multiDayAllDayRange(startDay.toISODate()!, endDay.toISODate()!),
+        match: match[0],
+        index,
+      };
+    }
+  }
+
+  return null;
+}
+
 /** Find an all-day date range embedded in quick-add text (e.g. "vacation jun 1-5"). */
 export function findAllDayDateRangeInText(text: string, baseDate: string | Date): ParsedEmbeddedDateRange | null {
   const base =
     typeof baseDate === 'string'
       ? DateTime.fromISO(baseDate).startOf('day')
       : DateTime.fromJSDate(baseDate).startOf('day');
+
+  const explicitCrossMonth = findExplicitCrossMonthRange(text, base);
+  if (explicitCrossMonth) return explicitCrossMonth;
 
   const monthDayRange =
     /\b(?:(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+)?(\d{1,2})\s*[-–—]\s*(\d{1,2})(?:\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?))?\b/gi;

@@ -12,6 +12,44 @@ export type ParsedItem = {
   priority: 0 | 1 | 2 | 3;
 };
 
+type EmbeddedDuration = {
+  start: string;
+  end: string;
+  match: string;
+  index: number;
+};
+
+function findAllDayDurationInText(text: string, referenceDate: Date): EmbeddedDuration | null {
+  const durationPattern = /\b(?:for\s+)?(\d+)(?:\s+|-\s*)days?\b/gi;
+
+  for (const match of text.matchAll(durationPattern)) {
+    const index = match.index;
+    if (index == null) continue;
+
+    const prefix = text.slice(0, index).trimEnd();
+    const suffix = text.slice(index + match[0].length).trimStart();
+    if (/\b(?:in|within|after|every|each|last)\s*$/i.test(prefix)) continue;
+    if (/^(?:from|after|later|ago|before)\b/i.test(suffix)) continue;
+
+    const days = Number(match[1]);
+    if (!Number.isSafeInteger(days) || days < 1) continue;
+
+    const start = DateTime.fromJSDate(referenceDate).startOf('day');
+    return {
+      start: start.toISODate()!,
+      end: start.plus({ days }).toISODate()!,
+      match: match[0],
+      index,
+    };
+  }
+
+  return null;
+}
+
+function removeTextSpan(text: string, index: number, length: number): string {
+  return `${text.slice(0, index).trim()} ${text.slice(index + length).trim()}`.replace(/\s+/g, ' ').trim();
+}
+
 export function parseQuickAdd(input: string, referenceDate: Date = new Date()): ParsedItem {
   let text = input.trim();
   const tags: string[] = [];
@@ -39,16 +77,17 @@ export function parseQuickAdd(input: string, referenceDate: Date = new Date()): 
 
   const embeddedDateRange = findAllDayDateRangeInText(text, referenceDate);
   if (embeddedDateRange) {
-    text = (text.slice(0, embeddedDateRange.index) + text.slice(embeddedDateRange.index + embeddedDateRange.match.length))
-      .replace(/\s+/g, ' ')
-      .trim();
+    text = removeTextSpan(text, embeddedDateRange.index, embeddedDateRange.match.length);
+  }
+
+  const embeddedDuration = embeddedDateRange ? null : findAllDayDurationInText(text, referenceDate);
+  if (embeddedDuration) {
+    text = removeTextSpan(text, embeddedDuration.index, embeddedDuration.match.length);
   }
 
   const embeddedRange = findTimeRangeInText(text, referenceDate);
   if (embeddedRange) {
-    text = (text.slice(0, embeddedRange.index) + text.slice(embeddedRange.index + embeddedRange.match.length))
-      .replace(/\s+/g, ' ')
-      .trim();
+    text = removeTextSpan(text, embeddedRange.index, embeddedRange.match.length);
   }
 
   const results = chrono.parse(text, referenceDate, { forwardDate: true });
@@ -61,19 +100,26 @@ export function parseQuickAdd(input: string, referenceDate: Date = new Date()): 
     start = embeddedDateRange.start;
     end = embeddedDateRange.end;
     allDay = true;
+  } else if (embeddedDuration) {
+    start = embeddedDuration.start;
+    end = embeddedDuration.end;
+    allDay = true;
   } else if (embeddedRange) {
     let day = DateTime.fromJSDate(referenceDate).startOf('day');
     if (results.length > 0) {
       const r = results[0]!;
       day = DateTime.fromJSDate(r.start.date()).startOf('day');
-      title = text.slice(0, r.index).trim() + text.slice(r.index + r.text.length).trim();
-      title = title.replace(/\s+/g, ' ').trim();
+      title = removeTextSpan(text, r.index, r.text.length);
       if (!title) title = text.trim();
     }
     const startParts = DateTime.fromISO(embeddedRange.start);
     const endParts = DateTime.fromISO(embeddedRange.end);
+    const endDayOffset = Math.round(endParts.startOf('day').diff(startParts.startOf('day'), 'days').days);
     start = day.set({ hour: startParts.hour, minute: startParts.minute, second: 0, millisecond: 0 }).toISO()!;
-    end = day.set({ hour: endParts.hour, minute: endParts.minute, second: 0, millisecond: 0 }).toISO()!;
+    end = day
+      .plus({ days: endDayOffset })
+      .set({ hour: endParts.hour, minute: endParts.minute, second: 0, millisecond: 0 })
+      .toISO()!;
     allDay = false;
   } else if (results.length > 0) {
     const r = results[0]!;
@@ -99,8 +145,7 @@ export function parseQuickAdd(input: string, referenceDate: Date = new Date()): 
       }
     }
 
-    title = text.slice(0, r.index).trim() + text.slice(r.index + r.text.length).trim();
-    title = title.replace(/\s+/g, ' ').trim();
+    title = removeTextSpan(text, r.index, r.text.length);
   }
 
   if (!title) {
