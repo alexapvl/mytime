@@ -68,6 +68,27 @@ export function findItemByRemote(
   return legacy ? rowToItem(legacy) : null;
 }
 
+export function findUnlinkedLocalItemMatch(input: {
+  source: 'task' | 'event';
+  title: string;
+  start: string;
+  end: string;
+  allDay: boolean;
+}): Item | null {
+  const rows = getDb()
+    .prepare(
+      `${ITEM_SELECT}
+       WHERE i.source = ?
+         AND i.title = ?
+         AND i.start = ?
+         AND i.end = ?
+         AND i.all_day = ?
+         AND NOT EXISTS (SELECT 1 FROM remote_links r WHERE r.item_id = i.id)`,
+    )
+    .all(input.source, input.title, input.start, input.end, input.allDay ? 1 : 0) as ItemRow[];
+  return rows.length === 1 ? rowToItem(rows[0]!) : null;
+}
+
 export function upsertRemoteLink(
   itemId: string,
   provider: CalendarProvider,

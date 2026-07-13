@@ -91,8 +91,102 @@ function migrateSchema(database: Database.Database): void {
   }
   migrateGoogleRemoteLinks(database);
   normalizeAllDayDates(database);
+  normalizeTimedOvernightRanges(database);
+  removeLegacyRemoteEventDuplicates(database);
   stripEmojiFromStoredTitles(database);
   normalizeEventTaskFields(database);
+}
+
+function normalizeTimedOvernightRanges(database: Database.Database): void {
+  const rows = database
+    .prepare(
+      `SELECT id, start, end
+       FROM items
+       WHERE all_day = 0 AND start IS NOT NULL AND end IS NOT NULL`,
+    )
+    .all() as { id: string; start: string; end: string }[];
+  const update = database.prepare('UPDATE items SET end = ?, updated_at = ? WHERE id = ?');
+
+  for (const row of rows) {
+    const start = DateTime.fromISO(row.start);
+    const end = DateTime.fromISO(row.end);
+    if (!start.isValid || !end.isValid || end > start || end.toISODate() !== start.toISODate()) continue;
+
+    const repairedEnd = end.plus({ days: 1 }).toISO();
+    if (repairedEnd) update.run(repairedEnd, DateTime.local().toISO(), row.id);
+  }
+}
+
+function normalizedEventNotes(value: string | null): string {
+  return (value ?? '')
+    .split('\n')
+    .filter((line) => !/^\s*[\u2014-]\s*mytime event\s*$/i.test(line))
+    .join('\n')
+    .trim();
+}
+
+function normalizedReminderMinutes(value: string | null): string {
+  if (!value) return '';
+  try {
+    const reminders = JSON.parse(value) as { method?: string; minutes?: number }[];
+    return reminders
+      .filter((reminder) => reminder.method === 'popup' && Number.isFinite(reminder.minutes))
+      .map((reminder) => reminder.minutes!)
+      .sort((a, b) => a - b)
+      .join(',');
+  } catch {
+    return value;
+  }
+}
+
+function removeLegacyRemoteEventDuplicates(database: Database.Database): void {
+  const rows = database
+    .prepare(
+      `SELECT
+         orphan.id AS orphan_id,
+         orphan.notes AS orphan_notes,
+         orphan.location AS orphan_location,
+         orphan.reminders AS orphan_reminders,
+         linked.id AS linked_id,
+         linked.notes AS linked_notes,
+         linked.location AS linked_location,
+         linked.reminders AS linked_reminders
+       FROM items orphan
+       JOIN items linked
+         ON linked.id != orphan.id
+        AND linked.source = 'event'
+        AND linked.title = orphan.title
+        AND linked.start = orphan.start
+        AND linked.end = orphan.end
+        AND linked.all_day = orphan.all_day
+       WHERE orphan.source = 'event'
+         AND NOT EXISTS (SELECT 1 FROM remote_links WHERE item_id = orphan.id)
+         AND EXISTS (SELECT 1 FROM remote_links WHERE item_id = linked.id)
+         AND linked.notes GLOB '*mytime event*'`,
+    )
+    .all() as {
+      orphan_id: string;
+      orphan_notes: string | null;
+      orphan_location: string | null;
+      orphan_reminders: string | null;
+      linked_id: string;
+      linked_notes: string | null;
+      linked_location: string | null;
+      linked_reminders: string | null;
+    }[];
+
+  const matches = new Map<string, string[]>();
+  for (const row of rows) {
+    if (normalizedEventNotes(row.orphan_notes) !== normalizedEventNotes(row.linked_notes)) continue;
+    if ((row.orphan_location ?? '') !== (row.linked_location ?? '')) continue;
+    if (normalizedReminderMinutes(row.orphan_reminders) !== normalizedReminderMinutes(row.linked_reminders)) continue;
+    matches.set(row.orphan_id, [...(matches.get(row.orphan_id) ?? []), row.linked_id]);
+  }
+
+  const remove = database.prepare('DELETE FROM items WHERE id = ?');
+  for (const [orphanId, linkedIds] of matches) {
+    if (new Set(linkedIds).size === 1) remove.run(orphanId);
+  }
 }
 
 function migrateGoogleRemoteLinks(database: Database.Database): void {

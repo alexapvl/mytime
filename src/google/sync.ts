@@ -18,6 +18,7 @@ import { META_KEYS, getMeta, getSyncTokens, setSyncTokens, clearSyncToken } from
 import {
   deleteRemoteLink,
   findItemByRemote,
+  findUnlinkedLocalItemMatch,
   getRemoteLink,
   listItemsNeedingProviderSync,
   upsertRemoteLink,
@@ -114,7 +115,25 @@ export async function syncWithGoogle(): Promise<SyncResult> {
 
           const rawSummary = event.summary ?? 'Untitled';
           const title = cleanPulledTitle(rawSummary, isMytimeCalendar);
-          const source = resolveMytimeSource(event, isMytimeCalendar, local);
+          let source = resolveMytimeSource(event, isMytimeCalendar, local);
+          if (
+            !local &&
+            isMytimeCalendar &&
+            (source === 'task' || source === 'event') &&
+            /mytime/i.test(event.description ?? '')
+          ) {
+            local = findUnlinkedLocalItemMatch({ source, title, start: startISO, end: endISO, allDay });
+            if (local) {
+              source = local.source as 'task' | 'event';
+              upsertRemoteLink(
+                local.id,
+                'google',
+                cal.id,
+                event.id,
+                event.updated ?? '1970-01-01T00:00:00.000Z',
+              );
+            }
+          }
           const reminders = isMytimeCalendar && source === 'event' ? parseGoogleReminders(event.reminders?.overrides) : [];
 
           if (local) {
