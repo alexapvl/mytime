@@ -2,6 +2,9 @@ import {
   agentAddEvent,
   agentAddTask,
   agentBacklogList,
+  agentCalendarDashboard,
+  agentCalendarGuide,
+  agentCalendarSources,
   agentCompleteTask,
   agentDashboard,
   agentDeleteEvent,
@@ -28,6 +31,7 @@ const TOP_HELP = [
   'Run `mytime agent backlog list` for open tasks',
   'Run `mytime agent schedule list` for today',
   'Run `mytime agent slots` before scheduling',
+  'Run `mytime agent calendar` for calendar setup state and effects',
   'Run `mytime agent task quick "<text>"` to add from natural language',
   'Run `mytime agent --help <command>` for subcommand help',
 ];
@@ -57,7 +61,7 @@ function printAgentHelp(topic?: string, requested = false, json = false): never 
   if (!topic) {
     const help = [
       ...TOP_HELP,
-      'Commands: backlog, schedule, past-due, slots, item, search, task, event, sync',
+      'Commands: backlog, schedule, past-due, slots, item, search, task, event, calendar, sync',
     ];
     if (requested) emitHelp('mytime agent - agent-ergonomic tasks + calendar CLI', help, json);
     emitUsage('mytime agent - agent-ergonomic tasks + calendar CLI', help);
@@ -86,11 +90,36 @@ function printAgentHelp(topic?: string, requested = false, json = false): never 
       'mytime agent event delete <id>',
     ],
     sync: ['mytime agent sync'],
+    calendar: [
+      'mytime agent calendar',
+      'mytime agent calendar sources',
+      'mytime agent calendar setup',
+      'mytime agent calendar switch',
+      'mytime agent calendar cleanup',
+      'mytime agent calendar guide [setup|switch|cleanup]',
+    ],
+    'calendar setup': [
+      'Shows Google and Apple setup commands plus local, remote, and user effects',
+      'Read-only. Use `mytime setup google` or `mytime setup apple` only after user chooses.',
+    ],
+    'calendar switch': [
+      'Explains same-backend adoption, different-backend migration, keep, and delete effects',
+      'Read-only. Remote deletion always requires explicit user approval.',
+    ],
+    'calendar cleanup': [
+      'Explains duplicate preview and apply safety',
+      'Preview is read-only. Apply is irreversible and requires explicit user approval.',
+    ],
+    'calendar sources': [
+      'mytime agent calendar sources',
+      'Lists Google API state and writable Calendar.app sources with inferred backend',
+    ],
+    'calendar guide': ['mytime agent calendar guide [setup|switch|cleanup]'],
   };
 
   const help = guides[topic];
   if (!help) {
-    emitUsage(`Unknown help topic: ${topic}`, ['Topics: backlog, schedule, past-due, slots, item, search, task, event, sync']);
+    emitUsage(`Unknown help topic: ${topic}`, ['Topics: backlog, schedule, past-due, slots, item, search, task, event, calendar, sync']);
   }
   if (requested) emitHelp(`mytime agent ${topic}`, help, json);
   emitUsage(`mytime agent ${topic}`, help);
@@ -111,7 +140,7 @@ export async function runAgentCli(argv: string[]): Promise<number> {
 
   if (flagBool(flags, 'help')) {
     validateFlags(flags, [], 'mytime agent --help', TOP_HELP);
-    printAgentHelp(positional[0], true, json);
+    printAgentHelp(positional.join(' ') || undefined, true, json);
   }
 
   if (positional.length === 0) {
@@ -173,6 +202,9 @@ export async function runAgentCli(argv: string[]): Promise<number> {
     case 'event':
       return runEventCommand(sub, rest, flags, json);
 
+    case 'calendar':
+      return runCalendarCommand(sub, rest, flags, json);
+
     case 'sync':
       validateFlags(flags, [], 'mytime agent sync', ['Usage: mytime agent sync']);
       if (sub) emitUsage('Usage: mytime agent sync', ['Run `mytime agent sync`']);
@@ -181,6 +213,40 @@ export async function runAgentCli(argv: string[]): Promise<number> {
     default:
       emitUsage(`Unknown command: ${command}`, TOP_HELP);
   }
+}
+
+async function runCalendarCommand(
+  sub: string | undefined,
+  rest: string[],
+  flags: ReturnType<typeof parseArgs>['flags'],
+  json: boolean,
+): Promise<number> {
+  validateFlags(flags, [], `mytime agent calendar${sub ? ` ${sub}` : ''}`, [
+    'Run `mytime agent calendar --help` for calendar commands',
+  ]);
+  if (!sub) {
+    if (rest.length) emitUsage('Usage: mytime agent calendar', ['Run `mytime agent calendar --help`']);
+    return emitResult(await agentCalendarDashboard(), { json });
+  }
+  if (sub === 'sources') {
+    if (rest.length) emitUsage('Usage: mytime agent calendar sources', ['Run `mytime agent calendar sources --help`']);
+    return emitResult(await agentCalendarSources(), { json });
+  }
+  if (sub === 'setup' || sub === 'switch' || sub === 'cleanup') {
+    if (rest.length) emitUsage(`Usage: mytime agent calendar ${sub}`, [`Run \`mytime agent calendar ${sub} --help\``]);
+    return emitResult(agentCalendarGuide(sub), { json });
+  }
+  if (sub === 'guide') {
+    const topic = rest[0];
+    if (rest.length > 1 || (topic && topic !== 'setup' && topic !== 'switch' && topic !== 'cleanup')) {
+      emitUsage('Usage: mytime agent calendar guide [setup|switch|cleanup]', [
+        'Run `mytime agent calendar guide` for complete reference',
+      ]);
+    }
+    const guideTopic = topic === 'setup' || topic === 'switch' || topic === 'cleanup' ? topic : 'all';
+    return emitResult(agentCalendarGuide(guideTopic), { json });
+  }
+  emitUsage(`Unknown calendar command: ${sub}`, ['Run `mytime agent calendar --help`']);
 }
 
 async function runTaskCommand(

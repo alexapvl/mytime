@@ -1,7 +1,12 @@
 ---
 import CopyBlock from "./CopyBlock.astro";
 import { installCmd } from "../data/install";
-import { agentPromptCmd, authCmd, setupCmd } from "../data/setup";
+import {
+  agentPromptCmd,
+  appleSetupCmd,
+  googleSetupCmd,
+  syncCmd,
+} from "../data/setup";
 ---
 
 <div class="setup" data-setup>
@@ -32,7 +37,7 @@ import { agentPromptCmd, authCmd, setupCmd } from "../data/setup";
   </div>
 
   <p class="setup-lead" data-setup-lead>
-    Install first, then let your agent handle the Google Cloud Console setup.
+    Install first, then let your agent ask which calendar provider you want.
   </p>
 
   <div class="steps">
@@ -58,8 +63,8 @@ import { agentPromptCmd, authCmd, setupCmd } from "../data/setup";
           <div>
             <h3>Run agent onboarding</h3>
             <p>
-              Paste this prompt into your agent. With browser access, it can walk
-              through the Calendar API, consent screen, and OAuth client setup.
+              Paste this prompt into your agent. It must ask Google or Apple when
+              your choice is unknown, then start the correct setup flow.
             </p>
             <CopyBlock id="agent-prompt-setup" text={agentPromptCmd} />
           </div>
@@ -77,12 +82,15 @@ import { agentPromptCmd, authCmd, setupCmd } from "../data/setup";
         <div class="step">
           <div class="step-num">02</div>
           <div>
-            <h3>Set up Google Calendar</h3>
+            <h3>Choose Google or Apple</h3>
             <p>
-              Run setup for a checklist and Console links. You will place OAuth
-              credentials at <code>~/.mytime/credentials.json</code>.
+              Google uses browser OAuth. Apple uses Calendar.app and requires
+              macOS 14 or newer.
             </p>
-            <CopyBlock id="setup-cmd-manual" text={setupCmd} />
+            <div class="provider-commands">
+              <CopyBlock id="setup-google-cmd-manual" text={googleSetupCmd} />
+              <CopyBlock id="setup-apple-cmd-manual" text={appleSetupCmd} />
+            </div>
           </div>
         </div>
       </div>
@@ -91,12 +99,12 @@ import { agentPromptCmd, authCmd, setupCmd } from "../data/setup";
     <div class="step">
       <div class="step-num">03</div>
       <div>
-        <h3>Authenticate and sync</h3>
+        <h3>Approve and sync</h3>
         <p>
-          Google sign-in opens in your browser. After that, sync creates the
-          dedicated mytime calendar.
+          Complete Google sign-in or approve the macOS Calendar permission prompt.
+          Sync then creates the dedicated mytime calendar on the active provider.
         </p>
-        <CopyBlock id="auth-cmd-setup" text={authCmd} />
+        <CopyBlock id="sync-cmd-setup" text={syncCmd} />
       </div>
     </div>
   </div>
@@ -104,8 +112,8 @@ import { agentPromptCmd, authCmd, setupCmd } from "../data/setup";
 
 <script>
   const setupLeads: Record<string, string> = {
-    agent: "Install first, then let your agent handle the Google Cloud Console setup.",
-    manual: "Install first, then follow the setup checklist in your terminal.",
+    agent: "Install first, then let your agent ask which calendar provider you want.",
+    manual: "Install first, then choose Google Calendar or Apple Calendar.",
   };
 
   function switchSetup(root: HTMLElement, tab: string) {
@@ -142,3 +150,10 @@ import { agentPromptCmd, authCmd, setupCmd } from "../data/setup";
 
   setupSetupTabs();
 </script>
+
+<style>
+  .provider-commands {
+    display: grid;
+    gap: 0.75rem;
+  }
+</style>

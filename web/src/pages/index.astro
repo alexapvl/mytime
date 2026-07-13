@@ -38,10 +38,10 @@ import { siteDescription, siteTitle } from "../data/seo";
               </p>
             </article>
             <article class="card">
-              <h3>Google Calendar Sync</h3>
+              <h3>Google or Apple Sync</h3>
               <p>
-                Scheduled work syncs to a dedicated "mytime" calendar. Other calendars
-                can be pulled read-only for context in daily and week views.
+                Pick one active provider. Scheduled work syncs to its dedicated
+                "mytime" calendar, with other calendars pulled read-only for context.
               </p>
             </article>
             <article class="card">
@@ -83,7 +83,7 @@ import { siteDescription, siteTitle } from "../data/seo";
             <h3>3. Live It</h3>
             <p>
               Daily, week, and month views keep tasks and external calendar events in
-              one place. Sync keeps Google and local state aligned.
+              one place. Sync keeps the active provider and local state aligned.
             </p>
           </article>
         </div>
@@ -100,9 +100,9 @@ import { siteDescription, siteTitle } from "../data/seo";
           <div class="agent-copy">
             <h2 class="section-title">Setup Your Agent Can Do Most Of</h2>
             <p class="section-lead agent-section-lead">
-              Google OAuth needs a one-time Cloud Console project. That sounds annoying,
-              but it keeps credentials on your machine and avoids a hosted service.
-              An agent with browser access can handle most of the clicking.
+              Your agent asks whether you want Google or Apple when it cannot infer
+              the provider from context. It can handle most of setup, but you approve
+              Google sign-in or the macOS Calendar permission prompt.
             </p>
             <CopyBlock id="agent-prompt-cmd" text={agentPromptCmd} />
             <p class="agent-note">
@@ -120,7 +120,7 @@ import { siteDescription, siteTitle } from "../data/seo";
         <p class="section-label">Setup</p>
         <h2 class="section-title">Install, Configure, Authenticate</h2>
         <p class="section-lead">
-          Same three steps either way - agent-assisted setup is fastest if you already use one.
+          Choose Google Calendar or Apple Calendar, then keep one writable provider active.
         </p>
         <Setup />
       </div>
@@ -129,7 +129,7 @@ import { siteDescription, siteTitle } from "../data/seo";
     <section class="section">
       <div class="container">
         <p class="section-label">Privacy</p>
-        <h2 class="section-title">Your Machine, Your Google Project</h2>
+        <h2 class="section-title">Your Machine, Your Calendar</h2>
         <p class="section-lead">
           mytime does not ship shared OAuth credentials. That is intentional for a
           personal, local-first tool.
@@ -137,15 +137,15 @@ import { siteDescription, siteTitle } from "../data/seo";
         <div class="grid-3">
           <article class="card">
             <h3>No Hosted Service</h3>
-            <p>Tasks and tokens stay under <code>~/.mytime/</code>. There is no maintainer server in the loop.</p>
+            <p>Tasks and provider data stay under <code>~/.mytime/</code>. There is no maintainer server in the loop.</p>
           </article>
           <article class="card">
             <h3>Write Scope Is Narrow</h3>
-            <p>mytime only writes to its own calendar. Other Google calendars are optional and read-only.</p>
+            <p>mytime only writes to its own calendar on the active provider. Other calendars are optional and read-only.</p>
           </article>
           <article class="card">
-            <h3>You Own Revocation</h3>
-            <p>Rotate or delete credentials any time in Google Cloud Console. Your agent never needs your token file in git.</p>
+            <h3>You Stay in Control</h3>
+            <p>Revoke Google OAuth or Apple Calendar access any time. Your agent never needs calendar secrets in git.</p>
           </article>
         </div>
       </div>

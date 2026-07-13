@@ -30,7 +30,30 @@ jobs:
           node-version: 20
           cache: pnpm
 
+      - name: Import Developer ID certificate
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          test -n "$BUILD_CERTIFICATE_BASE64"
+          test -n "$P12_PASSWORD"
+          CERTIFICATE_PATH="$RUNNER_TEMP/mytime-developer-id.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/mytime-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+          printf '%s' "$BUILD_CERTIFICATE_BASE64" | openssl base64 -d -A -out "$CERTIFICATE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | head -n 1)"
+          test -n "$IDENTITY"
+          echo "MYTIME_CODESIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+
       - name: Build macOS packs
+        env:
+          MYTIME_REQUIRE_SIGNING: '1'
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           chmod +x scripts/build-macos-pack.sh

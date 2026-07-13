@@ -27,10 +27,10 @@
       <div class="faq-answer-inner">
         <div class="faq-answer-body">
           <p>
-            Most of the Google Cloud Console flow: enabling the Calendar API,
-            configuring the consent screen, creating a Desktop OAuth client, and
-            saving <code>credentials.json</code>. You still run
-            <code>mytime auth</code> locally for the browser sign-in step.
+            For Google, most of the Cloud Console and OAuth client flow. For Apple,
+            it can start setup and check Calendar access. You still approve Google
+            sign-in or the macOS Calendar permission prompt yourself. If the provider
+            is unknown, the agent must ask which one you want.
           </p>
         </div>
       </div>
@@ -38,6 +38,45 @@
   </div>
 
   <div class="faq-item" data-faq-item style="--faq-delay: 160ms">
+    <button type="button" class="faq-trigger" data-faq-trigger aria-expanded="false">
+      <span class="faq-question">How does Apple Calendar setup work?</span>
+      <span class="faq-icon" aria-hidden="true"></span>
+    </button>
+    <div class="faq-answer" aria-hidden="true">
+      <div class="faq-answer-inner">
+        <div class="faq-answer-body">
+          <p>
+            Run <code>mytime setup apple</code> on macOS 14 or newer. mytime uses
+            Calendar.app accounts through EventKit, so there is no separate Apple CLI
+            or hosted login. Approve Calendar access when macOS asks. Dedicated calendars
+            are named by backend, such as <code>mytime-icloud</code> or <code>mytime-google</code>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="faq-item" data-faq-item style="--faq-delay: 240ms">
+    <button type="button" class="faq-trigger" data-faq-trigger aria-expanded="false">
+      <span class="faq-question">What happens when I switch providers?</span>
+      <span class="faq-icon" aria-hidden="true"></span>
+    </button>
+    <div class="faq-answer" aria-hidden="true">
+      <div class="faq-answer-inner">
+        <div class="faq-answer-body">
+          <p>
+            Only the active provider is writable. mytime clears the old provider's
+            fetched events from its local cache, preserves your local tasks and events,
+            then fetches from the new provider. Setup asks whether to delete the old
+            dedicated mytime calendar. Keeping it is the default. If Google API and
+            EventKit access the same Google calendar, mytime adopts it instead of copying events.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="faq-item" data-faq-item style="--faq-delay: 320ms">
     <button type="button" class="faq-trigger" data-faq-trigger aria-expanded="false">
       <span class="faq-question">TUI, CLI, agent, or MCP?</span>
       <span class="faq-icon" aria-hidden="true"></span>
@@ -55,7 +94,7 @@
     </div>
   </div>
 
-  <div class="faq-item" data-faq-item style="--faq-delay: 240ms">
+  <div class="faq-item" data-faq-item style="--faq-delay: 400ms">
     <button type="button" class="faq-trigger" data-faq-trigger aria-expanded="false">
       <span class="faq-question">Where does data live?</span>
       <span class="faq-icon" aria-hidden="true"></span>
@@ -65,8 +104,8 @@
         <div class="faq-answer-body">
           <p>
             Locally at <code>~/.mytime/db.sqlite</code>. Scheduled tasks sync to
-            the dedicated mytime Google calendar. Unscheduled backlog tasks stay
-            local until you schedule them.
+            the dedicated mytime calendar on the active Google or Apple provider.
+            Unscheduled backlog tasks stay local until you schedule them.
           </p>
         </div>
       </div>

@@ -18,7 +18,7 @@ import { useViewport } from '../context/ViewportContext.js';
 import { BACKLOG_VIEW_HEADER_ROWS, VIEW_ROW0 } from '../lib/layout.js';
 import type { Item } from '../db/types.js';
 import { createItem, deleteItem, listBacklog, scheduleAllDayItem, scheduleItem, toggleDone, updateItem } from '../db/items.js';
-import { autoPush, autoRemove } from '../google/autoSync.js';
+import { autoPush, autoRemove } from '../calendar/autoSync.js';
 import { parseQuickAdd } from '../lib/nlp.js';
 import { BACKLOG_SHORTCUTS } from '../lib/shortcuts.js';
 import { padToWidth } from '../lib/textWidth.js';
@@ -290,11 +290,11 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
       }
       if (input === 'd' && selectedItem) {
         const victim = cloneItem(selectedItem);
+        autoRemove(victim, onStatus);
         deleteItem(victim.id);
         pushUndo(`Deleted: ${victim.title}`, makeUndoDelete(victim, onStatus));
         setSelected((s) => Math.max(0, s - 1));
         refresh();
-        autoRemove(victim, onStatus);
         onStatus('Deleted');
       }
       if (input === 's' && selectedItem) setMode('schedule');

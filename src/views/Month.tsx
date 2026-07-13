@@ -5,7 +5,7 @@ import type { Item } from '../db/types.js';
 import { createEvent, createItem, listScheduledInRange } from '../db/items.js';
 import { padToWidth, truncateToWidth } from '../lib/textWidth.js';
 import { formatTime, itemSpansDay } from '../lib/time.js';
-import { autoPush } from '../google/autoSync.js';
+import { autoPush } from '../calendar/autoSync.js';
 import { ItemEditor } from '../components/ItemEditor.js';
 import { EventEditor } from '../components/EventEditor.js';
 import { useClickRegions } from '../components/Mouse.js';

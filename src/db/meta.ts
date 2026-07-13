@@ -16,16 +16,25 @@ export function deleteMeta(key: string): void {
 }
 
 export const META_KEYS = {
+  activeCalendarProvider: 'active_calendar_provider',
+  calendarProviderSwitching: 'calendar_provider_switching',
   googleCalendarId: 'google_calendar_id',
   googleSyncTokens: 'google_sync_tokens',
   googleCalendarFetchPrefs: 'google_calendar_fetch_prefs',
+  appleCalendarId: 'apple_calendar_id',
+  appleSourceId: 'apple_source_id',
+  appleBackend: 'apple_backend',
+  appleSharesGoogleCalendar: 'apple_shares_google_calendar',
+  appleAllDayBoundaryVersion: 'apple_all_day_boundary_version',
+  appleCalendarFetchPrefs: 'apple_calendar_fetch_prefs',
   defaultEventReminders: 'default_event_reminders',
   customEventReminderPresets: 'custom_event_reminder_presets',
   calendarFreeTimeExcludePrefs: 'calendar_free_time_exclude_prefs',
 } as const;
 
-export function getCalendarFetchPrefs(): Record<string, boolean> {
-  const raw = getMeta(META_KEYS.googleCalendarFetchPrefs);
+export function getProviderCalendarFetchPrefs(provider: 'google' | 'apple'): Record<string, boolean> {
+  const key = provider === 'google' ? META_KEYS.googleCalendarFetchPrefs : META_KEYS.appleCalendarFetchPrefs;
+  const raw = getMeta(key);
   if (!raw) return {};
   try {
     return JSON.parse(raw) as Record<string, boolean>;
@@ -34,10 +43,23 @@ export function getCalendarFetchPrefs(): Record<string, boolean> {
   }
 }
 
-export function setCalendarFetchPref(calendarId: string, enabled: boolean): void {
-  const prefs = getCalendarFetchPrefs();
+export function setProviderCalendarFetchPref(
+  provider: 'google' | 'apple',
+  calendarId: string,
+  enabled: boolean,
+): void {
+  const prefs = getProviderCalendarFetchPrefs(provider);
   prefs[calendarId] = enabled;
-  setMeta(META_KEYS.googleCalendarFetchPrefs, JSON.stringify(prefs));
+  const key = provider === 'google' ? META_KEYS.googleCalendarFetchPrefs : META_KEYS.appleCalendarFetchPrefs;
+  setMeta(key, JSON.stringify(prefs));
+}
+
+export function getCalendarFetchPrefs(): Record<string, boolean> {
+  return getProviderCalendarFetchPrefs('google');
+}
+
+export function setCalendarFetchPref(calendarId: string, enabled: boolean): void {
+  setProviderCalendarFetchPref('google', calendarId, enabled);
 }
 
 export function getSyncTokens(): Record<string, string> {
@@ -98,6 +120,34 @@ export function getCalendarFreeTimeExcludePrefs(): Record<string, boolean> {
   } catch {
     return {};
   }
+}
+
+export function getProviderCalendarFreeTimeExcludePrefs(
+  provider: 'google' | 'apple',
+): Record<string, boolean> {
+  const prefs = getCalendarFreeTimeExcludePrefs();
+  const prefix = `${provider}:`;
+  const scoped = Object.fromEntries(
+    Object.entries(prefs)
+      .filter(([key]) => key.startsWith(prefix))
+      .map(([key, value]) => [key.slice(prefix.length), value]),
+  );
+  if (provider === 'google') {
+    for (const [key, value] of Object.entries(prefs)) {
+      if (!key.includes(':') && !(key in scoped)) scoped[key] = value;
+    }
+  }
+  return scoped;
+}
+
+export function setProviderCalendarFreeTimeExcludePref(
+  provider: 'google' | 'apple',
+  calendarId: string,
+  excluded: boolean,
+): void {
+  const prefs = getCalendarFreeTimeExcludePrefs();
+  prefs[`${provider}:${calendarId}`] = excluded;
+  setMeta(META_KEYS.calendarFreeTimeExcludePrefs, JSON.stringify(prefs));
 }
 
 export function setCalendarFreeTimeExcludePref(calendarId: string, excluded: boolean): void {

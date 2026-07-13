@@ -1,5 +1,5 @@
 class Mytime < Formula
-  desc "Terminal task manager and calendar TUI with Google Calendar sync and agent CLI"
+  desc "Terminal task manager with Google and Apple Calendar sync and agent CLI"
   homepage "https://github.com/alexapvl/mytime"
   version "0.1.5"
   license "MIT"
@@ -7,8 +7,9 @@ class Mytime < Formula
   head "https://github.com/alexapvl/mytime.git", branch: "main"
 
   depends_on "node@20"
+  depends_on macos: :sonoma
 
-  # Slim prebuilt pack (dist + node_modules). Uses Homebrew node@20 — see scripts/build-macos-pack.sh.
+  # Slim prebuilt pack (dist + node_modules). Uses Homebrew node@20. See scripts/build-macos-pack.sh.
   on_macos do
     on_arm do
       url "https://github.com/alexapvl/mytime/releases/download/v0.1.5/mytime-0.1.5-macos-arm64.tar.gz"

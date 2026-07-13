@@ -11,25 +11,26 @@ import { isAuthenticated } from './auth.js';
 import {
   createItem,
   deleteItem,
-  getItemByGoogleEvent,
-  listNeedsSync,
-  markSynced,
+  getItem,
   updateItem,
 } from '../db/items.js';
 import { META_KEYS, getMeta, getSyncTokens, setSyncTokens, clearSyncToken } from '../db/meta.js';
+import {
+  deleteRemoteLink,
+  findItemByRemote,
+  findUnlinkedLocalItemMatch,
+  getRemoteLink,
+  listItemsNeedingProviderSync,
+  upsertRemoteLink,
+} from '../db/remoteLinks.js';
 import { errorMessage, isSyncTokenExpired } from './errors.js';
 import { nowISO } from '../lib/time.js';
 import { cleanTitle } from '../lib/textClean.js';
 import { parseGoogleReminders } from '../lib/reminders.js';
 import type { Item, ItemSource } from '../db/types.js';
+import type { SyncResult } from '../calendar/types.js';
 
-export type SyncResult = {
-  pushed: number;
-  pulled: number;
-  deleted: number;
-  calendars: number;
-  errors: string[];
-};
+export type { SyncResult } from '../calendar/types.js';
 
 export async function syncWithGoogle(): Promise<SyncResult> {
   const result: SyncResult = { pushed: 0, pulled: 0, deleted: 0, calendars: 0, errors: [] };
@@ -43,7 +44,7 @@ export async function syncWithGoogle(): Promise<SyncResult> {
     const mytimeCalendarId = await getOrCreateMytimeCalendarId();
     const syncTokens = getSyncTokens();
 
-    const toPush = listNeedsSync();
+    const toPush = listItemsNeedingProviderSync('google');
     for (const item of toPush) {
       try {
         if (item.source === 'task' && (await pushTask(item))) result.pushed++;
@@ -79,11 +80,26 @@ export async function syncWithGoogle(): Promise<SyncResult> {
         for (const event of events) {
           if (!event.id) continue;
 
-          const local = getItemByGoogleEvent(cal.id, event.id);
+          let local = findItemByRemote('google', cal.id, event.id);
+          if (!local && isMytimeCalendar) {
+            const embeddedId = event.extendedProperties?.private?.mytime_id;
+            const embedded = embeddedId ? getItem(embeddedId) : null;
+            if (embedded?.source === 'task' || embedded?.source === 'event') {
+              local = embedded;
+              upsertRemoteLink(
+                local.id,
+                'google',
+                cal.id,
+                event.id,
+                event.updated ?? '1970-01-01T00:00:00.000Z',
+              );
+            }
+          }
 
           if (event.status === 'cancelled') {
             if (local) {
               deleteItem(local.id);
+              deleteRemoteLink(local.id, 'google');
               result.deleted++;
             }
             continue;
@@ -99,15 +115,34 @@ export async function syncWithGoogle(): Promise<SyncResult> {
 
           const rawSummary = event.summary ?? 'Untitled';
           const title = cleanPulledTitle(rawSummary, isMytimeCalendar);
-          const source = resolveMytimeSource(event, isMytimeCalendar, local);
+          let source = resolveMytimeSource(event, isMytimeCalendar, local);
+          if (
+            !local &&
+            isMytimeCalendar &&
+            (source === 'task' || source === 'event') &&
+            /mytime/i.test(event.description ?? '')
+          ) {
+            local = findUnlinkedLocalItemMatch({ source, title, start: startISO, end: endISO, allDay });
+            if (local) {
+              source = local.source as 'task' | 'event';
+              upsertRemoteLink(
+                local.id,
+                'google',
+                cal.id,
+                event.id,
+                event.updated ?? '1970-01-01T00:00:00.000Z',
+              );
+            }
+          }
           const reminders = isMytimeCalendar && source === 'event' ? parseGoogleReminders(event.reminders?.overrides) : [];
 
           if (local) {
             const remoteUpdated = event.updated ? DateTime.fromISO(event.updated).toMillis() : 0;
             const localUpdated = DateTime.fromISO(local.updatedAt).toMillis();
+            const link = getRemoteLink(local.id, 'google');
             const hasUnpushedLocalEdits =
               (local.source === 'task' || local.source === 'event') &&
-              (!local.syncedAt || local.updatedAt > local.syncedAt);
+              (!link || local.updatedAt > link.syncedAt);
 
             if (hasUnpushedLocalEdits && localUpdated > remoteUpdated) {
               continue;
@@ -122,13 +157,12 @@ export async function syncWithGoogle(): Promise<SyncResult> {
               end: endISO,
               allDay,
               source,
-              googleCalendarId: cal.id,
-              googleEventId: event.id,
-              syncedAt: nowISO(),
+              originProvider: source === 'external' ? 'google' : undefined,
             });
+            upsertRemoteLink(local.id, 'google', cal.id, event.id, nowISO());
             result.pulled++;
           } else {
-            createItem({
+            const created = createItem({
               title,
               notes: event.description ?? undefined,
               location: event.location ?? undefined,
@@ -136,13 +170,12 @@ export async function syncWithGoogle(): Promise<SyncResult> {
               tags: source === 'external' ? ['#gcal'] : [],
               priority: 0,
               source,
+              originProvider: source === 'external' ? 'google' : undefined,
               start: startISO,
               end: endISO,
               allDay,
-              googleEventId: event.id,
-              googleCalendarId: cal.id,
-              syncedAt: nowISO(),
             });
+            upsertRemoteLink(created.id, 'google', cal.id, event.id, nowISO());
             result.pulled++;
           }
         }
@@ -196,6 +229,7 @@ export async function pushTask(item: Item): Promise<boolean> {
   if (item.source !== 'task' || !item.start || !item.end) return false;
 
   const mytimeCalendarId = await getOrCreateMytimeCalendarId();
+  const link = getRemoteLink(item.id, 'google');
   const summary = item.status === 'done' ? `${DONE_PREFIX}${item.title}` : item.title;
   const response = await upsertEvent(
     mytimeCalendarId,
@@ -206,10 +240,13 @@ export async function pushTask(item: Item): Promise<boolean> {
       end: item.end,
       allDay: item.allDay,
       mytimeType: 'task',
+      mytimeId: item.id,
     },
-    item.googleCalendarId === mytimeCalendarId ? item.googleEventId : undefined,
+    link?.remoteCalendarId === mytimeCalendarId ? link.remoteEventId : undefined,
   );
-  markSynced(item.id, response.data.id ?? item.googleEventId, mytimeCalendarId);
+  const eventId = response.data.id ?? link?.remoteEventId;
+  if (!eventId) throw new Error('Google Calendar did not return an event ID');
+  upsertRemoteLink(item.id, 'google', mytimeCalendarId, eventId);
   return true;
 }
 
@@ -218,6 +255,7 @@ export async function pushEvent(item: Item): Promise<boolean> {
   if (item.source !== 'event' || !item.start || !item.end) return false;
 
   const mytimeCalendarId = await getOrCreateMytimeCalendarId();
+  const link = getRemoteLink(item.id, 'google');
   const response = await upsertEvent(
     mytimeCalendarId,
     {
@@ -229,10 +267,13 @@ export async function pushEvent(item: Item): Promise<boolean> {
       allDay: item.allDay,
       reminders: item.reminders,
       mytimeType: 'event',
+      mytimeId: item.id,
     },
-    item.googleCalendarId === mytimeCalendarId ? item.googleEventId : undefined,
+    link?.remoteCalendarId === mytimeCalendarId ? link.remoteEventId : undefined,
   );
-  markSynced(item.id, response.data.id ?? item.googleEventId, mytimeCalendarId);
+  const eventId = response.data.id ?? link?.remoteEventId;
+  if (!eventId) throw new Error('Google Calendar did not return an event ID');
+  upsertRemoteLink(item.id, 'google', mytimeCalendarId, eventId);
   return true;
 }
 
@@ -255,27 +296,36 @@ function buildTaskDescription(item: Item): string {
   if (item.project) parts.push(`Project: @${item.project}`);
   if (item.tags.length) parts.push(`Tags: ${item.tags.join(' ')}`);
   if (item.priority) parts.push(`Priority: P${item.priority}`);
-  parts.push('— synced via mytime');
+  parts.push('- synced via mytime');
   return parts.join('\n');
 }
 
 function buildEventDescription(item: Item): string {
   const parts: string[] = [];
   if (item.notes) parts.push(item.notes);
-  parts.push('— mytime event');
+  parts.push('- mytime event');
   return parts.join('\n');
 }
 
 export async function removeFromGoogle(item: Item): Promise<void> {
-  if ((item.source !== 'task' && item.source !== 'event') || !item.googleEventId || !isAuthenticated()) return;
+  if ((item.source !== 'task' && item.source !== 'event') || !isAuthenticated()) return;
 
   const mytimeCalendarId = getMeta(META_KEYS.googleCalendarId) ?? (await getOrCreateMytimeCalendarId());
-  if (item.googleCalendarId && item.googleCalendarId !== mytimeCalendarId) return;
+  const storedLink = getRemoteLink(item.id, 'google');
+  const link = storedLink ??
+    (item.remoteReference?.provider === 'google'
+      ? {
+          remoteCalendarId: item.remoteReference.calendarId,
+          remoteEventId: item.remoteReference.eventId,
+        }
+      : null);
+  if (!link || link.remoteCalendarId !== mytimeCalendarId) return;
 
   try {
-    await deleteEvent(mytimeCalendarId, item.googleEventId);
+    await deleteEvent(mytimeCalendarId, link.remoteEventId);
   } catch (e) {
     const status = (e as { code?: number; response?: { status?: number } }).code ?? (e as { response?: { status?: number } }).response?.status;
     if (status !== 404 && status !== 410) throw e;
   }
+  deleteRemoteLink(item.id, 'google');
 }

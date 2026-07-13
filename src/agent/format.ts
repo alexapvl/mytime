@@ -47,4 +47,4 @@ export function emitHelp(description: string, help: string[], json = false): nev
 }
 
 export const AGENT_DESCRIPTION =
-  'Unified tasks and calendar for agents — backlog, schedule, free slots, Google Calendar sync';
+  'Unified tasks and calendar for agents - backlog, schedule, free slots, active-provider sync';

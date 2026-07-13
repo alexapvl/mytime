@@ -7,16 +7,16 @@ import { defaultReminders } from '../lib/reminders.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const SELECT = `
-  SELECT id, title, notes, project, tags, priority, status, source, location, reminders, all_day,
+  SELECT id, title, notes, project, tags, priority, status, source, origin_provider, location, reminders, all_day,
          start, end, google_event_id, google_calendar_id, synced_at, updated_at, created_at, completed_at
   FROM items
 `;
 
-const INSERT_SQL = `INSERT INTO items (id, title, notes, project, tags, priority, status, source, location, reminders, start, end, all_day, google_event_id, google_calendar_id, synced_at, updated_at, created_at, completed_at)
-       VALUES (@id, @title, @notes, @project, @tags, @priority, @status, @source, @location, @reminders, @start, @end, @all_day, @google_event_id, @google_calendar_id, @synced_at, @updated_at, @created_at, @completed_at)`;
+const INSERT_SQL = `INSERT INTO items (id, title, notes, project, tags, priority, status, source, origin_provider, location, reminders, start, end, all_day, google_event_id, google_calendar_id, synced_at, updated_at, created_at, completed_at)
+       VALUES (@id, @title, @notes, @project, @tags, @priority, @status, @source, @origin_provider, @location, @reminders, @start, @end, @all_day, @google_event_id, @google_calendar_id, @synced_at, @updated_at, @created_at, @completed_at)`;
 
 const UPDATE_SQL = `UPDATE items SET title=@title, notes=@notes, project=@project, tags=@tags, priority=@priority,
-       status=@status, source=@source, location=@location, reminders=@reminders, start=@start, end=@end, all_day=@all_day, google_event_id=@google_event_id,
+       status=@status, source=@source, origin_provider=@origin_provider, location=@location, reminders=@reminders, start=@start, end=@end, all_day=@all_day, google_event_id=@google_event_id,
        google_calendar_id=@google_calendar_id, synced_at=@synced_at, updated_at=@updated_at, completed_at=@completed_at
        WHERE id=@id`;
 
@@ -38,6 +38,7 @@ export function createItem(
     priority: partial.priority ?? 0,
     status: partial.status ?? 'open',
     source: partial.source ?? 'task',
+    originProvider: partial.originProvider,
     location: partial.location,
     reminders: partial.reminders ?? [],
     start: partial.start,
@@ -181,6 +182,10 @@ export function listScheduledInRange(start: string, end: string): Item[] {
       `${SELECT}
        WHERE start IS NOT NULL
          AND (
+           source != 'external'
+           OR origin_provider = (SELECT value FROM meta WHERE key = 'active_calendar_provider')
+         )
+         AND (
            (all_day = 1 AND start <= ? AND (end IS NULL OR end > ?))
            OR (all_day = 0 AND start < ? AND (end IS NULL OR end > ?))
          )
@@ -192,7 +197,15 @@ export function listScheduledInRange(start: string, end: string): Item[] {
 
 export function listAllScheduled(): Item[] {
   const rows = getDb()
-    .prepare(`${SELECT} WHERE start IS NOT NULL ORDER BY start ASC`)
+    .prepare(
+      `${SELECT}
+       WHERE start IS NOT NULL
+         AND (
+           source != 'external'
+           OR origin_provider = (SELECT value FROM meta WHERE key = 'active_calendar_provider')
+         )
+       ORDER BY start ASC`,
+    )
     .all() as ItemRow[];
   return rows.map(rowToItem);
 }

@@ -8,7 +8,7 @@ import { isLocalItem } from '../db/types.js';
 import { createItem, createEvent, deleteItem, listScheduledInRange, rescheduleLocalItem, toggleDone, updateItem } from '../db/items.js';
 import { padToWidth } from '../lib/textWidth.js';
 import { addMinutes, allDayRange, hourLabels, itemSpansDay } from '../lib/time.js';
-import { autoPush, autoRemove } from '../google/autoSync.js';
+import { autoPush, autoRemove } from '../calendar/autoSync.js';
 import { ItemEditor } from '../components/ItemEditor.js';
 import { EventEditor } from '../components/EventEditor.js';
 import { useClickRegions } from '../components/Mouse.js';
@@ -319,7 +319,7 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
     () =>
       visibleLines
         .map((line, idx) =>
-          line.item
+          'item' in line && line.item
             ? { row: DAY_CONTENT_ROW + idx, onClick: () => setSelected(orderedItems.indexOf(line.item!)) }
             : null,
         )
@@ -434,11 +434,11 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
       }
       if (input === 'd') {
         const victim = cloneItem(item);
+        autoRemove(victim, onStatus);
         deleteItem(victim.id);
         pushUndo(`Deleted: ${victim.title}`, makeUndoDelete(victim, onStatus));
         setSelected((s) => Math.max(0, s - 1));
         refresh();
-        autoRemove(victim, onStatus);
         onStatus('Deleted');
         return;
       }
@@ -900,11 +900,11 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
       }
       if (input === 'd') {
         const victim = cloneItem(item);
+        autoRemove(victim, onStatus);
         deleteItem(victim.id);
         pushUndo(`Deleted: ${victim.title}`, makeUndoDelete(victim, onStatus));
         setSelected((s) => Math.max(0, s - 1));
         refresh();
-        autoRemove(victim, onStatus);
         onStatus('Deleted');
         return;
       }

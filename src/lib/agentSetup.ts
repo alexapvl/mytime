@@ -18,11 +18,14 @@ I have mytime installed on PATH. When shell execution works, always use \`mytime
 Please do the following:
 
 1. Run \`command -v mytime\`, then \`mytime agent\`, and confirm the dashboard works. Only use mytime MCP if shell execution or the binary is unavailable.
-2. If Google shows disconnected, tell me to run \`mytime setup\` then \`mytime auth\` (browser OAuth — you cannot complete that step for me).
-3. Install the mytime skill if missing:
+2. Run \`mytime agent calendar\` for live adapter/backend state. Use \`mytime agent calendar setup\`, \`calendar switch\`, or \`calendar cleanup\` to explain exact effects before suggesting commands.
+3. If calendar provider is unknown, ask me whether I want Google or Apple Calendar. Infer project context from this conversation, but never infer calendar provider.
+4. For Google, tell me to run \`mytime setup google\` then \`mytime auth google\`. For Apple, tell me to run \`mytime setup apple\` and approve the macOS Calendar permission prompt.
+5. Before switching or cleanup, explain local and remote effects. Get explicit approval before deleting a calendar or applying duplicate cleanup.
+6. Install the mytime skill if missing:
    ${AGENT_SKILL_INSTALL}
-4. Give every new task an \`@project\`. Infer the project from the conversation origin (current repository, workspace, issue, PR, or product), even if I do not repeat it. If no project can be inferred, ask me before adding the task.
-5. Use \`mytime agent slots\` before scheduling timed work; \`mytime agent task quick "<text>"\` for NLP adds; \`mytime agent sync\` after writes if needed.
+7. Give every new task an \`@project\`. Infer the project from the conversation origin (current repository, workspace, issue, PR, or product), even if I do not repeat it. If no project can be inferred, ask me before adding the task.
+8. Use \`mytime agent slots\` before scheduling timed work; \`mytime agent task quick "<text>"\` for NLP adds; \`mytime agent sync\` after writes if needed.
 
 Only set up MCP (\`mytime setup --mcp-config\`) if this environment cannot run shell commands.
 
@@ -31,10 +34,11 @@ Show me the dashboard output and suggest one task I could add as a test.`;
 export function printAgentIntegrationGuide(): void {
   console.log('AI agent integration\n');
   console.log('Always use `mytime agent` in Cursor, Claude Code, and other shell-capable agents.');
-  console.log('Same SQLite DB and Google sync as the TUI — no extra OAuth or API keys.\n');
+  console.log('Same SQLite DB and active-provider sync as the TUI - no extra credentials.\n');
 
   console.log('Quick start:\n');
   console.log('  mytime agent                              # dashboard');
+  console.log('  mytime agent calendar                     # provider/backend state + effects');
   console.log('  mytime agent task quick "buy milk tomorrow 5pm @personal"');
   console.log('  mytime agent slots --date tomorrow');
   console.log('  mytime agent sync\n');
@@ -49,8 +53,8 @@ export function printAgentIntegrationGuide(): void {
   console.log('  Add to Cursor MCP settings (~/.cursor/mcp.json or project .cursor/mcp.json):');
   console.log('  mytime setup --mcp-config\n');
 
-  console.log('Google Calendar: same setup as the TUI (`mytime setup`, `mytime auth`).');
-  console.log('Local backlog works without Google; sync and scheduled Google writes need auth.');
+  console.log('Calendar: choose `mytime setup google` or `mytime setup apple`.');
+  console.log('Local backlog works without a provider; remote sync requires provider authorization.');
 }
 
 export function printAgentNextStepsLine(): void {

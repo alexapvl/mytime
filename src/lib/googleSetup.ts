@@ -60,7 +60,7 @@ export function validateCredentialsFile(): CredentialsValidation {
     return {
       ok: false,
       error: `Missing credentials at ${CREDENTIALS_PATH}`,
-      hint: 'Run: mytime setup — or create a Desktop OAuth client in Google Cloud Console (see README).',
+      hint: 'Run: mytime setup google or create a Desktop OAuth client in Google Cloud Console (see README).',
     };
   }
 
@@ -96,7 +96,7 @@ export function validateCredentialsFile(): CredentialsValidation {
   return {
     ok: false,
     error: 'credentials.json missing installed.client_id and client_secret',
-    hint: 'Download the Desktop app OAuth JSON from Google Cloud Console. See: mytime setup --links',
+    hint: 'Download the Desktop app OAuth JSON from Google Cloud Console. See: mytime setup google --links',
   };
 }
 
@@ -124,7 +124,7 @@ export function runSetupChecks(): SetupCheck[] {
       ok: false,
       label: '~/.mytime directory',
       detail: 'Not created yet',
-      fix: 'Run: mkdir -p ~/.mytime (or mytime auth / mytime setup will create it)',
+      fix: 'Run: mkdir -p ~/.mytime (or mytime auth google / mytime setup google will create it)',
     });
   } else {
     checks.push({ id: 'dir', ok: true, label: '~/.mytime directory' });
@@ -136,7 +136,7 @@ export function runSetupChecks(): SetupCheck[] {
       ok: false,
       label: 'credentials.json (Google OAuth Desktop client)',
       detail: `Expected at ${CREDENTIALS_PATH}`,
-      fix: 'Run: mytime setup --links — then save the downloaded JSON as credentials.json',
+      fix: 'Run: mytime setup google --links, then save the downloaded JSON as credentials.json',
     });
   } else {
     const validation = validateCredentialsFile();
@@ -190,7 +190,7 @@ export function printNextSteps(status: GoogleSetupStatus): void {
     console.log('  mkdir -p ~/.mytime');
   }
   if (!status.credentials || status.credentialsValidation?.ok === false) {
-    console.log('  mytime setup --links     # Google Cloud Console URLs');
+    console.log('  mytime setup google --links  # Google Cloud Console URLs');
     console.log('  mytime setup --agent-prompt  # paste into Cursor / Claude');
   }
   if (status.credentialsValidation?.ok && !status.token) {
@@ -218,7 +218,7 @@ export function formatAuthError(error: string): string {
     return [
       'Invalid OAuth client (invalid_client).',
       'Check credentials.json is from a Desktop app client in your GCP project.',
-      'Run: mytime setup',
+      'Run: mytime setup google',
     ].join('\n');
   }
   if (lower.includes('timed out')) {

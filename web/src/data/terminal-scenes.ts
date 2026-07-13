@@ -43,7 +43,7 @@ export const terminalScenes: TerminalScene[] = [
           {
             command: 'mytime agent task quick "sync with sam tomorrow 3:30pm"',
             pauseBefore: 320,
-            result: "added sync with sam · synced to Google",
+            result: "added sync with sam · synced to active calendar",
           },
         ],
         reply: "Booked tomorrow 3:30pm — 30m sync with sam.",

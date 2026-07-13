@@ -43,7 +43,7 @@ function registerTools(server: McpServer): void {
   server.registerTool(
     'list_schedule',
     {
-      description: 'List scheduled items (tasks and Google Calendar events) in a time range. Defaults to today. Use ISO datetimes for from/to.',
+      description: 'List scheduled items from mytime and the active calendar provider in a time range. Defaults to today. Use ISO datetimes for from/to.',
       inputSchema: {
         from: z.string().optional().describe('ISO datetime for range start (default: start of today)'),
         to: z.string().optional().describe('ISO datetime for range end (default: end of today)'),
@@ -216,19 +216,19 @@ function registerTools(server: McpServer): void {
 
   server.registerTool(
     'delete_event',
-    { description: 'Permanently delete a mytime event and its Google calendar entry.', inputSchema: { id: z.string() } },
+    { description: 'Permanently delete a mytime event and its active-provider calendar entry.', inputSchema: { id: z.string() } },
     async ({ id }) => fromAgent(await agentDeleteEvent(id)),
   );
 
   server.registerTool(
     'delete_task',
-    { description: 'Permanently delete a task and its Google event.', inputSchema: { id: z.string() } },
+    { description: 'Permanently delete a task and its active-provider calendar entry.', inputSchema: { id: z.string() } },
     async ({ id }) => fromAgent(await agentDeleteTask(id)),
   );
 
   server.registerTool(
     'sync',
-    { description: 'Run a full two-way sync with Google Calendar (push local task changes, pull all calendars).', inputSchema: {} },
+    { description: 'Run a full two-way sync with the active calendar provider.', inputSchema: {} },
     async () => fromAgent(await agentSync()),
   );
 }
