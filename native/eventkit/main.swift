@@ -109,6 +109,10 @@ private func parseDate(_ value: String, key: String) throws -> Date {
     throw HelperError("invalid_request", "\(key) must be an ISO 8601 datetime or yyyy-MM-dd date")
 }
 
+private func isDateOnly(_ value: String) -> Bool {
+    value.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil
+}
+
 private func formatDate(_ date: Date, allDay: Bool) -> String {
     allDay ? dayFormatter.string(from: date) : isoFormatter.string(from: date)
 }
@@ -171,6 +175,78 @@ private func eventAvailability(_ availability: EKEventAvailability) -> String {
     }
 }
 
+private struct MytimeIdentity {
+    let itemId: String
+    let itemType: String?
+}
+
+private func mytimeIdentity(from url: URL?) -> MytimeIdentity? {
+    guard
+        let url,
+        url.scheme?.lowercased() == "mytime",
+        url.host?.lowercased() == "item"
+    else { return nil }
+    let value = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    guard UUID(uuidString: value) != nil else { return nil }
+    let type = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+        .queryItems?.first(where: { $0.name == "type" })?.value
+    let itemType = type == "task" || type == "event" ? type : nil
+    return MytimeIdentity(itemId: value.lowercased(), itemType: itemType)
+}
+
+private func mytimeURL(itemId: String, itemType: String) throws -> URL {
+    guard itemType == "task" || itemType == "event" else {
+        throw HelperError("invalid_request", "mytimeItemType must be task or event")
+    }
+    guard let id = UUID(uuidString: itemId) else {
+        throw HelperError("invalid_request", "mytimeItemId must be a UUID")
+    }
+    var components = URLComponents()
+    components.scheme = "mytime"
+    components.host = "item"
+    components.path = "/\(id.uuidString.lowercased())"
+    components.queryItems = [URLQueryItem(name: "type", value: itemType)]
+    guard let url = components.url else {
+        throw HelperError("invalid_request", "Could not create mytime item URL")
+    }
+    return url
+}
+
+private func reminderJSON(_ event: EKEvent) -> [[String: Any]] {
+    let minutes = (event.alarms ?? []).compactMap { alarm -> Int? in
+        let secondsBefore: TimeInterval
+        if let absoluteDate = alarm.absoluteDate {
+            secondsBefore = event.startDate.timeIntervalSince(absoluteDate)
+        } else {
+            secondsBefore = -alarm.relativeOffset
+        }
+        guard secondsBefore >= 0 else { return nil }
+        return Int((secondsBefore / 60).rounded())
+    }
+    return Array(Set(minutes)).sorted(by: >).map { ["method": "popup", "minutes": $0] }
+}
+
+private func parseReminderMinutes(_ request: [String: Any]) throws -> [Int]? {
+    guard request.keys.contains("reminders") else { return nil }
+    guard let raw = request["reminders"] as? [[String: Any]] else {
+        throw HelperError("invalid_request", "reminders must be an array of {method: popup, minutes: number}")
+    }
+    return try raw.map { reminder in
+        guard reminder["method"] as? String == "popup" else {
+            throw HelperError("invalid_request", "reminder method must be popup")
+        }
+        guard
+            let number = reminder["minutes"] as? NSNumber,
+            CFGetTypeID(number) != CFBooleanGetTypeID(),
+            number.doubleValue.rounded() == number.doubleValue,
+            number.intValue >= 0
+        else {
+            throw HelperError("invalid_request", "reminder minutes must be a non-negative integer")
+        }
+        return number.intValue
+    }
+}
+
 private func eventJSON(_ event: EKEvent) -> [String: Any] {
     var result: [String: Any] = [
         "calendarId": event.calendar.calendarIdentifier,
@@ -181,12 +257,22 @@ private func eventJSON(_ event: EKEvent) -> [String: Any] {
         "status": eventStatus(event.status),
         "availability": eventAvailability(event.availability),
         "hasRecurrenceRules": !(event.recurrenceRules?.isEmpty ?? true),
+        "reminders": reminderJSON(event),
     ]
     if let id = event.eventIdentifier { result["id"] = id }
     if let externalId = event.calendarItemExternalIdentifier { result["externalId"] = externalId }
     if let notes = event.notes { result["notes"] = notes }
     if let location = event.location { result["location"] = location }
-    if let url = event.url?.absoluteString { result["url"] = url }
+    if let identity = mytimeIdentity(from: event.url) {
+        result["mytimeItemId"] = identity.itemId
+        if let itemType = identity.itemType { result["mytimeItemType"] = itemType }
+    } else if let url = event.url?.absoluteString {
+        result["url"] = url
+    }
+    if let occurrenceDate = event.occurrenceDate {
+        result["occurrenceStart"] = formatDate(occurrenceDate, allDay: event.isAllDay)
+    }
+    if event.isAllDay { result["endExclusive"] = true }
     if let lastModified = event.lastModifiedDate { result["lastModified"] = isoFormatter.string(from: lastModified) }
     return result
 }
@@ -204,6 +290,29 @@ private func writableCalendar(id: String) throws -> EKCalendar {
         throw HelperError("calendar_read_only", "Calendar is not writable: \(id)")
     }
     return result
+}
+
+private func sourceCanCreateCalendar(_ source: EKSource) -> Bool {
+    switch source.sourceType {
+    case .local, .exchange, .calDAV, .mobileMe: return true
+    case .subscribed, .birthdays: return false
+    @unknown default: return false
+    }
+}
+
+private func writableCalendarCount(_ source: EKSource) -> Int {
+    source.calendars(for: .event).filter { $0.allowsContentModifications && !$0.isImmutable }.count
+}
+
+private func sourceJSON(_ source: EKSource) -> [String: Any] {
+    let writableCount = writableCalendarCount(source)
+    return [
+        "id": source.sourceIdentifier,
+        "title": source.title,
+        "type": sourceType(source.sourceType),
+        "canCreateCalendar": sourceCanCreateCalendar(source),
+        "writableCalendarCount": writableCount,
+    ]
 }
 
 private func handle(_ request: [String: Any]) throws -> Never {
@@ -231,6 +340,14 @@ private func handle(_ request: [String: Any]) throws -> Never {
             .map(calendarJSON)
         succeed(["calendars": calendars, "count": calendars.count])
 
+    case "source.list":
+        try requireFullAccess()
+        let sources = Dictionary(grouping: eventStore.sources, by: \.sourceIdentifier)
+            .compactMap { $0.value.first }
+            .sorted { ($0.title, $0.sourceIdentifier) < ($1.title, $1.sourceIdentifier) }
+            .map(sourceJSON)
+        succeed(["sources": sources, "count": sources.count])
+
     case "calendar.create":
         try requireFullAccess()
         let title = try string(request, "title")!
@@ -240,7 +357,23 @@ private func handle(_ request: [String: Any]) throws -> Never {
             source = eventStore.sources.first { $0.sourceIdentifier == sourceId }
             if source == nil { throw HelperError("source_not_found", "Calendar source not found: \(sourceId)") }
         } else {
-            source = eventStore.defaultCalendarForNewEvents?.source
+            let defaultSourceId = eventStore.defaultCalendarForNewEvents?.source.sourceIdentifier
+            let candidates = Dictionary(
+                grouping: eventStore.sources.filter {
+                    sourceCanCreateCalendar($0)
+                        && (writableCalendarCount($0) > 0 || $0.sourceIdentifier == defaultSourceId)
+                },
+                by: \.sourceIdentifier
+            )
+                .compactMap { $0.value.first }
+            if candidates.count > 1 {
+                throw HelperError(
+                    "source_required",
+                    "sourceId is required when multiple writable Calendar sources are available",
+                    hint: "Run source.list and ask the user which Calendar account should contain the mytime calendar."
+                )
+            }
+            source = candidates.first
         }
         guard let source else {
             throw HelperError("source_required", "No writable default Calendar source is configured")
@@ -305,16 +438,36 @@ private func handle(_ request: [String: Any]) throws -> Never {
             created = true
         }
         event.title = try string(request, "title")!
-        event.startDate = try parseDate(try string(request, "start")!, key: "start")
-        event.endDate = try parseDate(try string(request, "end")!, key: "end")
+        let rawStart = try string(request, "start")!
+        let rawEnd = try string(request, "end")!
+        let allDay = try bool(request, "allDay", default: false)
+        if allDay {
+            guard isDateOnly(rawStart), isDateOnly(rawEnd) else {
+                throw HelperError("invalid_request", "All-day start and end must use yyyy-MM-dd; end is exclusive")
+            }
+        }
+        event.startDate = try parseDate(rawStart, key: "start")
+        event.endDate = try parseDate(rawEnd, key: "end")
         guard event.endDate > event.startDate else { throw HelperError("invalid_request", "end must be after start") }
-        event.isAllDay = try bool(request, "allDay", default: false)
+        event.isAllDay = allDay
         if request.keys.contains("notes") { event.notes = try string(request, "notes", required: false) }
         if request.keys.contains("location") { event.location = try string(request, "location", required: false) }
+        if let reminderMinutes = try parseReminderMinutes(request) {
+            event.alarms = reminderMinutes.map { EKAlarm(relativeOffset: -TimeInterval($0) * 60) }
+        }
+        let itemId = try string(request, "mytimeItemId", required: false)
+        let itemType = try string(request, "mytimeItemType", required: false)
+        if (itemId == nil) != (itemType == nil) {
+            throw HelperError("invalid_request", "mytimeItemId and mytimeItemType must be provided together")
+        }
         if request.keys.contains("url") {
-            if let rawURL = try string(request, "url", required: false), let url = URL(string: rawURL) { event.url = url }
-            else if request["url"] is NSNull { event.url = nil }
+            if let rawURL = try string(request, "url", required: false), let url = URL(string: rawURL), url.scheme != nil { event.url = url }
+            else if request["url"] is NSNull || request["url"] as? String == "" {
+                event.url = try itemId.map { try mytimeURL(itemId: $0, itemType: itemType!) }
+            }
             else { throw HelperError("invalid_request", "url must be a valid URL string or null") }
+        } else if let itemId, event.url == nil || mytimeIdentity(from: event.url) != nil {
+            event.url = try mytimeURL(itemId: itemId, itemType: itemType!)
         }
         do { try eventStore.save(event, span: .thisEvent, commit: true) }
         catch { throw HelperError("event_save_failed", error.localizedDescription) }
@@ -339,7 +492,7 @@ private func handle(_ request: [String: Any]) throws -> Never {
         throw HelperError(
             "unknown_command",
             "Unknown command: \(command)",
-            hint: "Valid commands: auth.status, auth.request, calendar.list, calendar.create, calendar.delete, event.query, event.upsert, event.delete"
+            hint: "Valid commands: auth.status, auth.request, source.list, calendar.list, calendar.create, calendar.delete, event.query, event.upsert, event.delete"
         )
     }
 }

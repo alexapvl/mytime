@@ -17,8 +17,8 @@ case "$ARCH" in
 esac
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
-  echo "EventKit helper can only be built on macOS" >&2
-  exit 1
+  echo "Skipping EventKit helper: Apple Calendar integration is available on macOS 14+ only"
+  exit 0
 fi
 
 if [[ "$(uname -m)" != "$ARCH" ]]; then
