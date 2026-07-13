@@ -19,6 +19,7 @@ export type Item = {
   priority: ItemPriority;
   status: ItemStatus;
   source: ItemSource;
+  originProvider?: 'google' | 'apple';
   location?: string;
   reminders: Reminder[];
   start?: string;
@@ -30,6 +31,11 @@ export type Item = {
   updatedAt: string;
   createdAt: string;
   completedAt?: string;
+  remoteReference?: {
+    provider: 'google' | 'apple';
+    calendarId: string;
+    eventId: string;
+  };
 };
 
 export type ItemRow = {
@@ -41,6 +47,7 @@ export type ItemRow = {
   priority: number;
   status: string;
   source: string;
+  origin_provider: string | null;
   location: string | null;
   reminders: string | null;
   start: string | null;
@@ -74,6 +81,7 @@ export function rowToItem(row: ItemRow): Item {
     priority: row.priority as ItemPriority,
     status: row.status as ItemStatus,
     source: (row.source as ItemSource) || 'task',
+    originProvider: (row.origin_provider as 'google' | 'apple' | null) ?? undefined,
     location: row.location ?? undefined,
     reminders: parseReminders(row.reminders),
     start: row.start ?? undefined,
@@ -98,6 +106,7 @@ export function itemToRow(item: Item): ItemRow {
     priority: item.priority,
     status: item.status,
     source: item.source,
+    origin_provider: item.originProvider ?? null,
     location: item.location ?? null,
     reminders: item.reminders.length ? JSON.stringify(item.reminders) : null,
     start: item.start ?? null,

@@ -86,6 +86,17 @@ Only one provider is writable at a time. When switching, mytime stops syncing th
 
 Setup asks whether you also want to delete the old provider's dedicated **"mytime"** calendar. The safe default is to keep it. mytime never deletes or writes to unrelated calendars.
 
+Provider switches stay explicit and agent-safe:
+
+```bash
+mytime setup apple --keep-old-calendar
+mytime setup apple --delete-old-calendar
+mytime setup google --keep-old-calendar
+mytime setup google --delete-old-calendar
+```
+
+If Calendar.app contains multiple writable accounts, Apple setup lists them and asks you to rerun with `--source <source-id>`. It never guesses which account should contain the dedicated **"mytime"** calendar.
+
 ### Google agent-assisted setup
 
 If you use Cursor, Claude Code, or another agent with browser access, run **`mytime setup --agent-prompt`** and paste the output, or copy this prompt:

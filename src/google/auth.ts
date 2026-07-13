@@ -2,7 +2,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { OAuth2Client } from 'google-auth-library';
-import { calendar } from '@googleapis/calendar';
+import { calendar, type calendar_v3 } from '@googleapis/calendar';
 import { CREDENTIALS_PATH, GOOGLE_SCOPES, TOKEN_PATH, ensureMytimeDir } from '../lib/config.js';
 import {
   formatAuthError,
@@ -170,7 +170,9 @@ function waitForAuthCode(expectedState: string): Promise<string> {
 
 export function getCalendarClient() {
   const auth = getAuthenticatedClient();
-  return calendar({ version: 'v3', auth });
+  // @googleapis/calendar currently installs its own google-auth-library patch version.
+  // Runtime clients are API-compatible, but private type fields make direct assignment fail.
+  return calendar({ version: 'v3', auth: auth as unknown as calendar_v3.Options['auth'] });
 }
 
 export { validateCredentialsFile, getGoogleSetupStatus } from '../lib/googleSetup.js';

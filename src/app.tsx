@@ -6,8 +6,13 @@ import { DayView, WeekView } from './views/Calendar.js';
 import { MonthView } from './views/Month.js';
 import { PastDueView } from './views/PastDue.js';
 import { SettingsView } from './views/Settings.js';
-import { syncWithGoogle } from './google/sync.js';
-import { getGoogleSetupStatus, isAuthenticated } from './google/auth.js';
+import {
+  getActiveProvider,
+  getActiveProviderStatus,
+  providerLabel,
+  syncCalendar,
+} from './calendar/provider.js';
+import type { ProviderStatus } from './calendar/types.js';
 import { MouseProvider, useClickRegions } from './components/Mouse.js';
 import { InputFocusProvider, useInputFocus } from './context/InputFocusContext.js';
 import { UndoProvider, useUndo } from './context/UndoContext.js';
@@ -43,6 +48,7 @@ function AppShell({ screen, onNeedAuth }: { screen: Screen; onNeedAuth?: () => v
   const [syncing, setSyncing] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
   const [updateNotice, setUpdateNotice] = useState<UpdateNotice | null>(null);
+  const [providerStatus, setProviderStatus] = useState<ProviderStatus | null>(null);
 
   const refresh = useCallback(() => setRefreshToken((t) => t + 1), []);
 
@@ -56,6 +62,10 @@ function AppShell({ screen, onNeedAuth }: { screen: Screen; onNeedAuth?: () => v
     };
   }, []);
 
+  useEffect(() => {
+    void getActiveProviderStatus().then(setProviderStatus);
+  }, []);
+
   useClickRegions('tabs', [
     { row: TAB_ROW, col: 1, endCol: 11, onClick: () => setTab('backlog') },
     { row: TAB_ROW, col: 12, endCol: 22, onClick: () => setTab('daily') },
@@ -65,20 +75,15 @@ function AppShell({ screen, onNeedAuth }: { screen: Screen; onNeedAuth?: () => v
   ]);
 
   const doSync = useCallback(async () => {
-    const setup = getGoogleSetupStatus();
-    if (!setup.credentials || setup.credentialsValidation?.ok === false) {
-      setStatus('Google not configured — run: mytime setup');
-      return;
-    }
-    if (!isAuthenticated()) {
-      onNeedAuth?.();
-      setStatus('Opening Google sign-in...');
-      exit();
+    const currentStatus = await getActiveProviderStatus();
+    setProviderStatus(currentStatus);
+    if (!currentStatus?.connected) {
+      setStatus(currentStatus?.detail ?? 'No calendar provider selected - run: mytime setup');
       return;
     }
     setSyncing(true);
     setStatus('Syncing...');
-    const result = await syncWithGoogle();
+    const result = await syncCalendar();
     setSyncing(false);
     refresh();
     setStatus(
@@ -86,7 +91,7 @@ function AppShell({ screen, onNeedAuth }: { screen: Screen; onNeedAuth?: () => v
         ? `Sync errors: ${result.errors.join('; ')}`
         : `Synced: ${result.pushed} pushed, ${result.pulled} pulled from ${result.calendars} calendars`,
     );
-  }, [exit, onNeedAuth, refresh]);
+  }, [refresh]);
 
   useAppInput(
     (input, key) => {
@@ -115,16 +120,15 @@ function AppShell({ screen, onNeedAuth }: { screen: Screen; onNeedAuth?: () => v
     { isActive: !inputFocused },
   );
 
-  const setup = getGoogleSetupStatus();
+  const activeProvider = getActiveProvider();
+  const activeLabel = activeProvider ? providerLabel(activeProvider) : 'Calendar';
   const statusMessage =
     syncing
-      ? 'Syncing with Google...'
+      ? `Syncing with ${activeLabel}...`
       : status ||
-        (setup.ready
-          ? 'Google connected'
-          : !setup.credentials || setup.credentialsValidation?.ok === false
-            ? 'Google not configured — run: mytime setup'
-            : 'Google not signed in — run: mytime auth');
+        (providerStatus?.connected
+          ? `${activeLabel} connected`
+          : providerStatus?.detail ?? 'No calendar provider selected - run: mytime setup');
 
   return (
     <Box flexDirection="column" height={rows} overflow="hidden" padding={1}>
@@ -132,15 +136,14 @@ function AppShell({ screen, onNeedAuth }: { screen: Screen; onNeedAuth?: () => v
         <Text bold color="cyanBright">
           mytime
         </Text>
-        <Text dimColor> — {screen === 'settings' ? 'settings' : 'tasks + calendar'}</Text>
+        <Text dimColor> - {screen === 'settings' ? 'settings' : 'tasks + calendar'}</Text>
       </Box>
 
-      {screen === 'main' && !setup.ready && (
+      {screen === 'main' && !providerStatus?.connected && (
         <Box flexShrink={0} marginBottom={1}>
           <Text color="yellow">
-            {!setup.credentials || setup.credentialsValidation?.ok === false
-              ? 'Google Calendar not set up — run: mytime setup (or mytime setup --agent-prompt for an AI agent)'
-              : 'Sign in to Google — run: mytime auth'}
+            {providerStatus?.detail ??
+              'Calendar not set up - run: mytime setup, then choose Google or Apple'}
           </Text>
         </Box>
       )}
@@ -148,7 +151,7 @@ function AppShell({ screen, onNeedAuth }: { screen: Screen; onNeedAuth?: () => v
       {updateNotice && (
         <Box flexShrink={0} marginBottom={1}>
           <Text color="green">
-            {updateNotice.message} — {updateNotice.command}
+            {updateNotice.message} - {updateNotice.command}
           </Text>
         </Box>
       )}

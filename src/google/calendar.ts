@@ -4,6 +4,7 @@ import { getCalendarClient } from './auth.js';
 import {
   META_KEYS,
   clearSyncToken,
+  deleteMeta,
   getCalendarFetchPrefs,
   getMeta,
   setCalendarFetchPref,
@@ -83,6 +84,25 @@ export async function getOrCreateMytimeCalendarId(): Promise<string> {
   return calendarId;
 }
 
+export async function deleteMytimeGoogleCalendar(): Promise<boolean> {
+  const calendarId = getMeta(META_KEYS.googleCalendarId);
+  if (!calendarId) return false;
+
+  const calendar = getCalendarClient();
+  try {
+    await calendar.calendars.delete({ calendarId });
+  } catch (error) {
+    const status =
+      (error as { code?: number; response?: { status?: number } }).code ??
+      (error as { response?: { status?: number } }).response?.status;
+    if (status !== 404 && status !== 410) throw error;
+  }
+
+  deleteMeta(META_KEYS.googleCalendarId);
+  clearSyncToken(calendarId);
+  return true;
+}
+
 export async function listSelectedCalendars(): Promise<CalendarInfo[]> {
   const all = await listAccountCalendars();
   const mytimeCalendarId = getMeta(META_KEYS.googleCalendarId) ?? (await getOrCreateMytimeCalendarId());
@@ -100,6 +120,7 @@ export type GoogleEventPayload = {
   allDay?: boolean;
   reminders?: Reminder[];
   mytimeType?: 'task' | 'event';
+  mytimeId?: string;
 };
 
 export async function upsertEvent(calendarId: string, event: GoogleEventPayload, eventId?: string) {
@@ -118,8 +139,13 @@ export async function upsertEvent(calendarId: string, event: GoogleEventPayload,
     end,
   };
 
-  if (event.mytimeType) {
-    body.extendedProperties = { private: { mytime_type: event.mytimeType } };
+  if (event.mytimeType || event.mytimeId) {
+    body.extendedProperties = {
+      private: {
+        ...(event.mytimeType ? { mytime_type: event.mytimeType } : {}),
+        ...(event.mytimeId ? { mytime_id: event.mytimeId } : {}),
+      },
+    };
   }
 
   if (event.reminders !== undefined) {

@@ -15,8 +15,14 @@ import {
   updateItem,
 } from '../db/items.js';
 import type { Item, ItemPriority, Reminder } from '../db/types.js';
-import { isAuthenticated } from '../google/auth.js';
-import { pushLocalItem, removeFromGoogle, syncWithGoogle } from '../google/sync.js';
+import {
+  getActiveProvider,
+  getActiveProviderStatus,
+  providerLabel,
+  pushToActiveProvider,
+  removeFromActiveProvider,
+  syncCalendar,
+} from '../calendar/provider.js';
 import { parseQuickAdd } from '../lib/nlp.js';
 import { listFreeSlots } from '../lib/scheduleOverlap.js';
 import { allDayRange, defaultEnd, multiDayAllDayRange, todayEnd, todayStart } from '../lib/time.js';
@@ -29,37 +35,46 @@ const SCHEDULE_HINT =
   'Run `mytime agent slots --date <day>` before scheduling, or `mytime agent schedule list` to inspect the day.';
 
 async function syncPush(id: string): Promise<string> {
-  if (!isAuthenticated()) return '';
+  const provider = getActiveProvider();
+  const status = await getActiveProviderStatus();
+  if (!provider || !status?.connected) return '';
   const item = getItem(id);
   if (!item || (item.source !== 'task' && item.source !== 'event') || !item.start) return '';
   try {
-    await pushLocalItem(item);
-    return ' (synced to Google)';
+    await pushToActiveProvider(item);
+    return ` (synced to ${providerLabel(provider)})`;
   } catch (e) {
-    return ` (Google sync failed: ${(e as Error).message})`;
+    return ` (${providerLabel(provider)} sync failed: ${(e as Error).message})`;
   }
 }
 
 async function syncRemove(item: Item): Promise<string> {
-  if (!isAuthenticated()) return '';
-  if ((item.source !== 'task' && item.source !== 'event') || !item.googleEventId) return '';
+  const provider = getActiveProvider();
+  const status = await getActiveProviderStatus();
+  if (!provider || !status?.connected) return '';
+  if (item.source !== 'task' && item.source !== 'event') return '';
   try {
-    await removeFromGoogle(item);
-    return ' (removed from Google)';
+    await removeFromActiveProvider(item);
+    return ` (removed from ${providerLabel(provider)})`;
   } catch (e) {
-    return ` (Google removal failed: ${(e as Error).message})`;
+    return ` (${providerLabel(provider)} removal failed: ${(e as Error).message})`;
   }
 }
 
 export async function agentDashboard(): Promise<AgentResult> {
   await ensureFresh();
+  const provider = getActiveProvider();
+  const providerStatus = await getActiveProviderStatus();
   const backlog = listBacklog();
   const pastDue = listPastDue();
   const today = listScheduledInRange(todayStart(), todayEnd());
 
   return ok(
     {
-      google: isAuthenticated() ? 'connected' : 'disconnected',
+      calendar: {
+        provider: provider ?? 'none',
+        status: providerStatus?.connected ? 'connected' : 'disconnected',
+      },
       counts: {
         backlog: backlog.length,
         pastDue: pastDue.length,
@@ -308,8 +323,8 @@ export async function agentDeleteTask(id: string): Promise<AgentResult> {
   const item = getItem(id);
   if (!item) return err(`No item with id ${id}`);
   if (item.source !== 'task') return err('Use `mytime agent event delete <id>` for events');
-  deleteItem(id);
   const note = await syncRemove(item);
+  deleteItem(id);
   return ok({ message: `Deleted "${item.title}"${note}` });
 }
 
@@ -421,14 +436,20 @@ export async function agentDeleteEvent(id: string): Promise<AgentResult> {
   const item = getItem(id);
   if (!item) return err(`No item with id ${id}`);
   if (item.source !== 'event') return err('Item is not an event');
-  deleteItem(id);
   const note = await syncRemove(item);
+  deleteItem(id);
   return ok({ message: `Deleted event "${item.title}"${note}` });
 }
 
 export async function agentSync(): Promise<AgentResult> {
-  if (!isAuthenticated()) return err('Not authenticated. Run: mytime auth', ['Run `mytime auth` to connect Google Calendar']);
-  const result = await syncWithGoogle();
+  const status = await getActiveProviderStatus();
+  if (!status?.connected) {
+    return err('No connected calendar provider.', [
+      'Ask the user whether they want Google or Apple Calendar',
+      'Run `mytime setup google` or `mytime setup apple`',
+    ]);
+  }
+  const result = await syncCalendar();
   markSyncFresh();
   return ok({ ...result }, ['Run `mytime agent` for dashboard', 'Run `mytime agent schedule list` for today']);
 }

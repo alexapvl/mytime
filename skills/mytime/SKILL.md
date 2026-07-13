@@ -66,5 +66,6 @@ Run `mytime agent --help` or `mytime agent --help task` for concise reference.
 - External calendar events (`source: external`) are read-only. Only mytime tasks/events can be edited.
 - Write commands auto-sync only to the currently active provider.
 - Only one provider is writable at a time. When switching, setup removes old-provider external events from the local cache and asks whether to delete the old dedicated mytime calendar. The default is to keep it. Never delete unrelated calendars.
+- Confirm the user's choice, then switch with `mytime setup <provider> --keep-old-calendar` or `--delete-old-calendar`. If Apple setup lists multiple sources, ask which account they want and rerun with `--source <source-id>`.
 - Prefer `slots` before `task schedule` to avoid conflicts.
 - Use `--json` on any command for JSON instead of TOON.

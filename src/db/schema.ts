@@ -27,6 +27,7 @@ function initSchema(database: Database.Database): void {
       priority INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'open',
       source TEXT NOT NULL DEFAULT 'task',
+      origin_provider TEXT,
       start TEXT,
       end TEXT,
       all_day INTEGER NOT NULL DEFAULT 0,
@@ -47,6 +48,20 @@ function initSchema(database: Database.Database): void {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS remote_links (
+      item_id TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      remote_calendar_id TEXT NOT NULL,
+      remote_event_id TEXT NOT NULL,
+      synced_at TEXT NOT NULL,
+      PRIMARY KEY (item_id, provider),
+      UNIQUE (provider, remote_calendar_id, remote_event_id),
+      FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_remote_links_lookup
+      ON remote_links(provider, remote_calendar_id, remote_event_id);
   `);
 
   migrateSchema(database);
@@ -58,6 +73,9 @@ function migrateSchema(database: Database.Database): void {
 
   if (!names.has('source')) {
     database.exec("ALTER TABLE items ADD COLUMN source TEXT NOT NULL DEFAULT 'task'");
+  }
+  if (!names.has('origin_provider')) {
+    database.exec('ALTER TABLE items ADD COLUMN origin_provider TEXT');
   }
   if (!names.has('google_calendar_id')) {
     database.exec('ALTER TABLE items ADD COLUMN google_calendar_id TEXT');
@@ -71,9 +89,51 @@ function migrateSchema(database: Database.Database): void {
   if (!names.has('reminders')) {
     database.exec('ALTER TABLE items ADD COLUMN reminders TEXT');
   }
+  migrateGoogleRemoteLinks(database);
   normalizeAllDayDates(database);
   stripEmojiFromStoredTitles(database);
   normalizeEventTaskFields(database);
+}
+
+function migrateGoogleRemoteLinks(database: Database.Database): void {
+  database.exec(`
+    INSERT OR IGNORE INTO remote_links (
+      item_id, provider, remote_calendar_id, remote_event_id, synced_at
+    )
+    SELECT
+      id,
+      'google',
+      COALESCE(
+        google_calendar_id,
+        (SELECT value FROM meta WHERE key = 'google_calendar_id'),
+        ''
+      ),
+      google_event_id,
+      COALESCE(synced_at, updated_at)
+    FROM items
+    WHERE google_event_id IS NOT NULL
+  `);
+  database.exec(`
+    UPDATE items
+    SET origin_provider = 'google'
+    WHERE source = 'external'
+      AND origin_provider IS NULL
+      AND google_event_id IS NOT NULL
+  `);
+  database.exec(`
+    UPDATE remote_links
+    SET remote_calendar_id = COALESCE(
+      (SELECT google_calendar_id FROM items WHERE items.id = remote_links.item_id),
+      (SELECT value FROM meta WHERE key = 'google_calendar_id'),
+      remote_calendar_id
+    )
+    WHERE provider = 'google' AND remote_calendar_id = ''
+  `);
+  database.exec(`
+    INSERT OR IGNORE INTO meta (key, value)
+    SELECT 'active_calendar_provider', 'google'
+    WHERE EXISTS (SELECT 1 FROM remote_links WHERE provider = 'google')
+  `);
 }
 
 function normalizeEventTaskFields(database: Database.Database): void {

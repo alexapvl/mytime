@@ -4,8 +4,13 @@ import { App } from './app.js';
 import { closeDb } from './db/schema.js';
 import { createItem, createEvent } from './db/items.js';
 import { parseQuickAdd } from './lib/nlp.js';
-import { authenticate, ensureAuthenticated, isAuthenticated } from './google/auth.js';
-import { syncWithGoogle } from './google/sync.js';
+import { authenticate } from './google/auth.js';
+import {
+  getActiveProvider,
+  getActiveProviderStatus,
+  pushToActiveProvider,
+  syncCalendar,
+} from './calendar/provider.js';
 import { listScheduledInRange } from './db/items.js';
 import { enterTuiModes, exitTuiModes } from './lib/mouse.js';
 import { todayStart, todayEnd, formatScheduleTime } from './lib/time.js';
@@ -16,6 +21,15 @@ const command = args[0];
 async function main() {
   try {
     if (command === 'auth') {
+      const provider = args[1] ?? getActiveProvider();
+      if (provider === 'apple') {
+        const { runAppleSetup } = await import('./apple/setup.js');
+        process.exit(await runAppleSetup(args.slice(2)));
+      }
+      if (provider !== 'google') {
+        console.error('Choose a provider: mytime auth google or mytime auth apple');
+        process.exit(1);
+      }
       await authenticate();
       process.exit(0);
     }
@@ -26,8 +40,7 @@ async function main() {
     }
 
     if (command === 'sync') {
-      await ensureAuthenticated();
-      const result = await syncWithGoogle();
+      const result = await syncCalendar();
       console.log(`Pushed: ${result.pushed}, Pulled: ${result.pulled}, Deleted: ${result.deleted}, Calendars: ${result.calendars}`);
       if (result.errors.length) {
         console.error(result.errors.join('\n'));
@@ -53,9 +66,8 @@ async function main() {
         allDay: parsed.allDay,
       });
       console.log(`Added: ${item.title}${item.start ? ` @ ${item.allDay ? 'all day ' : ''}${item.start}` : ''}`);
-      if (isAuthenticated() && item.start) {
-        const result = await syncWithGoogle();
-        if (result.errors.length) console.warn(result.errors.join('\n'));
+      if (item.start && (await getActiveProviderStatus())?.connected) {
+        await pushToActiveProvider(item);
       }
       process.exit(0);
     }
@@ -78,9 +90,8 @@ async function main() {
         allDay: parsed.allDay,
       });
       console.log(`Added event: ${item.title} @ ${parsed.allDay ? 'all day ' : ''}${item.start}`);
-      if (isAuthenticated()) {
-        const result = await syncWithGoogle();
-        if (result.errors.length) console.warn(result.errors.join('\n'));
+      if ((await getActiveProviderStatus())?.connected) {
+        await pushToActiveProvider(item);
       }
       process.exit(0);
     }
@@ -158,24 +169,29 @@ async function runTui(initialScreen: 'main' | 'settings' = 'main') {
 
 function printHelp() {
   console.log(`
-mytime — unified tasks + calendar
+mytime - unified tasks + calendar
 
 Usage:
   mytime              Launch interactive TUI
   mytime add "<text>"   Quick-add task with natural language
   mytime event "<text>" Quick-add calendar event (requires date/time)
   mytime today        Print today's schedule
-  mytime setup        Check Google setup, print Console links and next steps
-  mytime doctor       Same checks as setup (no Console links when all ok)
-  mytime auth         Connect Google Calendar
-  mytime settings     Choose which Google calendars to fetch locally
-  mytime sync         Sync with Google Calendar
+  mytime setup        Choose Google or Apple Calendar setup
+  mytime setup google Set up Google Calendar OAuth
+  mytime setup apple  Set up Apple Calendar (macOS 14+)
+  mytime doctor       Check active calendar provider
+  mytime auth         Connect selected calendar provider
+  mytime settings     Choose which provider calendars to fetch locally
+  mytime sync         Sync active calendar provider
   mytime agent        Agent-ergonomic CLI for AI agents (preferred over MCP)
   mytime mcp          Legacy MCP server (stdio)
   mytime help         Show this help
 
 Setup flags:
-  mytime setup --links                    Print Google Cloud Console URLs
+  mytime setup google --links             Print Google Cloud Console URLs
+  mytime setup apple --source <id>        Choose Calendar.app account/source
+  mytime setup <provider> --keep-old-calendar
+  mytime setup <provider> --delete-old-calendar
   mytime setup --agent-prompt             Prompt for Google OAuth setup (paste into agent)
   mytime setup --agents                   AI agent + MCP integration guide
   mytime setup --agent-onboarding-prompt  Prompt to set up mytime agent in Cursor / Claude
@@ -184,7 +200,7 @@ Setup flags:
 
 TUI keys:
   1/2/3/4/5 Switch Backlog / Daily / Week / Month / Past Due
-  r         Sync with Google
+  r         Sync active calendar provider
   u         Undo
   esc       Quit
 

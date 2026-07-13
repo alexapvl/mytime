@@ -1,7 +1,7 @@
 {
   "name": "mytime",
   "version": "0.1.5",
-  "description": "Unified tasks + calendar CLI with Google Calendar sync",
+  "description": "Unified tasks + calendar CLI with Google and Apple Calendar sync",
   "type": "module",
   "packageManager": "pnpm@9.5.0",
   "bin": {

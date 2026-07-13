@@ -1,15 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Text, useApp } from 'ink';
 import TextInput from 'ink-text-input';
-import { deleteItemsByGoogleCalendar } from '../db/items.js';
-import { getCalendarFetchPrefs, getCalendarFreeTimeExcludePrefs, setCalendarFreeTimeExcludePref } from '../db/meta.js';
 import {
-  getOrCreateMytimeCalendarId,
-  isCalendarFetchEnabled,
-  listAccountCalendars,
-  setCalendarEnabled,
-  type CalendarInfo,
-} from '../google/calendar.js';
+  getProviderCalendarFreeTimeExcludePrefs,
+  setProviderCalendarFreeTimeExcludePref,
+} from '../db/meta.js';
+import {
+  getActiveProvider,
+  listActiveProviderCalendars,
+  providerLabel,
+  setActiveProviderCalendarEnabled,
+} from '../calendar/provider.js';
+import type { ProviderCalendarInfo } from '../calendar/types.js';
 import { useViewport } from '../context/ViewportContext.js';
 import { useAppInput } from '../hooks/useAppInput.js';
 import { useInputFocus } from '../context/InputFocusContext.js';
@@ -30,9 +32,7 @@ type Props = {
 
 type SettingsTab = 'calendars' | 'reminders' | 'freeTime';
 
-type CalendarRow = CalendarInfo & {
-  enabled: boolean;
-  locked: boolean;
+type CalendarRow = ProviderCalendarInfo & {
   freeTimeExcluded: boolean;
 };
 
@@ -65,17 +65,13 @@ export function SettingsView({ onStatus }: Props) {
     setLoading(true);
     setError('');
     try {
-      const [all, mytimeCalendarId] = await Promise.all([
-        listAccountCalendars(),
-        getOrCreateMytimeCalendarId(),
-      ]);
-      const prefs = getCalendarFetchPrefs();
-      const freeTimePrefs = getCalendarFreeTimeExcludePrefs();
+      const provider = getActiveProvider();
+      if (!provider) throw new Error('No calendar provider selected. Run: mytime setup');
+      const all = await listActiveProviderCalendars();
+      const freeTimePrefs = getProviderCalendarFreeTimeExcludePrefs(provider);
       const rows = all
         .map((cal) => ({
           ...cal,
-          enabled: isCalendarFetchEnabled(cal, mytimeCalendarId, prefs),
-          locked: cal.id === mytimeCalendarId,
           freeTimeExcluded: Boolean(freeTimePrefs[cal.id]),
         }))
         .sort((a, b) => {
@@ -122,10 +118,7 @@ export function SettingsView({ onStatus }: Props) {
     if (!cal || cal.locked) return;
 
     const nextEnabled = !cal.enabled;
-    setCalendarEnabled(cal.id, nextEnabled);
-
-    let removed = 0;
-    if (!nextEnabled) removed = deleteItemsByGoogleCalendar(cal.id);
+    const removed = setActiveProviderCalendarEnabled(cal.id, nextEnabled);
 
     setCalendars((rows) =>
       rows.map((row) => (row.id === cal.id ? { ...row, enabled: nextEnabled } : row)),
@@ -133,7 +126,7 @@ export function SettingsView({ onStatus }: Props) {
 
     onStatus(
       nextEnabled
-        ? `Enabled "${cal.summary}" — will sync on next pull`
+        ? `Enabled "${cal.summary}" - will sync on next pull`
         : `Disabled "${cal.summary}"${removed ? `, removed ${removed} local event${removed === 1 ? '' : 's'}` : ''}`,
     );
   }, [calendars, onStatus, selected]);
@@ -143,7 +136,9 @@ export function SettingsView({ onStatus }: Props) {
     if (!cal || cal.locked) return;
 
     const nextExcluded = !cal.freeTimeExcluded;
-    setCalendarFreeTimeExcludePref(cal.id, nextExcluded);
+    const provider = getActiveProvider();
+    if (!provider) return;
+    setProviderCalendarFreeTimeExcludePref(provider, cal.id, nextExcluded);
     setCalendars((rows) =>
       rows.map((row) => (row.id === cal.id ? { ...row, freeTimeExcluded: nextExcluded } : row)),
     );
@@ -315,7 +310,7 @@ export function SettingsView({ onStatus }: Props) {
       {tab === 'calendars' ? (
         <>
           <Text dimColor>
-            Choose which Google calendars are pulled into the local database. Disabled calendars are not stored locally.
+            Choose which {getActiveProvider() ? providerLabel(getActiveProvider()!) : 'provider'} calendars are pulled locally. Disabled calendars are not stored locally.
           </Text>
           <Box marginTop={1} marginBottom={1} flexDirection="column">
             {loading && <Text dimColor>Loading calendars...</Text>}
@@ -326,7 +321,13 @@ export function SettingsView({ onStatus }: Props) {
               calendars.slice(0, Math.max(1, contentRows - SETTINGS_VIEW_HEADER_ROWS)).map((cal, idx) => {
                 const active = idx === selected;
                 const check = cal.enabled ? '[x]' : '[ ]';
-                const suffix = cal.locked ? ' (always on)' : cal.primary ? ' (primary)' : '';
+                const suffix = cal.locked
+                  ? ' (always on)'
+                  : cal.primary
+                    ? ' (primary)'
+                    : cal.sourceTitle
+                      ? ` (${cal.sourceTitle})`
+                      : '';
                 return (
                   <Box key={cal.id}>
                     <Text color={active ? 'cyanBright' : undefined} bold={active}>

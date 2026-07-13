@@ -1,6 +1,6 @@
 import type { Item } from '../db/types.js';
 import { deleteItem, restoreItem, updateItem } from '../db/items.js';
-import { autoPush, autoRemove } from '../google/autoSync.js';
+import { autoPush, autoRemove } from '../calendar/autoSync.js';
 
 export function cloneItem(item: Item): Item {
   return { ...item, tags: [...item.tags], reminders: [...item.reminders] };
@@ -20,8 +20,8 @@ export function makeUndoDelete(snapshot: Item, onStatus: (msg: string) => void):
 
 export function makeUndoAdd(snapshot: Item, onStatus: (msg: string) => void): () => void {
   return () => {
-    deleteItem(snapshot.id);
     autoRemove(snapshot, onStatus);
+    deleteItem(snapshot.id);
   };
 }
 

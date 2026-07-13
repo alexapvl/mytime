@@ -21,7 +21,7 @@ import {
   toggleDone,
   updateItem,
 } from '../db/items.js';
-import { autoPush, autoRemove } from '../google/autoSync.js';
+import { autoPush, autoRemove } from '../calendar/autoSync.js';
 import { overdueLabel } from '../lib/overdue.js';
 import { formatDate, formatScheduleTime } from '../lib/time.js';
 import { PAST_DUE_SHORTCUTS } from '../lib/shortcuts.js';
@@ -100,11 +100,11 @@ export function PastDueView({ onRefresh, onStatus, refreshToken }: Props) {
       }
       if (input === 'd' && selectedItem) {
         const victim = cloneItem(selectedItem);
+        autoRemove(victim, onStatus);
         deleteItem(victim.id);
         pushUndo(`Deleted: ${victim.title}`, makeUndoDelete(victim, onStatus));
         setSelected((s) => Math.max(0, s - 1));
         refresh();
-        autoRemove(victim, onStatus);
         onStatus('Deleted');
       }
       if (input === 's' && selectedItem) setMode('schedule');
