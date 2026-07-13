@@ -1,0 +1,212 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Header from "../components/Header.astro";
+import Hero from "../components/Hero.astro";
+import CopyBlock from "../components/CopyBlock.astro";
+import TerminalAgent from "../components/TerminalAgent.astro";
+import TerminalBacklog from "../components/TerminalBacklog.astro";
+import Footer from "../components/Footer.astro";
+import Faq from "../components/Faq.astro";
+import Setup from "../components/Setup.astro";
+import { installCmd } from "../data/install";
+import { agentPromptCmd } from "../data/setup";
+import { siteDescription, siteTitle } from "../data/seo";
+---
+
+<BaseLayout title={siteTitle} description={siteDescription}>
+  <Header />
+  <main>
+    <Hero />
+
+    <section class="section section-peek" id="features">
+      <div class="container">
+        <div class="section-peek-head">
+          <p class="section-label">Why mytime</p>
+          <h2 class="section-title">Local, Synced, Agent-Ready</h2>
+        </div>
+        <div class="section-peek-content">
+          <p class="section-lead">
+            Capture tasks locally, schedule them when ready, and use the same calendar
+            CLI workflow in your terminal, shell scripts, and agent sessions.
+          </p>
+          <div class="grid-3">
+            <article class="card">
+              <h3>Local-First</h3>
+              <p>
+                Open tasks live in SQLite on your machine. Nothing leaves your computer
+                until you schedule something or sync.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Google Calendar Sync</h3>
+              <p>
+                Scheduled work syncs to a dedicated "mytime" calendar. Other calendars
+                can be pulled read-only for context in daily and week views.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Agent-Ready</h3>
+              <p>
+                <code>mytime agent</code> exposes the same database with token-efficient
+                output and next-step hints. MCP is still available for older clients.
+              </p>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-alt">
+      <div class="container">
+        <p class="section-label">Workflow</p>
+        <h2 class="section-title">From Backlog to Calendar</h2>
+        <p class="section-lead">
+          mytime is built around a simple loop: capture without pressure, schedule
+          when it matters, then see the day in one terminal view.
+        </p>
+        <div class="grid-3">
+          <article class="card">
+            <h3>1. Capture</h3>
+            <p>
+              Add tasks with quick-add NLP, priorities, projects, and tags. Unscheduled
+              work stays in the backlog until you are ready.
+            </p>
+          </article>
+          <article class="card">
+            <h3>2. Schedule</h3>
+            <p>
+              Pick a slot from free-time hints, move blocks by hour, or mark something
+              all-day. The schedule editor shows what is already on the day.
+            </p>
+          </article>
+          <article class="card">
+            <h3>3. Live It</h3>
+            <p>
+              Daily, week, and month views keep tasks and external calendar events in
+              one place. Sync keeps Google and local state aligned.
+            </p>
+          </article>
+        </div>
+        <div class="workflow-demo">
+          <TerminalBacklog />
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="agents">
+      <div class="container">
+        <p class="section-label">For Agents</p>
+        <div class="agent-grid">
+          <div class="agent-copy">
+            <h2 class="section-title">Setup Your Agent Can Do Most Of</h2>
+            <p class="section-lead agent-section-lead">
+              Google OAuth needs a one-time Cloud Console project. That sounds annoying,
+              but it keeps credentials on your machine and avoids a hosted service.
+              An agent with browser access can handle most of the clicking.
+            </p>
+            <CopyBlock id="agent-prompt-cmd" text={agentPromptCmd} />
+            <p class="agent-note">
+              Paste the onboarding prompt into your agent after install. Your agent
+              gets the same backlog, schedule, slots, and sync tools you do.
+            </p>
+          </div>
+          <TerminalAgent />
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-alt" id="setup">
+      <div class="container">
+        <p class="section-label">Setup</p>
+        <h2 class="section-title">Install, Configure, Authenticate</h2>
+        <p class="section-lead">
+          Same three steps either way - agent-assisted setup is fastest if you already use one.
+        </p>
+        <Setup />
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <p class="section-label">Privacy</p>
+        <h2 class="section-title">Your Machine, Your Google Project</h2>
+        <p class="section-lead">
+          mytime does not ship shared OAuth credentials. That is intentional for a
+          personal, local-first tool.
+        </p>
+        <div class="grid-3">
+          <article class="card">
+            <h3>No Hosted Service</h3>
+            <p>Tasks and tokens stay under <code>~/.mytime/</code>. There is no maintainer server in the loop.</p>
+          </article>
+          <article class="card">
+            <h3>Write Scope Is Narrow</h3>
+            <p>mytime only writes to its own calendar. Other Google calendars are optional and read-only.</p>
+          </article>
+          <article class="card">
+            <h3>You Own Revocation</h3>
+            <p>Rotate or delete credentials any time in Google Cloud Console. Your agent never needs your token file in git.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-alt" id="faq">
+      <div class="container">
+        <p class="section-label">FAQ</p>
+        <h2 class="section-title">Common Questions</h2>
+        <Faq />
+      </div>
+    </section>
+
+    <section class="section cta-band">
+      <div class="container">
+        <h2 class="section-title">Ready to Try It?</h2>
+        <p class="section-lead">Install, run setup, and open the TUI. Your backlog is waiting.</p>
+        <CopyBlock id="install-cmd-cta" text={installCmd} />
+      </div>
+    </section>
+  </main>
+  <Footer />
+</BaseLayout>
+
+<style>
+  .section-alt {
+    background: rgb(19 24 32 / 0.45);
+    border-block: 1px solid var(--border);
+  }
+
+  .agent-grid {
+    display: grid;
+    gap: 2rem;
+    align-items: start;
+  }
+
+  @media (min-width: 900px) {
+    .agent-grid {
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 2.5rem;
+    }
+
+    .agent-grid .terminal {
+      max-width: 30rem;
+      justify-self: end;
+    }
+  }
+
+  .workflow-demo {
+    margin-top: 2.5rem;
+    max-width: 56rem;
+    margin-inline: auto;
+  }
+
+  .agent-section-lead {
+    margin-bottom: 1.25rem;
+  }
+
+  .agent-note {
+    margin: 0.75rem 0 0;
+    font-size: 0.9375rem;
+    color: var(--text-muted);
+  }
+</style>

@@ -1,0 +1,111 @@
+<div class="faq" data-faq>
+  <div class="faq-item" data-faq-item style="--faq-delay: 0ms">
+    <button type="button" class="faq-trigger" data-faq-trigger aria-expanded="false">
+      <span class="faq-question">Why do I need my own Google Cloud project?</span>
+      <span class="faq-icon" aria-hidden="true"></span>
+    </button>
+    <div class="faq-answer" aria-hidden="true">
+      <div class="faq-answer-inner">
+        <div class="faq-answer-body">
+          <p>
+            Because mytime is local-first. A shared OAuth app would need hosted
+            infrastructure, verification, and trust that someone else's credentials
+            handle your calendar. Bringing your own project keeps control and
+            privacy on your side.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="faq-item" data-faq-item style="--faq-delay: 80ms">
+    <button type="button" class="faq-trigger" data-faq-trigger aria-expanded="false">
+      <span class="faq-question">What can an agent automate?</span>
+      <span class="faq-icon" aria-hidden="true"></span>
+    </button>
+    <div class="faq-answer" aria-hidden="true">
+      <div class="faq-answer-inner">
+        <div class="faq-answer-body">
+          <p>
+            Most of the Google Cloud Console flow: enabling the Calendar API,
+            configuring the consent screen, creating a Desktop OAuth client, and
+            saving <code>credentials.json</code>. You still run
+            <code>mytime auth</code> locally for the browser sign-in step.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="faq-item" data-faq-item style="--faq-delay: 160ms">
+    <button type="button" class="faq-trigger" data-faq-trigger aria-expanded="false">
+      <span class="faq-question">TUI, CLI, agent, or MCP?</span>
+      <span class="faq-icon" aria-hidden="true"></span>
+    </button>
+    <div class="faq-answer" aria-hidden="true">
+      <div class="faq-answer-inner">
+        <div class="faq-answer-body">
+          <p>
+            Use the TUI for daily work. Use CLI commands for scripts and quick adds.
+            Prefer <code>mytime agent</code> for AI assistants. MCP remains for
+            clients that do not run shell commands well.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="faq-item" data-faq-item style="--faq-delay: 240ms">
+    <button type="button" class="faq-trigger" data-faq-trigger aria-expanded="false">
+      <span class="faq-question">Where does data live?</span>
+      <span class="faq-icon" aria-hidden="true"></span>
+    </button>
+    <div class="faq-answer" aria-hidden="true">
+      <div class="faq-answer-inner">
+        <div class="faq-answer-body">
+          <p>
+            Locally at <code>~/.mytime/db.sqlite</code>. Scheduled tasks sync to
+            the dedicated mytime Google calendar. Unscheduled backlog tasks stay
+            local until you schedule them.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function setFaqItemState(item: HTMLElement, open: boolean) {
+    const trigger = item.querySelector<HTMLButtonElement>("[data-faq-trigger]");
+    const answer = item.querySelector<HTMLElement>(".faq-answer");
+    if (!trigger || !answer) return;
+
+    item.classList.toggle("is-open", open);
+    trigger.setAttribute("aria-expanded", String(open));
+    answer.setAttribute("aria-hidden", String(!open));
+  }
+
+  function setupFaq() {
+    document.querySelectorAll<HTMLElement>("[data-faq]").forEach((root) => {
+      if (root.dataset.faqReady === "true") return;
+      root.dataset.faqReady = "true";
+
+      root.querySelectorAll<HTMLButtonElement>("[data-faq-trigger]").forEach((trigger) => {
+        trigger.addEventListener("click", () => {
+          const item = trigger.closest<HTMLElement>("[data-faq-item]");
+          if (!item) return;
+
+          const isOpen = item.classList.contains("is-open");
+
+          root.querySelectorAll<HTMLElement>("[data-faq-item].is-open").forEach((openItem) => {
+            if (openItem !== item) setFaqItemState(openItem, false);
+          });
+
+          setFaqItemState(item, !isOpen);
+        });
+      });
+    });
+  }
+
+  setupFaq();
+</script>

@@ -1,0 +1,26 @@
+---
+interface Props {
+  id: string;
+  text: string;
+  label?: string;
+  class?: string;
+}
+
+const { id, text, label = "Copy", class: className } = Astro.props;
+---
+
+<div class:list={["copy-wrap", className]}>
+  <pre class="copy-block" role="group" aria-label="Copy command">
+    <code id={id}>{text}</code>
+    <button type="button" class="copy-btn" data-copy={`#${id}`} data-copied="false" aria-label={`Copy: ${label}`}>
+      <span class="copy-btn-text copy-btn-default">{label}</span>
+      <span class="copy-btn-text copy-btn-success" aria-hidden="true">Copied</span>
+    </button>
+  </pre>
+</div>
+
+<style>
+  .copy-wrap {
+    margin: 0;
+  }
+</style>

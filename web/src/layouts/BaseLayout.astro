@@ -1,0 +1,114 @@
+---
+import {
+  siteDescription,
+  siteKeywords,
+  siteTitle,
+  siteUrl,
+} from "../data/seo";
+
+interface Props {
+  title?: string;
+  description?: string;
+  keywords?: string;
+}
+
+const {
+  title = siteTitle,
+  description = siteDescription,
+  keywords = siteKeywords,
+} = Astro.props;
+
+const canonical = new URL(Astro.url.pathname, Astro.site ?? siteUrl);
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      name: "mytime",
+      url: siteUrl,
+      description,
+    },
+    {
+      "@type": "SoftwareApplication",
+      name: "mytime",
+      applicationCategory: "ProductivityApplication",
+      operatingSystem: "macOS, Linux",
+      description,
+      url: siteUrl,
+      downloadUrl: "https://github.com/alexapvl/mytime",
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD",
+      },
+      featureList: [
+        "Google Calendar CLI sync",
+        "Terminal task backlog and scheduling",
+        "TUI, CLI, and agent interfaces",
+        "MCP calendar integration",
+        "Local-first SQLite storage",
+      ],
+    },
+  ],
+};
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="canonical" href={canonical} />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="keywords" content={keywords} />
+    <meta name="robots" content="index, follow" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:site_name" content="mytime" />
+    <meta property="og:locale" content="en_US" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <slot />
+    <script>
+      document.querySelectorAll("[data-copy]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const target = btn.getAttribute("data-copy");
+          const el = target ? document.querySelector(target) : null;
+          const text = el?.textContent?.trim();
+          if (!text) return;
+
+          try {
+            await navigator.clipboard.writeText(text);
+            btn.dataset.copied = "true";
+            btn.setAttribute("aria-label", "Copied");
+            window.setTimeout(() => {
+              btn.dataset.copied = "false";
+              const label = btn.querySelector(".copy-btn-default")?.textContent?.trim();
+              if (label) btn.setAttribute("aria-label", `Copy: ${label}`);
+            }, 1600);
+          } catch {
+            /* clipboard unavailable */
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  @import "../styles/global.css";
+</style>

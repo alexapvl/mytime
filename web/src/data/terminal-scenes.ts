@@ -1,0 +1,114 @@
+export type AgentStep = {
+  command: string;
+  result: string;
+  pauseBefore?: number;
+};
+
+export type SceneTurn = {
+  userMessage: string;
+  steps?: AgentStep[];
+  reply: string;
+};
+
+export type TerminalScene = {
+  turns: SceneTurn[];
+};
+
+export const terminalScenes: TerminalScene[] = [
+  {
+    turns: [
+      {
+        userMessage: "what tasks do i have for the mytime site?",
+        steps: [
+          {
+            command: "mytime agent search mytime",
+            result:
+              "4 open · p0 ship site SEO, p0 terminal demo, p1 fix sync edge case, p2 release notes",
+          },
+        ],
+        reply:
+          "4 on mytime — ship site SEO and terminal demo are p0, fix sync edge case is p1, release notes is p2. none scheduled yet. want me to tackle one or find slots?",
+      },
+    ],
+  },
+  {
+    turns: [
+      {
+        userMessage: "schedule a 30m sync with sam tomorrow afternoon",
+        steps: [
+          {
+            command: "mytime agent slots --date tomorrow --time-filter 12",
+            result: "afternoon free: 2pm, 2:30pm, 3:30pm, 4pm",
+          },
+          {
+            command: 'mytime agent task quick "sync with sam tomorrow 3:30pm"',
+            pauseBefore: 320,
+            result: "added sync with sam · synced to Google",
+          },
+        ],
+        reply: "Booked tomorrow 3:30pm — 30m sync with sam.",
+      },
+    ],
+  },
+  {
+    turns: [
+      {
+        userMessage:
+          "check what prs and issues i have open for mytime on github and prioritize them into mytime",
+        steps: [
+          {
+            command:
+              "gh-axi pr list -R alexapvl/mytime --state open && gh-axi issue list -R alexapvl/mytime --state open",
+            result:
+              "2 prs · #42 ship site SEO, #38 terminal demo · 3 issues · sync edge case, release notes, docs",
+          },
+          {
+            command: "mytime agent backlog list",
+            pauseBefore: 320,
+            result:
+              "reprioritized · ship site SEO p0, terminal demo p1, sync edge case p1, +2 p2",
+          },
+        ],
+        reply:
+          "pulled 5 items from GitHub into mytime — ship site SEO is p0, terminal demo p1. rest are p2 unless you want to bump something.",
+      },
+      {
+        userMessage:
+          "spin up each item into a separate worktree and make a pr for it",
+        steps: [
+          {
+            command:
+              "git worktree add ../mytime-ship-site-seo -b ship-site-seo && git worktree add ../mytime-terminal-demo -b terminal-demo",
+            result: "2 worktrees · ship-site-seo, terminal-demo",
+          },
+          {
+            command: 'gh-axi pr create -R alexapvl/mytime --draft --title "ship site SEO"',
+            pauseBefore: 340,
+            result: "draft pr #43 opened · 4 more queued",
+          },
+        ],
+        reply: "on it — worktrees are up, opening a pr per item.",
+      },
+    ],
+  },
+  {
+    turns: [
+      {
+        userMessage:
+          "check all tasks for the mytime project and implement the highest priority one",
+        steps: [
+          {
+            command: "mytime agent search mytime",
+            result: "4 open · p0 ship site SEO, p0 terminal demo, fix sync p1, +1 more",
+          },
+        ],
+        reply:
+          "top two are ship site SEO (p0) and terminal demo (p0). which one should i implement?",
+      },
+      {
+        userMessage: "ship site SEO",
+        reply: "on it.",
+      },
+    ],
+  },
+];

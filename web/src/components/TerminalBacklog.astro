@@ -1,0 +1,88 @@
+<div class="terminal" role="img" aria-label="mytime backlog view with priority columns">
+  <div class="terminal-bar">
+    <span class="terminal-dot"></span>
+    <span class="terminal-dot"></span>
+    <span class="terminal-dot"></span>
+    <span class="terminal-title">mytime</span>
+  </div>
+  <div class="terminal-body">
+    <div><span class="t-cyan">mytime</span> <span class="t-muted">· synced 2m ago</span></div>
+    <div class="tabs">
+      <span class="t-cyan">[1] Backlog</span>
+      <span class="t-muted">[2] Daily</span>
+      <span class="t-muted">[3] Week</span>
+      <span class="t-muted">[4] Month</span>
+      <span class="t-muted">[5] Past Due</span>
+    </div>
+    <div class="columns">
+      <div class="col">
+        <div class="col-head t-red">P0</div>
+        <div class="col-item t-cyan">ship mytime site</div>
+        <div class="col-item t-dim">fix sync edge case</div>
+      </div>
+      <div class="col">
+        <div class="col-head t-yellow">P1</div>
+        <div class="col-item">review PR @work</div>
+        <div class="col-item t-dim">grocery run</div>
+      </div>
+      <div class="col">
+        <div class="col-head">P2</div>
+        <div class="col-item t-dim">write release notes</div>
+      </div>
+      <div class="col">
+        <div class="col-head t-muted">P3</div>
+        <div class="col-item t-dim">read rust book ch.4</div>
+      </div>
+    </div>
+    <div class="shortcuts t-muted">
+      ←/→ column · ↑/↓ select · s schedule · q quick-add · r sync · esc quit
+    </div>
+  </div>
+</div>
+
+<style>
+  .tabs {
+    margin: 0.5rem 0 0.75rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.75rem;
+  }
+
+  .columns {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  @media (max-width: 520px) {
+    .columns {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  .col {
+    padding: 0.375rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 0.25rem;
+    min-height: 5.5rem;
+  }
+
+  .col-head {
+    margin-bottom: 0.375rem;
+    font-weight: 600;
+  }
+
+  .col-item {
+    margin-bottom: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .shortcuts {
+    font-size: 0.6875rem;
+    border-top: 1px solid var(--border);
+    padding-top: 0.5rem;
+  }
+</style>

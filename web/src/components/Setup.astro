@@ -1,0 +1,144 @@
+---
+import CopyBlock from "./CopyBlock.astro";
+import { installCmd } from "../data/install";
+import { agentPromptCmd, authCmd, setupCmd } from "../data/setup";
+---
+
+<div class="setup" data-setup>
+  <div class="setup-tabs" role="tablist" aria-label="Setup method">
+    <button
+      type="button"
+      class="setup-tab is-active"
+      role="tab"
+      id="setup-tab-agent"
+      data-setup-tab="agent"
+      aria-selected="true"
+      aria-controls="setup-panel-agent"
+    >
+      Agent Setup
+    </button>
+    <button
+      type="button"
+      class="setup-tab"
+      role="tab"
+      id="setup-tab-manual"
+      data-setup-tab="manual"
+      aria-selected="false"
+      aria-controls="setup-panel-manual"
+      tabindex="-1"
+    >
+      Manual Setup
+    </button>
+  </div>
+
+  <p class="setup-lead" data-setup-lead>
+    Install first, then let your agent handle the Google Cloud Console setup.
+  </p>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">01</div>
+      <div>
+        <h3>Install mytime</h3>
+        <p>Homebrew is the fastest path on macOS. Source install works anywhere with Node 20+.</p>
+        <CopyBlock id="install-cmd-setup" text={installCmd} />
+      </div>
+    </div>
+
+    <div class="setup-panels">
+      <div
+        class="setup-panel is-active"
+        id="setup-panel-agent"
+        role="tabpanel"
+        aria-labelledby="setup-tab-agent"
+        data-setup-panel="agent"
+      >
+        <div class="step">
+          <div class="step-num">02</div>
+          <div>
+            <h3>Run agent onboarding</h3>
+            <p>
+              Paste this prompt into your agent. With browser access, it can walk
+              through the Calendar API, consent screen, and OAuth client setup.
+            </p>
+            <CopyBlock id="agent-prompt-setup" text={agentPromptCmd} />
+          </div>
+        </div>
+      </div>
+
+      <div
+        class="setup-panel"
+        id="setup-panel-manual"
+        role="tabpanel"
+        aria-labelledby="setup-tab-manual"
+        data-setup-panel="manual"
+        hidden
+      >
+        <div class="step">
+          <div class="step-num">02</div>
+          <div>
+            <h3>Set up Google Calendar</h3>
+            <p>
+              Run setup for a checklist and Console links. You will place OAuth
+              credentials at <code>~/.mytime/credentials.json</code>.
+            </p>
+            <CopyBlock id="setup-cmd-manual" text={setupCmd} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">03</div>
+      <div>
+        <h3>Authenticate and sync</h3>
+        <p>
+          Google sign-in opens in your browser. After that, sync creates the
+          dedicated mytime calendar.
+        </p>
+        <CopyBlock id="auth-cmd-setup" text={authCmd} />
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const setupLeads: Record<string, string> = {
+    agent: "Install first, then let your agent handle the Google Cloud Console setup.",
+    manual: "Install first, then follow the setup checklist in your terminal.",
+  };
+
+  function switchSetup(root: HTMLElement, tab: string) {
+    root.querySelectorAll<HTMLButtonElement>("[data-setup-tab]").forEach((button) => {
+      const active = button.dataset.setupTab === tab;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-selected", String(active));
+      button.tabIndex = active ? 0 : -1;
+    });
+
+    root.querySelectorAll<HTMLElement>("[data-setup-panel]").forEach((panel) => {
+      const active = panel.dataset.setupPanel === tab;
+      panel.classList.toggle("is-active", active);
+      panel.hidden = !active;
+    });
+
+    const lead = root.querySelector<HTMLElement>("[data-setup-lead]");
+    if (lead && setupLeads[tab]) lead.textContent = setupLeads[tab];
+  }
+
+  function setupSetupTabs() {
+    document.querySelectorAll<HTMLElement>("[data-setup]").forEach((root) => {
+      if (root.dataset.setupReady === "true") return;
+      root.dataset.setupReady = "true";
+
+      root.querySelectorAll<HTMLButtonElement>("[data-setup-tab]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const tab = button.dataset.setupTab;
+          if (tab) switchSetup(root, tab);
+        });
+      });
+    });
+  }
+
+  setupSetupTabs();
+</script>
