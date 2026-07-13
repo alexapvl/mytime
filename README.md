@@ -2,7 +2,7 @@
 
 [![Agent interaction demo - mytime CLI behind the scenes](docs/mytime-agent-scenarios.gif)](https://mytime.apvl.dev)
 
-One terminal app for tasks and calendar. Open tasks live in your **Backlog**; schedule them and they sync to a dedicated **Google Calendar**.
+One terminal app for tasks and calendar. Open tasks live in your **Backlog**; schedule them and they sync to a dedicated **Google Calendar or Apple Calendar**.
 
 Site: [mytime.apvl.dev](https://mytime.apvl.dev)
 
@@ -20,8 +20,8 @@ pnpm link --global   # optional: global `mytime` command
 
 ```bash
 brew tap alexapvl/mytime https://github.com/alexapvl/mytime && brew install mytime
-mytime setup          # Google
-mytime auth
+mytime setup google   # Google Calendar
+# or: mytime setup apple   # Apple Calendar, macOS 14+
 mytime setup --agent-onboarding-prompt   # copy → paste into agent
 ```
 
@@ -37,18 +37,39 @@ Dev mode (no build):
 pnpm dev
 ```
 
-## Google Calendar setup
+## Calendar setup
 
-Run **`mytime setup`** for a checklist, Console links, and next steps. Useful commands:
+Choose one writable calendar provider. mytime only syncs with the currently active provider, while other calendars from that provider can be fetched read-only.
 
 ```bash
-mytime setup                  # checks + Console links + what to do next
-mytime doctor                 # checks only (exit 1 if something is missing)
+mytime setup google           # Google OAuth setup
+mytime setup apple            # Apple Calendar via EventKit, macOS 14+
+mytime setup                  # show both provider paths
+mytime doctor                 # check the active provider
 mytime setup --links                    # print Google Cloud Console URLs
 mytime setup --agent-prompt             # Google OAuth setup prompt for your agent
 mytime setup --agents                   # AI agent + MCP integration guide
 mytime setup --agent-onboarding-prompt  # paste into Cursor / Claude after install
 ```
+
+If an agent is helping and the provider is not already known from the conversation, it must ask whether you want Google Calendar or Apple Calendar before running setup.
+
+### Apple Calendar
+
+Apple Calendar support uses the calendars already configured in Calendar.app. It requires macOS 14 or newer and does not need Google credentials or a separate Apple CLI.
+
+```bash
+mytime setup apple
+mytime sync
+```
+
+macOS asks you to grant Calendar access. mytime then selects or creates a dedicated **"mytime"** calendar. Other visible calendars can be fetched read-only for Daily, Week, and Month views.
+
+An agent can start setup, inspect permission status, and run sync, but you must approve the macOS Calendar permission prompt yourself. If your Apple Account or another calendar account is not yet in Calendar.app, add it in **System Settings → Internet Accounts** first.
+
+### Google Calendar
+
+Run **`mytime setup google`** for a checklist, Console links, and next steps.
 
 Google sync needs two local files under `~/.mytime/`:
 
@@ -59,7 +80,13 @@ Google sync needs two local files under `~/.mytime/`:
 
 mytime only **writes** to a dedicated calendar named **"mytime"**. Other Google calendars can be pulled read-only for display in Daily, Week, and Month views.
 
-### Agent-assisted setup
+### Switching providers
+
+Only one provider is writable at a time. When switching, mytime stops syncing the old provider, removes its fetched external events from the local cache, preserves your local tasks and events, then fetches from the newly active provider.
+
+Setup asks whether you also want to delete the old provider's dedicated **"mytime"** calendar. The safe default is to keep it. mytime never deletes or writes to unrelated calendars.
+
+### Google agent-assisted setup
 
 If you use Cursor, Claude Code, or another agent with browser access, run **`mytime setup --agent-prompt`** and paste the output, or copy this prompt:
 
@@ -172,11 +199,13 @@ mytime                          # interactive TUI
 mytime add "review PR tomorrow 3pm @work p2 #swe"
 mytime event "dentist tomorrow 2pm"   # calendar event (requires date/time)
 mytime today                    # print today's blocks
-mytime setup                    # Google setup checklist and Console links
-mytime doctor                   # verify credentials.json and token.json
-mytime sync                     # push/pull Google Calendar
-mytime auth                     # (re)connect Google
-mytime settings                 # choose which Google calendars to fetch locally
+mytime setup                    # choose Google or Apple Calendar
+mytime setup google             # Google setup checklist and Console links
+mytime setup apple              # Apple Calendar setup, macOS 14+
+mytime doctor                   # verify active provider configuration
+mytime sync                     # sync the active calendar provider
+mytime auth                     # (re)connect the active provider
+mytime settings                 # choose which active-provider calendars to fetch
 mytime agent                    # agent CLI for AI assistants (preferred)
 mytime mcp                      # run the MCP server (stdio) for AI agents
 mytime help                     # show CLI help
@@ -199,7 +228,7 @@ Five tabs — switch with number keys or click the tab bar:
 | Key | Action |
 |-----|--------|
 | `1` / `2` / `3` / `4` / `5` | Backlog / Daily / Week / Month / Past Due |
-| `r` | Sync with Google |
+| `r` | Sync the active calendar provider |
 | `u` | Undo last delete or done toggle |
 | `esc` | Quit |
 
@@ -225,11 +254,11 @@ Shows a month grid with event previews per day. Navigation wraps within the visi
 
 **Schedule editor** (when you press `s`): shows existing events on the chosen day · `←/→` change day · `↑/↓` pick slot · type digits to filter times · `f` free slots only · `+/-` slot step (15–240 min) · `a` all-day · `enter` confirm · `esc` cancel
 
-External Google events appear in Daily/Week/Month but are read-only (`s`/`x`/`d` only apply to your tasks).
+External calendar events from the active provider appear in Daily/Week/Month but are read-only (`s`/`x`/`d` only apply to your tasks).
 
 ## Agent CLI (preferred)
 
-`mytime agent` is the [AXI](https://axi.md)-shaped interface for AI agents. Same database and Google sync as the TUI, with token-efficient TOON output and contextual next-step hints. **No extra setup beyond `mytime` on PATH** (and Google auth if you want sync).
+`mytime agent` is the [AXI](https://axi.md)-shaped interface for AI agents. Same database and provider-aware sync as the TUI, with token-efficient TOON output and contextual next-step hints. **No extra setup beyond `mytime` on PATH** and the calendar provider you choose.
 
 **Set up with your agent:**
 
@@ -295,13 +324,13 @@ Or register manually (global `mytime` must be on PATH for the MCP host):
 | `schedule_task` / `reschedule_task` | Set/change a task's start (and end or duration) |
 | `complete_task` | Mark done / not done (omit `done` to toggle) |
 | `delete_task` | Permanently delete a task |
-| `sync` | Full two-way Google Calendar sync |
+| `sync` | Full two-way sync with the active calendar provider |
 
-Write tools sync to Google automatically when authenticated (no-ops otherwise). Google Calendar events (`source: external`) are read-only via MCP. Call `list_free_slots` before scheduling to find open times. If the TUI is open at the same time, it won't reflect MCP changes until you navigate or sync.
+Write tools sync to the active provider automatically when configured (no-ops otherwise). External calendar events (`source: external`) are read-only via MCP. Call `list_free_slots` before scheduling to find open times. If the TUI is open at the same time, it won't reflect MCP changes until you navigate or sync.
 
 ## Data
 
-Everything is stored locally at `~/.mytime/db.sqlite`. Scheduled items sync to Google; unscheduled backlog tasks stay local until you schedule them.
+Everything is stored locally at `~/.mytime/db.sqlite`. Scheduled items sync to the active Google or Apple provider; unscheduled backlog tasks stay local until you schedule them.
 
 External calendar events are pulled into the local DB for display. Their titles are stored without emoji so terminal layout stays aligned. Tasks you create in mytime are never modified this way.
 

@@ -56,7 +56,7 @@ const STATUS_WORDS = [
   "consulting the calendar…",
   "aligning chronons…",
   "poking the backlog…",
-  "negotiating with Google…",
+  "negotiating with the calendar…",
   "checking the matrix…",
   "booking…",
   "scouting free time…",
