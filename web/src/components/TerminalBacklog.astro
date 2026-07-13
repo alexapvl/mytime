@@ -1,90 +1,528 @@
-<div class="terminal" role="img" aria-label="mytime backlog view with priority columns">
+---
+const tabs = [
+  { id: "backlog", key: "1", label: "Backlog" },
+  { id: "daily", key: "2", label: "Daily" },
+  { id: "week", key: "3", label: "Week" },
+  { id: "month", key: "4", label: "Month" },
+  { id: "pastdue", key: "5", label: "Past Due" },
+] as const;
+
+const dailyEvents: Record<number, { range: string; title: string; selected?: boolean; external?: boolean }> = {
+  9: { range: "09:00-09:30", title: "standup #gcal", external: true },
+  11: { range: "11:00-12:30", title: "ship terminal demo", selected: true },
+  14: { range: "14:00-15:00", title: "review PR @work" },
+  15: { range: "15:30-16:00", title: "sync with Sam #gcal", external: true },
+};
+
+const dailyHours = Array.from({ length: 24 }, (_, hour) => ({
+  hour: `${String(hour).padStart(2, "0")}:00`,
+  event: dailyEvents[hour],
+}));
+
+const monthDays = [
+  { day: "Mon 29", muted: true, events: [] },
+  { day: "Tue 30", muted: true, events: [] },
+  { day: "Wed 1", events: ["09:00 standup"] },
+  { day: "Thu 2", events: ["ship site SEO"] },
+  { day: "Fri 3", events: ["14:00 design review"] },
+  { day: "Sat 4", events: [] },
+  { day: "Sun 5", events: [] },
+  { day: "6", events: ["10:00 planning"] },
+  { day: "7", events: ["write release notes"] },
+  { day: "8", events: [] },
+  { day: "9", events: ["15:30 sync with Sam"] },
+  { day: "10", events: ["grocery run"] },
+  { day: "11", events: [] },
+  { day: "12", events: [] },
+  { day: "▸ Mon 13", today: true, selected: true, events: ["09:00 standup", "11:00 ship terminal demo", "15:30 sync with Sam"] },
+  { day: "14", events: ["10:00 dentist", "review PR @work"] },
+  { day: "15", events: ["09:00 standup"] },
+  { day: "16", events: ["fix sync edge case"] },
+  { day: "17", events: ["16:00 weekly review"] },
+  { day: "18", events: [] },
+  { day: "19", events: [] },
+  { day: "20", events: ["09:00 standup"] },
+  { day: "21", events: [] },
+  { day: "22", events: ["release v0.4.0"] },
+  { day: "23", events: [] },
+  { day: "24", events: ["12:00 lunch with Mia"] },
+  { day: "25", events: [] },
+  { day: "26", events: [] },
+  { day: "27", events: ["09:00 standup"] },
+  { day: "28", events: [] },
+  { day: "29", events: ["read Rust ch. 4"] },
+  { day: "30", events: [] },
+  { day: "31", events: ["16:00 monthly review"] },
+  { day: "Sat 1", muted: true, events: [] },
+  { day: "Sun 2", muted: true, events: [] },
+];
+---
+
+<div class="terminal workflow-terminal" data-workflow-terminal tabindex="0" aria-label="Interactive preview of the five mytime views">
   <div class="terminal-bar">
     <span class="terminal-dot"></span>
     <span class="terminal-dot"></span>
     <span class="terminal-dot"></span>
     <span class="terminal-title">mytime</span>
   </div>
-  <div class="terminal-body">
-    <div><span class="t-cyan">mytime</span> <span class="t-muted">· synced 2m ago</span></div>
-    <div class="tabs">
-      <span class="t-cyan">[1] Backlog</span>
-      <span class="t-muted">[2] Daily</span>
-      <span class="t-muted">[3] Week</span>
-      <span class="t-muted">[4] Month</span>
-      <span class="t-muted">[5] Past Due</span>
-    </div>
-    <div class="columns">
-      <div class="col">
-        <div class="col-head t-red">P0</div>
-        <div class="col-item t-cyan">ship mytime site</div>
-        <div class="col-item t-dim">fix sync edge case</div>
+
+  <div class="terminal-body workflow-body">
+    <div class="tui-scroll">
+      <div class="tui-shell">
+        <div class="app-title"><strong class="t-cyan">mytime</strong><span class="t-muted"> - tasks + calendar</span></div>
+
+        <div class="tabs" role="tablist" aria-label="mytime views">
+          {tabs.map((tab, index) => (
+            <button
+              class="tab"
+              type="button"
+              role="tab"
+              id={`workflow-tab-${tab.id}`}
+              aria-controls={`workflow-panel-${tab.id}`}
+              aria-selected={index === 0 ? "true" : "false"}
+              tabindex={index === 0 ? 0 : -1}
+              data-tab={tab.id}
+              data-index={index}
+            >
+              [{tab.key}] {tab.label}
+            </button>
+          ))}
+          <span class="global-shortcuts t-muted">· r sync · u undo · esc quit</span>
+        </div>
+
+        <div class="view-stage" data-view-stage>
+          <section class="view-panel is-active" role="tabpanel" id="workflow-panel-backlog" aria-labelledby="workflow-tab-backlog" data-panel="backlog" data-index="0">
+            <div class="shortcut-row t-muted">←/→ priority · ↑/↓ navigate · ⇧←/→ move priority · a add · q quick-add · e edit · s schedule · x done · d delete</div>
+            <div class="backlog-grid">
+              <div class="priority-column selected-column">
+                <strong class="t-red">P0</strong>
+                <div class="task selected-task">▸ ship terminal demo</div>
+                <div class="task">  fix sync edge case</div>
+              </div>
+              <div class="priority-column">
+                <strong class="t-yellow">P1</strong>
+                <div class="task">  review PR @work</div>
+                <div class="task">  grocery run</div>
+              </div>
+              <div class="priority-column">
+                <strong>P2</strong>
+                <div class="task">  write release notes</div>
+                <div class="task">  update onboarding docs</div>
+              </div>
+              <div class="priority-column">
+                <strong class="t-muted">P3</strong>
+                <div class="task">  read Rust book ch. 4</div>
+              </div>
+            </div>
+            <div class="details t-muted">ship terminal demo · #mytime · created Jul 12</div>
+          </section>
+
+          <section class="view-panel" role="tabpanel" id="workflow-panel-daily" aria-labelledby="workflow-tab-daily" data-panel="daily" data-index="1" hidden>
+            <strong>Mon Jul 13, 2026 (today)</strong>
+            <div class="shortcut-row t-muted">←/→ day · t today · ↑/↓ select · a add task · q quick-add · ⇧a add event · ⇧q quick-event · e edit · s reschedule</div>
+            <div class="daily-list">
+              <div class="daily-row daily-all-day">
+                <span class="daily-time">all day</span>
+                <span class="daily-marker">·</span>
+                <span>release prep</span>
+              </div>
+              <div class="daily-divider" aria-hidden="true"></div>
+              {dailyHours.map(({ hour, event }) => (
+                <div class:list={["daily-row", { external: event?.external, "selected-event": event?.selected }]}>
+                  <span class="daily-time">{event?.range ?? hour}</span>
+                  <span class="daily-marker">{event?.selected ? "▸" : "·"}</span>
+                  <span>{event?.title}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section class="view-panel" role="tabpanel" id="workflow-panel-week" aria-labelledby="workflow-tab-week" data-panel="week" data-index="2" hidden>
+            <strong>Week of Jul 13 - Jul 19, 2026</strong>
+            <div class="shortcut-row t-muted">←/→ day · ⇧←/→ week · t today · ↑/↓ select · a add task · q quick-add · ⇧a add event · ⇧q quick-event · e edit · s reschedule</div>
+            <div class="week-grid">
+              <div class="week-day today"><strong class="t-cyan">Mon 13 Jul (today)</strong><div class="external">09:00 standup</div><div class="selected-event">▸ 11:00 ship terminal demo</div><div>15:30 sync with Sam</div></div>
+              <div class="week-day"><strong>Tue 14 Jul</strong><div>10:00 dentist</div><div>14:00 review PR @work</div></div>
+              <div class="week-day"><strong>Wed 15 Jul</strong><div class="external">09:00 standup</div><div>write release notes</div></div>
+              <div class="week-day"><strong>Thu 16 Jul</strong><div>11:00 fix sync edge case</div></div>
+              <div class="week-day"><strong>Fri 17 Jul</strong><div class="external">16:00 weekly review</div></div>
+              <div class="week-day"><strong>Sat 18 Jul</strong><div class="t-muted">no events</div></div>
+              <div class="week-day"><strong>Sun 19 Jul</strong><div class="t-muted">no events</div></div>
+            </div>
+          </section>
+
+          <section class="view-panel" role="tabpanel" id="workflow-panel-month" aria-labelledby="workflow-tab-month" data-panel="month" data-index="3" hidden>
+            <strong>July 2026 (this month)</strong>
+            <div class="shortcut-row t-muted">←/→ day · ↑/↓ week · ⇧←/→ month · t today · enter open day · a add task · q quick-add · ⇧a add event · ⇧q quick-event</div>
+            <div class="month-grid">
+              {monthDays.map((date) => (
+                <div class:list={["month-cell", { muted: date.muted, selected: date.selected }]}>
+                  <strong class:list={{ "t-cyan": date.today }}>{date.day}</strong>
+                  {date.events.map((event) => <div class="month-event">{event}</div>)}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section class="view-panel" role="tabpanel" id="workflow-panel-pastdue" aria-labelledby="workflow-tab-pastdue" data-panel="pastdue" data-index="4" hidden>
+            <strong>Past Due</strong>
+            <div class="shortcut-row t-muted">↑/↓ navigate · e edit · s reschedule · x done · d delete</div>
+            <div class="past-due-list">
+              <div class="past-due-row selected-event"><span>▸ renew domain</span><span class="t-red">Jul 10 · 3 days overdue</span></div>
+              <div class="past-due-row"><span>· send project invoice</span><span class="t-red">Jul 8 · 5 days overdue</span></div>
+              <div class="past-due-row"><span>· book dentist appointment</span><span class="t-red">Jul 6 · 7 days overdue</span></div>
+              <div class="past-due-row"><span>· update expense sheet</span><span class="t-red">Jun 30 · 13 days overdue</span></div>
+            </div>
+          </section>
+        </div>
+
+        <div class="status t-muted">Google connected</div>
       </div>
-      <div class="col">
-        <div class="col-head t-yellow">P1</div>
-        <div class="col-item">review PR @work</div>
-        <div class="col-item t-dim">grocery run</div>
-      </div>
-      <div class="col">
-        <div class="col-head">P2</div>
-        <div class="col-item t-dim">write release notes</div>
-      </div>
-      <div class="col">
-        <div class="col-head t-muted">P3</div>
-        <div class="col-item t-dim">read rust book ch.4</div>
-      </div>
-    </div>
-    <div class="shortcuts t-muted">
-      ←/→ column · ↑/↓ select · s schedule · q quick-add · r sync · esc quit
     </div>
   </div>
 </div>
 
+<script>
+  const AUTO_CYCLE_MS = 7000;
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  document.querySelectorAll<HTMLElement>("[data-workflow-terminal]").forEach((terminal) => {
+    const tabButtons = Array.from(terminal.querySelectorAll<HTMLButtonElement>("[data-tab]"));
+    const panels = Array.from(terminal.querySelectorAll<HTMLElement>("[data-panel]"));
+    let activeIndex = 0;
+    let timer: number | undefined;
+    let pointerInside = false;
+    let focusInside = false;
+    let inViewport = false;
+
+    const canCycle = () => !reduceMotion.matches && !pointerInside && !focusInside && inViewport && !document.hidden;
+
+    const scheduleCycle = () => {
+      window.clearTimeout(timer);
+      if (!canCycle()) return;
+      timer = window.setTimeout(() => selectTab((activeIndex + 1) % tabButtons.length, false), AUTO_CYCLE_MS);
+    };
+
+    const selectTab = (nextIndex: number, manual: boolean) => {
+      if (nextIndex === activeIndex) {
+        if (manual) scheduleCycle();
+        return;
+      }
+
+      const previousIndex = activeIndex;
+      const previousPanel = panels[previousIndex];
+      const nextPanel = panels[nextIndex];
+      const direction = nextIndex > previousIndex || (previousIndex === panels.length - 1 && nextIndex === 0) ? 1 : -1;
+      activeIndex = nextIndex;
+
+      tabButtons.forEach((button, index) => {
+        const selected = index === nextIndex;
+        button.setAttribute("aria-selected", String(selected));
+        button.tabIndex = selected ? 0 : -1;
+      });
+
+      nextPanel.hidden = false;
+      nextPanel.classList.add("is-active");
+      previousPanel.classList.remove("is-active");
+
+      if (!reduceMotion.matches) {
+        previousPanel.animate(
+          [
+            { opacity: 1, transform: "translateY(0)" },
+            { opacity: 0, transform: `translateY(${-18 * direction}px)` },
+          ],
+          { duration: 240, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
+        );
+        nextPanel.animate(
+          [
+            { opacity: 0, transform: `translateY(${18 * direction}px)` },
+            { opacity: 1, transform: "translateY(0)" },
+          ],
+          { duration: 280, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
+        );
+      }
+
+      window.setTimeout(() => {
+        if (activeIndex !== previousIndex) previousPanel.hidden = true;
+      }, reduceMotion.matches ? 0 : 280);
+
+      if (manual) tabButtons[nextIndex].focus({ preventScroll: true });
+      scheduleCycle();
+    };
+
+    tabButtons.forEach((button, index) => {
+      button.addEventListener("click", () => selectTab(index, true));
+      button.addEventListener("keydown", (event) => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        event.preventDefault();
+        const delta = event.key === "ArrowRight" ? 1 : -1;
+        selectTab((activeIndex + delta + tabButtons.length) % tabButtons.length, true);
+      });
+    });
+
+    terminal.addEventListener("keydown", (event) => {
+      if (!/^[1-5]$/.test(event.key)) return;
+      event.preventDefault();
+      selectTab(Number(event.key) - 1, true);
+    });
+    terminal.addEventListener("pointerenter", () => { pointerInside = true; window.clearTimeout(timer); });
+    terminal.addEventListener("pointerleave", () => { pointerInside = false; scheduleCycle(); });
+    terminal.addEventListener("focusin", () => { focusInside = true; window.clearTimeout(timer); });
+    terminal.addEventListener("focusout", (event) => {
+      if (terminal.contains(event.relatedTarget as Node | null)) return;
+      focusInside = false;
+      scheduleCycle();
+    });
+
+    const observer = new IntersectionObserver(([entry]) => {
+      inViewport = entry.isIntersecting;
+      scheduleCycle();
+    }, { threshold: 0.35 });
+    observer.observe(terminal);
+    document.addEventListener("visibilitychange", scheduleCycle);
+    reduceMotion.addEventListener("change", scheduleCycle);
+  });
+</script>
+
 <style>
+  .workflow-body {
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .tui-scroll {
+    width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-color: var(--border-bright) var(--bg-terminal);
+  }
+
+  .tui-shell {
+    min-width: 68rem;
+    padding: 0.875rem 1rem 1rem;
+  }
+
+  .app-title {
+    margin-bottom: 0.6rem;
+  }
+
   .tabs {
-    margin: 0.5rem 0 0.75rem;
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem 0.75rem;
+    align-items: center;
+    gap: 0 1rem;
+    margin-bottom: 0.65rem;
+    white-space: nowrap;
   }
 
-  .columns {
+  .tab {
+    appearance: none;
+    padding: 0;
+    color: var(--text-muted);
+    background: transparent;
+    border: 0;
+    font: inherit;
+    font-weight: 400;
+    cursor: pointer;
+  }
+
+  .tab[aria-selected="true"] {
+    color: var(--cyan);
+    font-weight: 700;
+  }
+
+  .tab:hover {
+    color: var(--text);
+  }
+
+  .tab:focus-visible {
+    color: var(--cyan);
+    outline: none;
+  }
+
+  .view-stage {
+    position: relative;
+    height: 27rem;
+    overflow: hidden;
+  }
+
+  .view-panel {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+  }
+
+  .view-panel.is-active {
+    z-index: 1;
+    opacity: 1;
+  }
+
+  .shortcut-row {
+    min-height: 1.3rem;
+    margin: 0.3rem 0 0.55rem;
+    white-space: nowrap;
+  }
+
+  .backlog-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
+    grid-template-columns: repeat(4, 1fr);
+    height: 20rem;
   }
 
-  @media (max-width: 520px) {
-    .columns {
-      grid-template-columns: repeat(2, 1fr);
+  .priority-column {
+    padding: 0.4rem 0.65rem;
+    border: 1px solid var(--border-bright);
+    border-right: 0;
+  }
+
+  .priority-column:last-child {
+    border-right: 1px solid var(--border-bright);
+  }
+
+  .selected-column {
+    border-color: var(--cyan-dim);
+  }
+
+  .task {
+    margin-top: 0.45rem;
+  }
+
+  .selected-task,
+  .selected-event {
+    color: var(--cyan);
+  }
+
+  .details {
+    padding-top: 0.45rem;
+  }
+
+  .daily-list {
+    line-height: 1.2;
+  }
+
+  .daily-all-day {
+    height: 1.05rem;
+  }
+
+  .daily-divider {
+    height: 1.05rem;
+    border-top: 1px solid var(--text-muted);
+  }
+
+  .daily-row {
+    display: flex;
+    align-items: baseline;
+    height: 0.85rem;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .daily-time {
+    flex: none;
+    overflow: hidden;
+  }
+
+  .daily-marker {
+    flex: none;
+    width: 2ch;
+    text-align: center;
+  }
+
+  .external {
+    opacity: 0.58;
+  }
+
+  .week-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    height: 22.4rem;
+  }
+
+  .week-day {
+    min-width: 0;
+    padding: 0.45rem;
+    border: 1px solid var(--border-bright);
+    border-right: 0;
+  }
+
+  .week-day:last-child {
+    border-right: 1px solid var(--border-bright);
+  }
+
+  .week-day.today {
+    border-color: var(--cyan-dim);
+  }
+
+  .week-day div {
+    margin-top: 0.55rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .month-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    grid-template-rows: repeat(5, 4.55rem);
+  }
+
+  .month-cell {
+    min-width: 0;
+    padding: 0.3rem 0.4rem;
+    overflow: hidden;
+    border: 1px solid var(--border-bright);
+    border-right: 0;
+    border-bottom: 0;
+  }
+
+  .month-cell:nth-child(7n) {
+    border-right: 1px solid var(--border-bright);
+  }
+
+  .month-cell:nth-last-child(-n + 7) {
+    border-bottom: 1px solid var(--border-bright);
+  }
+
+  .month-cell.selected {
+    border: 1px solid var(--cyan);
+  }
+
+  .month-cell.muted {
+    opacity: 0.45;
+  }
+
+  .month-event {
+    margin-top: 0.16rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .past-due-list {
+    border-top: 1px solid var(--border-bright);
+  }
+
+  .past-due-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 2rem;
+    padding: 0.65rem 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .status {
+    padding: 0.2rem 0.55rem;
+    border: 1px solid var(--border-bright);
+  }
+
+  @media (max-width: 720px) {
+    .tui-shell {
+      min-width: 62rem;
     }
   }
 
-  .col {
-    padding: 0.375rem 0.5rem;
-    border: 1px solid var(--border);
-    border-radius: 0.25rem;
-    min-height: 5.5rem;
-  }
-
-  .col-head {
-    margin-bottom: 0.375rem;
-    font-weight: 600;
-  }
-
-  .col-item {
-    margin-bottom: 0.25rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .shortcuts {
-    font-size: 0.6875rem;
-    border-top: 1px solid var(--border);
-    padding-top: 0.5rem;
-    white-space: normal;
-    word-break: break-word;
+  @media (prefers-reduced-motion: reduce) {
+    .view-panel {
+      transform: none !important;
+    }
   }
 </style>

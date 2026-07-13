@@ -60,17 +60,17 @@ export const terminalScenes: TerminalScene[] = [
             command:
               "gh-axi pr list -R alexapvl/mytime --state open && gh-axi issue list -R alexapvl/mytime --state open",
             result:
-              "2 prs · #42 ship site SEO, #38 terminal demo · 3 issues · sync edge case, release notes, docs",
+              "2 prs · #42 recurring tasks, #38 improve week view · 3 issues · timezone sync bug, quick-add aliases, onboarding docs",
           },
           {
             command: "mytime agent backlog list",
             pauseBefore: 320,
             result:
-              "reprioritized · ship site SEO p0, terminal demo p1, sync edge case p1, +2 p2",
+              "reprioritized · timezone sync bug p0, recurring tasks p1, improve week view p1, +2 p2",
           },
         ],
         reply:
-          "pulled 5 items from GitHub into mytime — ship site SEO is p0, terminal demo p1. rest are p2 unless you want to bump something.",
+          "pulled 5 items from GitHub into mytime — timezone sync bug is p0, recurring tasks and improve week view are p1. rest are p2.",
       },
       {
         userMessage:
@@ -78,11 +78,11 @@ export const terminalScenes: TerminalScene[] = [
         steps: [
           {
             command:
-              "git worktree add ../mytime-ship-site-seo -b ship-site-seo && git worktree add ../mytime-terminal-demo -b terminal-demo",
-            result: "2 worktrees · ship-site-seo, terminal-demo",
+              "git worktree add ../mytime-fix-timezone-sync -b fix-timezone-sync && git worktree add ../mytime-recurring-tasks -b recurring-tasks",
+            result: "2 worktrees · fix-timezone-sync, recurring-tasks",
           },
           {
-            command: 'gh-axi pr create -R alexapvl/mytime --draft --title "ship site SEO"',
+            command: 'gh-axi pr create -R alexapvl/mytime --draft --title "fix timezone sync"',
             pauseBefore: 340,
             result: "draft pr #43 opened · 4 more queued",
           },
@@ -106,7 +106,7 @@ export const terminalScenes: TerminalScene[] = [
           "top two are ship site SEO (p0) and terminal demo (p0). which one should i implement?",
       },
       {
-        userMessage: "ship site SEO",
+        userMessage: "ship the terminal demo",
         reply: "on it.",
       },
     ],

@@ -196,8 +196,10 @@ import { siteDescription, siteTitle } from "../data/seo";
 
   .workflow-demo {
     margin-top: 2.5rem;
-    max-width: 56rem;
-    margin-inline: auto;
+    width: min(76rem, calc(100vw - 2rem));
+    max-width: none;
+    margin-inline: 50%;
+    transform: translateX(-50%);
   }
 
   .agent-section-lead {
