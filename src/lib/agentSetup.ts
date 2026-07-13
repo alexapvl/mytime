@@ -21,7 +21,8 @@ Please do the following:
 2. If Google shows disconnected, tell me to run \`mytime setup\` then \`mytime auth\` (browser OAuth — you cannot complete that step for me).
 3. Install the mytime skill if missing:
    ${AGENT_SKILL_INSTALL}
-4. Use \`mytime agent slots\` before scheduling timed work; \`mytime agent task quick "<text>"\` for NLP adds; \`mytime agent sync\` after writes if needed.
+4. Give every new task an \`@project\`. Infer the project from the conversation origin (current repository, workspace, issue, PR, or product), even if I do not repeat it. If no project can be inferred, ask me before adding the task.
+5. Use \`mytime agent slots\` before scheduling timed work; \`mytime agent task quick "<text>"\` for NLP adds; \`mytime agent sync\` after writes if needed.
 
 Only set up MCP (\`mytime setup --mcp-config\`) if this environment cannot run shell commands.
 
@@ -34,14 +35,14 @@ export function printAgentIntegrationGuide(): void {
 
   console.log('Quick start:\n');
   console.log('  mytime agent                              # dashboard');
-  console.log('  mytime agent task quick "buy milk tomorrow 5pm"');
+  console.log('  mytime agent task quick "buy milk tomorrow 5pm @personal"');
   console.log('  mytime agent slots --date tomorrow');
   console.log('  mytime agent sync\n');
 
   console.log('Give this prompt to your agent (after mytime is on PATH):\n');
   console.log('  mytime setup --agent-onboarding-prompt\n');
 
-  console.log('Optional — install the mytime skill for command hints:\n');
+  console.log('Recommended - install the mytime skill for project-aware task handling and command hints:\n');
   console.log(`  ${AGENT_SKILL_INSTALL}\n`);
 
   console.log('Legacy MCP (only if the client cannot run shell):\n');
@@ -55,4 +56,5 @@ export function printAgentIntegrationGuide(): void {
 export function printAgentNextStepsLine(): void {
   console.log('  mytime setup --agents           # AI agent + MCP setup guide');
   console.log('  mytime setup --agent-onboarding-prompt  # paste into Cursor / Claude');
+  console.log('  mytime setup --agent-skill      # install command for agent skill');
 }

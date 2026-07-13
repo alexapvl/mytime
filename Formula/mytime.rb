@@ -37,6 +37,16 @@ class Mytime < Formula
     (bin/"mytime").write_env_script libexec/"dist/cli.js", PATH: "#{Formula["node@20"].opt_bin}:$PATH"
   end
 
+  def caveats
+    <<~EOS
+      For AI agent support, install the recommended mytime skill:
+        npx skills add https://github.com/alexapvl/mytime --skill mytime -g
+
+      Then print the agent onboarding prompt with:
+        mytime setup --agent-onboarding-prompt
+    EOS
+  end
+
   test do
     assert_match "mytime", shell_output("#{bin}/mytime help")
   end

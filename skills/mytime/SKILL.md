@@ -1,7 +1,6 @@
 ---
 name: mytime
 description: "Manage personal tasks and calendar through the mytime agent CLI — backlog, schedule, free slots, quick-add NLP, and Google Calendar sync. Use whenever a task touches todos, scheduling, calendar events, past-due items, or time blocking."
-user-invocable: false
 ---
 
 # mytime agent
@@ -20,7 +19,7 @@ Use for: listing or adding tasks, scheduling/rescheduling, finding free slots, v
 2. Run `mytime agent` with no args for a live dashboard — backlog preview, past due, today's schedule, counts.
 2. Read lists with `backlog list`, `schedule list`, `past-due`, or `search <query>`.
 3. Before scheduling timed work, run `mytime agent slots [--date <day>]` and pick a slot.
-4. Add tasks with `task quick "<natural language>"` (supports `#tags`, `@project`, `p0`-`p3`, chrono dates).
+4. Give every new task a project. Infer it from the conversation's origin first, including the current repository, workspace, issue, PR, or named product, even when the user does not repeat it in the task text. Add it as `@project` with `task quick`, or `--project <project>` with `task add`. If no project can be inferred, ask the user before creating the task. Never silently create a projectless task.
 5. Schedule with `task schedule <id> --start <iso> [--duration-minutes 60]`.
 6. Follow `help:` lines in output for next steps.
 
@@ -60,6 +59,7 @@ Run `mytime agent --help` or `mytime agent --help task` for concise reference.
 
 ## Tips
 
+- Treat conversation origin as project context. For example, work requested while operating in the `mytime` repository belongs to `@mytime` unless the user indicates another project.
 - Output is TOON-encoded and token-efficient; pipe through `grep` when filtering long lists.
 - External Google Calendar events (`source: external`) are read-only — only mytime tasks/events can be edited.
 - Write commands auto-sync to Google when authenticated.
