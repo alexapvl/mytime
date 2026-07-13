@@ -41,8 +41,11 @@ xcrun swiftc \
   -o "$OUTPUT"
 
 SIGNING_IDENTITY="${MYTIME_CODESIGN_IDENTITY:-}"
-if [[ -z "$SIGNING_IDENTITY" ]] && security find-identity -v -p codesigning | grep -Fq "$DEFAULT_DEVELOPER_ID"; then
-  SIGNING_IDENTITY="$DEFAULT_DEVELOPER_ID"
+if [[ -z "$SIGNING_IDENTITY" ]]; then
+  SIGNING_IDENTITY="$(
+    security find-identity -v -p codesigning |
+      awk -v identity="$DEFAULT_DEVELOPER_ID" 'index($0, "\"" identity "\"") { print $2; exit }'
+  )"
 fi
 
 if [[ -n "$SIGNING_IDENTITY" ]]; then
