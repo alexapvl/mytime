@@ -18,6 +18,28 @@ export const terminalScenes: TerminalScene[] = [
   {
     turns: [
       {
+        userMessage:
+          "schedule a 30m Google Meet with Sam tomorrow afternoon and invite sam@example.com",
+        steps: [
+          {
+            command: "mytime agent slots --date tomorrow --time-filter 12",
+            result: "afternoon free: 2pm, 2:30pm, 3:30pm, 4pm",
+          },
+          {
+            command:
+              'mytime agent event add --title "Sync with Sam" --start "2026-07-16T15:30:00+03:00" --end "2026-07-16T16:00:00+03:00" --guests sam@example.com --google-meet',
+            pauseBefore: 320,
+            result: "event added · invite sent · Google Meet ready",
+          },
+        ],
+        reply:
+          "Booked tomorrow at 3:30pm. Sam is invited and the Google Meet link is ready.",
+      },
+    ],
+  },
+  {
+    turns: [
+      {
         userMessage: "what tasks do i have for the mytime site?",
         steps: [
           {
@@ -28,25 +50,6 @@ export const terminalScenes: TerminalScene[] = [
         ],
         reply:
           "4 on mytime — ship site SEO and terminal demo are p0, fix sync edge case is p1, release notes is p2. none scheduled yet. want me to tackle one or find slots?",
-      },
-    ],
-  },
-  {
-    turns: [
-      {
-        userMessage: "schedule a 30m sync with sam tomorrow afternoon",
-        steps: [
-          {
-            command: "mytime agent slots --date tomorrow --time-filter 12",
-            result: "afternoon free: 2pm, 2:30pm, 3:30pm, 4pm",
-          },
-          {
-            command: 'mytime agent task quick "sync with sam tomorrow 3:30pm"',
-            pauseBefore: 320,
-            result: "added sync with sam · synced to active calendar",
-          },
-        ],
-        reply: "Booked tomorrow 3:30pm — 30m sync with sam.",
       },
     ],
   },

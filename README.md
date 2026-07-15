@@ -2,7 +2,7 @@
 
 [![Agent interaction demo - mytime CLI behind the scenes](docs/mytime-agent-scenarios.gif)](https://mytime.apvl.dev)
 
-One terminal app for tasks and calendar. Open tasks live in your **Backlog**; schedule them and they sync to a dedicated **Google Calendar or Apple Calendar**.
+One terminal app for tasks, calendar, and meetings. Keep work in your **Backlog**, sync with **Google Calendar or Apple Calendar**, and create Google Meet events with invitations and RSVP support.
 
 Site: [mytime.apvl.dev](https://mytime.apvl.dev)
 
@@ -78,7 +78,20 @@ Google sync needs two local files under `~/.mytime/`:
 | `credentials.json` | You (from Google Cloud) | OAuth client ID + secret |
 | `token.json` | `mytime auth` | Your signed-in Google account |
 
-mytime only **writes** to a dedicated calendar named **"mytime-google"**. Other Google calendars can be pulled read-only for display in Daily, Week, and Month views.
+Tasks sync to a dedicated calendar named **"mytime-google"**. Google Meet events are created on your primary calendar so you are the organizer and invitations come from your Google account. Other Google calendars can be pulled read-only for display in Daily, Week, and Month views.
+
+Create a Meet event in the TUI with `Shift+A`, or from an agent:
+
+```bash
+mytime agent event add \
+  --title "Sync with Sam" \
+  --start "2026-07-16T15:30:00+03:00" \
+  --end "2026-07-16T16:00:00+03:00" \
+  --guests sam@example.com \
+  --google-meet
+```
+
+Google Calendar sends the invitations. In the TUI, respond to incoming invitations with yes, maybe, or no, and press `o` on an event to open its meeting link.
 
 ### Switching providers
 
@@ -207,7 +220,7 @@ That is intentional for a personal tool:
 
 - **Privacy** — Calendar tokens stay on your machine. mytime never sends them through a maintainer's server.
 - **Control** — You own the GCP project, API access, and test users. Revoke or rotate credentials anytime in [Google Cloud Console](https://console.cloud.google.com/apis/credentials).
-- **Scope** — mytime only writes to a dedicated **"mytime"** calendar. Other calendars are read-only and optional in `mytime settings`.
+- **Scope** - tasks write to the dedicated **"mytime"** calendar. Google Meet events write to your primary calendar so you remain the organizer. Other calendars are read-only and optional in `mytime settings`.
 - **No hosted OAuth** — A shared OAuth app would need Google verification for public Calendar access, ongoing abuse monitoring, and trust that someone else's server (or embedded client secret) handles your Google account.
 
 The one-time Cloud Console setup is the tradeoff for keeping mytime local-first and maintainer-free. **Agent-assisted setup** (above) or an AI agent with browser access can do most of the clicking; you still run `mytime auth` yourself in the terminal for the final browser sign-in.
