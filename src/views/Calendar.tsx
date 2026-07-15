@@ -726,11 +726,13 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
         let lines = 0;
         for (const item of visible) {
           lines += 1;
-          if (selectedWeekItem?.id === item.id) lines += itemDetailLineCount(item, WEEK_DETAIL_OPTS);
+          if (dayIndex === selectedDayIndex && selectedWeekItem?.id === item.id) {
+            lines += itemDetailLineCount(item, WEEK_DETAIL_OPTS);
+          }
         }
         return lines;
       }),
-    [days, itemsByDay, paintRows, selectedWeekItem?.id],
+    [days, itemsByDay, paintRows, selectedDayIndex, selectedWeekItem?.id],
   );
   const maxBodyLines = Math.max(1, ...weekBodyLines);
 
@@ -771,11 +773,13 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
           },
         });
         row += 1;
-        if (selectedWeekItem?.id === item.id) row += itemDetailLineCount(item, WEEK_DETAIL_OPTS);
+        if (dayIndex === selectedDayIndex && selectedWeekItem?.id === item.id) {
+          row += itemDetailLineCount(item, WEEK_DETAIL_OPTS);
+        }
       }
     });
     return out;
-  }, [scheduled, weekStart.toISODate(), dayStarts, dayWidths, paintRows, itemsByDay, selectedWeekItem?.id, focusedDayISO]);
+  }, [scheduled, weekStart.toISODate(), dayStarts, dayWidths, paintRows, itemsByDay, selectedDayIndex, selectedWeekItem?.id, focusedDayISO]);
   useClickRegions('week', mode !== 'list' ? [] : regions);
 
   useAppInput(
@@ -1112,7 +1116,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
                             selected={selectedWeekItem?.id === item.id}
                           />
                         </Box>
-                        {selectedWeekItem?.id === item.id ? (
+                        {dayIndex === selectedDayIndex && selectedWeekItem?.id === item.id ? (
                           <ItemDetailLines item={item} maxWidth={colWidth} showSchedule={false} />
                         ) : null}
                       </Box>
