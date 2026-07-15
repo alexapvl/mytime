@@ -11,7 +11,7 @@ import {
   setMeta,
 } from '../db/meta.js';
 import { isSyncTokenExpired } from './errors.js';
-import type { Reminder } from '../db/types.js';
+import type { AttendeeResponseStatus, EventAttendee, Reminder } from '../db/types.js';
 import { remindersToGoogle } from '../lib/reminders.js';
 import { isMytimeCalendarName } from '../calendar/backend.js';
 
@@ -47,6 +47,13 @@ export async function listAccountCalendars(): Promise<CalendarInfo[]> {
       primary: c.primary ?? false,
       googleSelected: c.selected !== false,
     }));
+}
+
+export async function getPrimaryGoogleCalendarId(): Promise<string> {
+  const calendar = getCalendarClient();
+  const primary = await calendar.calendarList.get({ calendarId: 'primary' });
+  if (!primary.data.id) throw new Error('Google Calendar did not return the primary calendar ID');
+  return primary.data.id;
 }
 
 export function setCalendarEnabled(calendarId: string, enabled: boolean): void {
@@ -141,6 +148,8 @@ export type GoogleEventPayload = {
   reminders?: Reminder[];
   mytimeType?: 'task' | 'event';
   mytimeId?: string;
+  attendees?: EventAttendee[];
+  conferenceRequestId?: string;
 };
 
 export async function upsertEvent(calendarId: string, event: GoogleEventPayload, eventId?: string) {
@@ -159,6 +168,24 @@ export async function upsertEvent(calendarId: string, event: GoogleEventPayload,
     end,
   };
 
+  if (event.attendees !== undefined) {
+    body.attendees = event.attendees.map((attendee) => ({
+      email: attendee.email,
+      displayName: attendee.displayName,
+      optional: attendee.optional,
+      responseStatus: attendee.responseStatus,
+    }));
+  }
+
+  if (event.conferenceRequestId) {
+    body.conferenceData = {
+      createRequest: {
+        requestId: event.conferenceRequestId,
+        conferenceSolutionKey: { type: 'hangoutsMeet' },
+      },
+    };
+  }
+
   if (event.mytimeType || event.mytimeId) {
     body.extendedProperties = {
       private: {
@@ -173,14 +200,46 @@ export async function upsertEvent(calendarId: string, event: GoogleEventPayload,
   }
 
   if (eventId) {
-    return calendar.events.update({ calendarId, eventId, requestBody: body });
+    return calendar.events.patch({
+      calendarId,
+      eventId,
+      requestBody: body,
+      conferenceDataVersion: 1,
+      sendUpdates: event.attendees !== undefined ? 'all' : undefined,
+    });
   }
-  return calendar.events.insert({ calendarId, requestBody: body });
+  return calendar.events.insert({
+    calendarId,
+    requestBody: body,
+    conferenceDataVersion: 1,
+    sendUpdates: event.attendees !== undefined ? 'all' : undefined,
+  });
 }
 
-export async function deleteEvent(calendarId: string, eventId: string) {
+export async function deleteEvent(calendarId: string, eventId: string, notifyGuests = false) {
   const calendar = getCalendarClient();
-  return calendar.events.delete({ calendarId, eventId });
+  return calendar.events.delete({ calendarId, eventId, sendUpdates: notifyGuests ? 'all' : undefined });
+}
+
+export async function respondToGoogleEvent(
+  calendarId: string,
+  eventId: string,
+  attendeeEmail: string,
+  responseStatus: AttendeeResponseStatus,
+): Promise<void> {
+  const calendar = getCalendarClient();
+  await calendar.events.patch({
+    calendarId,
+    eventId,
+    requestBody: {
+      attendeesOmitted: true,
+      attendees: [{ email: attendeeEmail, responseStatus }],
+    },
+  });
+}
+
+export async function getGoogleEvent(calendarId: string, eventId: string) {
+  return getCalendarClient().events.get({ calendarId, eventId });
 }
 
 export async function listEventsIncremental(calendarId: string, syncToken?: string) {

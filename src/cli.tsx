@@ -181,7 +181,7 @@ Usage:
   mytime setup apple  Set up Apple Calendar (macOS 14+)
   mytime doctor       Check active calendar provider
   mytime auth         Connect selected calendar provider
-  mytime settings     Choose which provider calendars to fetch locally
+  mytime settings     Calendars, reminders, Google Meet defaults, and free time
   mytime sync         Sync active calendar provider
   mytime agent        Agent-ergonomic CLI for AI agents (preferred over MCP)
   mytime mcp          Legacy MCP server (stdio)
@@ -217,6 +217,11 @@ Backlog:
   s         Schedule
   x         Toggle done
   d         Delete
+
+Daily / Week:
+  Shift+A   Add event (guests and optional Google Meet)
+  o         Open selected meeting link
+  v         Respond to invitation (yes/maybe/no)
 `);
 }
 

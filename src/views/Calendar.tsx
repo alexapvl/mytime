@@ -3,7 +3,7 @@ import { Box, Text } from 'ink';
 import type { Key } from 'ink';
 import TextInput from 'ink-text-input';
 import { DateTime } from 'luxon';
-import type { Item, Reminder } from '../db/types.js';
+import type { EventAttendee, Item, MeetingProvider, Reminder } from '../db/types.js';
 import { isLocalItem } from '../db/types.js';
 import { createItem, createEvent, deleteItem, listScheduledInRange, rescheduleLocalItem, toggleDone, updateItem } from '../db/items.js';
 import { padToWidth } from '../lib/textWidth.js';
@@ -27,6 +27,12 @@ import { QuickAddPreview } from '../components/QuickAddPreview.js';
 import { buildQuickAddDraft, calendarQuickAddReference } from '../lib/quickAddPreview.js';
 import { DAILY_SHORTCUTS, WEEK_SHORTCUTS } from '../lib/shortcuts.js';
 import { cloneItem, makeUndoAdd, makeUndoDelete, makeUndoToggleDone } from '../lib/undoActions.js';
+import { meetingUrlForItem, openMeeting } from '../lib/meetings.js';
+import { canRespondToInvitation, needsInvitationResponse } from '../lib/invitations.js';
+import { respondToInvitation } from '../calendar/invitations.js';
+import { RsvpEditor } from '../components/RsvpEditor.js';
+import { getDefaultMeetingProvider } from '../db/meta.js';
+import { getActiveProvider } from '../calendar/provider.js';
 
 type Props = {
   onRefresh: () => void;
@@ -35,13 +41,15 @@ type Props = {
   focusedDateISO?: string;
   onFocusedDateChange?: (iso: string) => void;
 };
-type CalendarMode = 'list' | 'add' | 'quick' | 'addEvent' | 'quickEvent' | 'edit' | 'editEvent' | 'schedule' | 'scheduleNewEvent';
+type CalendarMode = 'list' | 'add' | 'quick' | 'addEvent' | 'quickEvent' | 'edit' | 'editEvent' | 'schedule' | 'scheduleNewEvent' | 'respond';
 
 export type PendingEventDraft = {
   title: string;
   notes?: string;
   location?: string;
   reminders: Reminder[];
+  attendees: EventAttendee[];
+  meetingProvider?: MeetingProvider;
 };
 
 type CreatorKind = 'task' | 'event';
@@ -111,7 +119,9 @@ export function createCalendarItemFromQuickAdd(input: string, day: DateTime, kin
     end: draft.end,
     allDay: draft.allDay,
   };
-  return kind === 'event' ? createEvent(fields) : createItem({ ...fields, tags: draft.tags, project: draft.project, priority: draft.priority });
+  return kind === 'event'
+    ? createEvent({ ...fields, meetingProvider: getActiveProvider() === 'google' ? getDefaultMeetingProvider() : undefined })
+    : createItem({ ...fields, tags: draft.tags, project: draft.project, priority: draft.priority });
 }
 
 export function draftScheduleItem(title: string): Item {
@@ -123,6 +133,7 @@ export function draftScheduleItem(title: string): Item {
     status: 'open',
     source: 'event',
     reminders: [],
+    attendees: [],
     allDay: false,
     updatedAt: '',
     createdAt: '',
@@ -134,6 +145,8 @@ function calendarHelpContext(item: Item | undefined) {
     item,
     isLocal: !!item && isLocalItem(item),
     hasTime: item ? hasWeekTime(item) : false,
+    hasMeeting: item ? Boolean(meetingUrlForItem(item)) : false,
+    canRespond: item ? canRespondToInvitation(item) : false,
   };
 }
 
@@ -175,7 +188,7 @@ function applyTimedResize(
   if (!resize) return false;
   updateItem(item.id, resize.updates);
   refresh();
-  autoPush(item.id, onStatus);
+  autoPush(item.id, onStatus, refresh);
   onStatus(resize.message);
   return true;
 }
@@ -395,7 +408,7 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
         if (item?.start && item.end && isLocalItem(item) && hasWeekTime(item)) {
           updateItem(item.id, { start: addMinutes(item.start, 60), end: addMinutes(item.end, 60) });
           refresh();
-          autoPush(item.id, onStatus);
+          autoPush(item.id, onStatus, refresh);
           onStatus('Moved 1h later');
         }
         return;
@@ -404,9 +417,20 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
         if (item?.start && item.end && isLocalItem(item) && hasWeekTime(item)) {
           updateItem(item.id, { start: addMinutes(item.start, -60), end: addMinutes(item.end, -60) });
           refresh();
-          autoPush(item.id, onStatus);
+          autoPush(item.id, onStatus, refresh);
           onStatus('Moved 1h earlier');
         }
+        return;
+      }
+
+      if (item && input === 'o' && meetingUrlForItem(item)) {
+        void openMeeting(item)
+          .then(() => onStatus('Opened meeting link'))
+          .catch((error) => onStatus(`Could not open meeting: ${(error as Error).message}`));
+        return;
+      }
+      if (item && input === 'v' && canRespondToInvitation(item)) {
+        setMode('respond');
         return;
       }
 
@@ -428,7 +452,7 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
           makeUndoToggleDone(before, onStatus),
         );
         refresh();
-        autoPush(item.id, onStatus);
+        autoPush(item.id, onStatus, refresh);
         onStatus('Marked done');
         return;
       }
@@ -447,6 +471,24 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
     { isActive: mode === 'list' },
   );
 
+  if (mode === 'respond' && selectedDayItem) {
+    return (
+      <RsvpEditor
+        item={selectedDayItem}
+        onCancel={() => setMode('list')}
+        onSubmit={(response) => {
+          setMode('list');
+          void respondToInvitation(selectedDayItem, response)
+            .then(() => {
+              refresh();
+              onStatus(`Response sent: ${response}`);
+            })
+            .catch((error) => onStatus(`Response failed: ${(error as Error).message}`));
+        }}
+      />
+    );
+  }
+
   if (mode === 'add') {
     return (
       <ItemEditor
@@ -457,7 +499,7 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
           setMode('list');
           refresh();
           pushUndo(`Added: ${item.title}`, makeUndoAdd(cloneItem(item), onStatus));
-          autoPush(item.id, onStatus);
+          autoPush(item.id, onStatus, refresh);
           onStatus(`Added: ${item.title}`);
         }}
       />
@@ -475,7 +517,7 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
           setMode('list');
           refresh();
           pushUndo(`Added: ${item.title}`, makeUndoAdd(cloneItem(item), onStatus));
-          autoPush(item.id, onStatus);
+          autoPush(item.id, onStatus, refresh);
           onStatus(`Added: ${item.title}`);
         }}
       />
@@ -509,6 +551,8 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
             notes: pendingEvent.notes,
             location: pendingEvent.location,
             reminders: pendingEvent.reminders,
+            attendees: pendingEvent.attendees,
+            meetingProvider: pendingEvent.meetingProvider,
             start,
             end,
             allDay,
@@ -517,7 +561,7 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
           setMode('list');
           refresh();
           pushUndo(`Added: ${item.title}`, makeUndoAdd(cloneItem(item), onStatus));
-          autoPush(item.id, onStatus);
+          autoPush(item.id, onStatus, refresh);
           onStatus(`Added event: ${item.title}`);
         }}
       />
@@ -540,7 +584,7 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
             priority: data.priority,
           });
           refresh();
-          autoPush(item.id, onStatus);
+          autoPush(item.id, onStatus, refresh);
           onStatus('Task updated');
           setMode('list');
         }}
@@ -561,9 +605,11 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
             notes: data.notes,
             location: data.location,
             reminders: data.reminders,
+            attendees: data.attendees,
+            meetingProvider: data.meetingProvider,
           });
           refresh();
-          autoPush(item.id, onStatus);
+          autoPush(item.id, onStatus, refresh);
           onStatus('Event updated');
           setMode('list');
         }}
@@ -580,7 +626,7 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
         onSubmit={(start, end, allDay) => {
           rescheduleLocalItem(item.id, start, end, allDay);
           refresh();
-          autoPush(item.id, onStatus);
+          autoPush(item.id, onStatus, refresh);
           onStatus('Rescheduled');
           setMode('list');
         }}
@@ -623,6 +669,7 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
                 rowWidth={viewWidth}
                 selected={selectedHere}
                 compactLabel={hasWeekTime(item) ? undefined : 'all day'}
+                titleSuffix={needsInvitationResponse(item) ? '  ? RSVP' : ''}
               />
               {selectedHere ? (
                 <ItemDetailLines item={item} maxWidth={viewWidth} showSchedule={false} />
@@ -726,11 +773,13 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
         let lines = 0;
         for (const item of visible) {
           lines += 1;
-          if (selectedWeekItem?.id === item.id) lines += itemDetailLineCount(item, WEEK_DETAIL_OPTS);
+          if (dayIndex === selectedDayIndex && selectedWeekItem?.id === item.id) {
+            lines += itemDetailLineCount(item, WEEK_DETAIL_OPTS);
+          }
         }
         return lines;
       }),
-    [days, itemsByDay, paintRows, selectedWeekItem?.id],
+    [days, itemsByDay, paintRows, selectedDayIndex, selectedWeekItem?.id],
   );
   const maxBodyLines = Math.max(1, ...weekBodyLines);
 
@@ -771,11 +820,13 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
           },
         });
         row += 1;
-        if (selectedWeekItem?.id === item.id) row += itemDetailLineCount(item, WEEK_DETAIL_OPTS);
+        if (dayIndex === selectedDayIndex && selectedWeekItem?.id === item.id) {
+          row += itemDetailLineCount(item, WEEK_DETAIL_OPTS);
+        }
       }
     });
     return out;
-  }, [scheduled, weekStart.toISODate(), dayStarts, dayWidths, paintRows, itemsByDay, selectedWeekItem?.id, focusedDayISO]);
+  }, [scheduled, weekStart.toISODate(), dayStarts, dayWidths, paintRows, itemsByDay, selectedDayIndex, selectedWeekItem?.id, focusedDayISO]);
   useClickRegions('week', mode !== 'list' ? [] : regions);
 
   useAppInput(
@@ -861,7 +912,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
         if (item?.start && item.end && isLocalItem(item) && hasWeekTime(item)) {
           updateItem(item.id, { start: addMinutes(item.start, 60), end: addMinutes(item.end, 60) });
           refresh();
-          autoPush(item.id, onStatus);
+          autoPush(item.id, onStatus, refresh);
           onStatus('Moved 1h later');
         }
         return;
@@ -870,9 +921,20 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
         if (item?.start && item.end && isLocalItem(item) && hasWeekTime(item)) {
           updateItem(item.id, { start: addMinutes(item.start, -60), end: addMinutes(item.end, -60) });
           refresh();
-          autoPush(item.id, onStatus);
+          autoPush(item.id, onStatus, refresh);
           onStatus('Moved 1h earlier');
         }
+        return;
+      }
+
+      if (item && input === 'o' && meetingUrlForItem(item)) {
+        void openMeeting(item)
+          .then(() => onStatus('Opened meeting link'))
+          .catch((error) => onStatus(`Could not open meeting: ${(error as Error).message}`));
+        return;
+      }
+      if (item && input === 'v' && canRespondToInvitation(item)) {
+        setMode('respond');
         return;
       }
 
@@ -894,7 +956,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
           makeUndoToggleDone(before, onStatus),
         );
         refresh();
-        autoPush(item.id, onStatus);
+        autoPush(item.id, onStatus, refresh);
         onStatus('Marked done');
         return;
       }
@@ -913,6 +975,24 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
     { isActive: mode === 'list' },
   );
 
+  if (mode === 'respond' && selectedWeekItem) {
+    return (
+      <RsvpEditor
+        item={selectedWeekItem}
+        onCancel={() => setMode('list')}
+        onSubmit={(response) => {
+          setMode('list');
+          void respondToInvitation(selectedWeekItem, response)
+            .then(() => {
+              refresh();
+              onStatus(`Response sent: ${response}`);
+            })
+            .catch((error) => onStatus(`Response failed: ${(error as Error).message}`));
+        }}
+      />
+    );
+  }
+
   if (mode === 'add') {
     return (
       <ItemEditor
@@ -923,7 +1003,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
           setMode('list');
           refresh();
           pushUndo(`Added: ${item.title}`, makeUndoAdd(cloneItem(item), onStatus));
-          autoPush(item.id, onStatus);
+          autoPush(item.id, onStatus, refresh);
           onStatus(`Added: ${item.title}`);
         }}
       />
@@ -941,7 +1021,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
           setMode('list');
           refresh();
           pushUndo(`Added: ${item.title}`, makeUndoAdd(cloneItem(item), onStatus));
-          autoPush(item.id, onStatus);
+          autoPush(item.id, onStatus, refresh);
           onStatus(`Added: ${item.title}`);
         }}
       />
@@ -975,6 +1055,8 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
             notes: pendingEvent.notes,
             location: pendingEvent.location,
             reminders: pendingEvent.reminders,
+            attendees: pendingEvent.attendees,
+            meetingProvider: pendingEvent.meetingProvider,
             start,
             end,
             allDay,
@@ -983,7 +1065,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
           setMode('list');
           refresh();
           pushUndo(`Added: ${item.title}`, makeUndoAdd(cloneItem(item), onStatus));
-          autoPush(item.id, onStatus);
+          autoPush(item.id, onStatus, refresh);
           onStatus(`Added event: ${item.title}`);
         }}
       />
@@ -1006,7 +1088,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
             priority: data.priority,
           });
           refresh();
-          autoPush(item.id, onStatus);
+          autoPush(item.id, onStatus, refresh);
           onStatus('Task updated');
           setMode('list');
         }}
@@ -1027,9 +1109,11 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
             notes: data.notes,
             location: data.location,
             reminders: data.reminders,
+            attendees: data.attendees,
+            meetingProvider: data.meetingProvider,
           });
           refresh();
-          autoPush(item.id, onStatus);
+          autoPush(item.id, onStatus, refresh);
           onStatus('Event updated');
           setMode('list');
         }}
@@ -1046,7 +1130,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
         onSubmit={(start, end, allDay) => {
           rescheduleLocalItem(item.id, start, end, allDay);
           refresh();
-          autoPush(item.id, onStatus);
+          autoPush(item.id, onStatus, refresh);
           onStatus('Rescheduled');
           setMode('list');
         }}
@@ -1110,9 +1194,10 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
                             item={item}
                             rowWidth={colWidth}
                             selected={selectedWeekItem?.id === item.id}
+                            titleSuffix={needsInvitationResponse(item) ? '  ? RSVP' : ''}
                           />
                         </Box>
-                        {selectedWeekItem?.id === item.id ? (
+                        {dayIndex === selectedDayIndex && selectedWeekItem?.id === item.id ? (
                           <ItemDetailLines item={item} maxWidth={colWidth} showSchedule={false} />
                         ) : null}
                       </Box>

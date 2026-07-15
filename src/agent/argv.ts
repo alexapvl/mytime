@@ -5,7 +5,7 @@ export type ParsedArgs = {
   flags: Map<string, string | boolean>;
 };
 
-const BOOLEAN_FLAGS = new Set(['all-day', 'full', 'help', 'json']);
+const BOOLEAN_FLAGS = new Set(['all-day', 'full', 'google-meet', 'help', 'json']);
 
 export function parseArgs(argv: string[]): ParsedArgs {
   const positional: string[] = [];

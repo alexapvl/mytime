@@ -1,6 +1,8 @@
 import type { Item } from '../db/types.js';
 import { formatDate, formatAllDaySchedule, formatScheduleTime, isAllDaySchedule } from './time.js';
 import { remindersSummary } from './reminders.js';
+import { meetingUrlForItem } from './meetings.js';
+import { canRespondToInvitation, responseLabel } from './invitations.js';
 
 export function metaLabel(item: Item): string {
   const parts: string[] = [];
@@ -10,10 +12,24 @@ export function metaLabel(item: Item): string {
 }
 
 export function eventDetailLines(item: Item): string[] {
-  if (item.source !== 'event') return [];
+  if (item.source === 'task') return [];
   const lines: string[] = [];
   if (item.location) lines.push(`location: ${item.location}`);
-  if (item.reminders.length) lines.push(`reminders: ${remindersSummary(item.reminders)}`);
+  const meetingUrl = meetingUrlForItem(item);
+  if (meetingUrl) lines.push(`meeting: ${meetingUrl}`);
+  if (item.organizer?.displayName || item.organizer?.email) {
+    lines.push(`organizer: ${item.organizer.displayName ?? item.organizer.email}`);
+  }
+  if (canRespondToInvitation(item)) lines.push(`response: ${responseLabel(item.selfResponseStatus)}`);
+  if (item.attendees.length) {
+    const participantEmails = new Set<string>();
+    if (item.organizer?.email) participantEmails.add(item.organizer.email.toLowerCase());
+    for (const attendee of item.attendees) participantEmails.add(attendee.email.toLowerCase());
+    const accepted = item.attendees.filter((attendee) => attendee.responseStatus === 'accepted').length;
+    const pending = item.attendees.filter((attendee) => attendee.responseStatus === 'needsAction').length;
+    lines.push(`participants: ${participantEmails.size}${accepted ? `, ${accepted} yes` : ''}${pending ? `, ${pending} pending` : ''}`);
+  }
+  if (item.source === 'event' && item.reminders.length) lines.push(`reminders: ${remindersSummary(item.reminders)}`);
   return lines;
 }
 
@@ -33,7 +49,7 @@ export function detailLines(
   const lines: string[] = [];
   if (showSchedule && scheduleLabel(item)) lines.push(scheduleLabel(item));
   if (showMeta) {
-    if (item.source === 'event') lines.push(...eventDetailLines(item));
+    if (item.source === 'event' || item.source === 'external') lines.push(...eventDetailLines(item));
     else {
       const meta = metaLabel(item);
       if (meta) lines.push(meta);

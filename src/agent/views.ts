@@ -22,6 +22,8 @@ export function listEvent(item: Item) {
     start: item.start ?? null,
     end: item.end ?? null,
     allDay: item.allDay,
+    meetingUrl: item.meetingUrl ?? null,
+    response: item.selfResponseStatus ?? null,
   };
 }
 
@@ -37,13 +39,18 @@ export function listScheduleItem(item: Item) {
 
 export function detailItem(item: Item, full = false) {
   const base =
-    item.source === 'event'
+    item.source === 'event' || item.source === 'external'
       ? {
           id: item.id,
           title: item.title,
           source: item.source,
           location: item.location ?? null,
           reminders: item.reminders,
+          organizer: item.organizer ?? null,
+          attendees: item.attendees,
+          response: item.selfResponseStatus ?? null,
+          meetingProvider: item.meetingProvider ?? null,
+          meetingUrl: item.meetingUrl ?? null,
           start: item.start ?? null,
           end: item.end ?? null,
           allDay: item.allDay,
