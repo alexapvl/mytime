@@ -10,13 +10,13 @@ function errorPrefix(): string {
   return provider ? `${providerLabel(provider)} sync failed` : 'Calendar sync failed';
 }
 
-export function autoPush(itemId: string, onStatus: Notify): void {
+export function autoPush(itemId: string, onStatus: Notify, onComplete?: () => void): void {
   const item = getItem(itemId);
   if (!item || (item.source !== 'task' && item.source !== 'event') || !item.start) return;
 
-  void pushToActiveProvider(item).catch((error) =>
-    onStatus(`${errorPrefix()}: ${(error as Error).message}`),
-  );
+  void pushToActiveProvider(item)
+    .then(() => onComplete?.())
+    .catch((error) => onStatus(`${errorPrefix()}: ${(error as Error).message}`));
 }
 
 export function autoRemove(item: Item, onStatus: Notify): void {

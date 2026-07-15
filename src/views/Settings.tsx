@@ -24,13 +24,17 @@ import {
   removeCustomReminderPreset,
   togglePresetInDefaults,
 } from '../lib/reminders.js';
-import { getDefaultEventReminders } from '../db/meta.js';
+import {
+  getDefaultEventReminders,
+  getDefaultMeetingProvider,
+  setDefaultMeetingProvider,
+} from '../db/meta.js';
 
 type Props = {
   onStatus: (msg: string) => void;
 };
 
-type SettingsTab = 'calendars' | 'reminders' | 'freeTime';
+type SettingsTab = 'calendars' | 'reminders' | 'meetings' | 'freeTime';
 
 type CalendarRow = ProviderCalendarInfo & {
   freeTimeExcluded: boolean;
@@ -39,7 +43,8 @@ type CalendarRow = ProviderCalendarInfo & {
 const TABS: { id: SettingsTab; key: string; label: string }[] = [
   { id: 'calendars', key: '1', label: 'Calendars' },
   { id: 'reminders', key: '2', label: 'Event Reminders' },
-  { id: 'freeTime', key: '3', label: 'Free Time' },
+  { id: 'meetings', key: '3', label: 'Meetings' },
+  { id: 'freeTime', key: '4', label: 'Free Time' },
 ];
 
 export function SettingsView({ onStatus }: Props) {
@@ -50,6 +55,7 @@ export function SettingsView({ onStatus }: Props) {
   const [calendars, setCalendars] = useState<CalendarRow[]>([]);
   const [selected, setSelected] = useState(0);
   const [defaultReminders, setDefaultReminders] = useState<number[]>(() => getDefaultEventReminders());
+  const [defaultGoogleMeet, setDefaultGoogleMeet] = useState(() => getDefaultMeetingProvider() === 'google_meet');
   const [customPresetVersion, setCustomPresetVersion] = useState(0);
   const [addingReminder, setAddingReminder] = useState(false);
   const [addInput, setAddInput] = useState('');
@@ -202,6 +208,10 @@ export function SettingsView({ onStatus }: Props) {
         setSelected(0);
       }
       if (input === '3') {
+        setTab('meetings');
+        setSelected(0);
+      }
+      if (input === '4') {
         setTab('freeTime');
         setSelected(0);
       }
@@ -242,6 +252,20 @@ export function SettingsView({ onStatus }: Props) {
         return;
       }
 
+      if (tab === 'meetings') {
+        if (input === ' ' || input === 'x') {
+          if (getActiveProvider() !== 'google') {
+            onStatus('Google Meet requires Google Calendar as active provider');
+            return;
+          }
+          const enabled = !defaultGoogleMeet;
+          setDefaultGoogleMeet(enabled);
+          setDefaultMeetingProvider(enabled ? 'google_meet' : undefined);
+          onStatus(`Default Google Meet ${enabled ? 'enabled' : 'disabled'}`);
+        }
+        return;
+      }
+
       if (input === 'a') {
         setAddingReminder(true);
         setAddInput('');
@@ -261,7 +285,7 @@ export function SettingsView({ onStatus }: Props) {
       }
       if (input === ' ' || input === 'x') toggleReminderPreset();
     },
-    { isActive: ((tab === 'calendars' && !loading && calendars.length > 0) || tab === 'reminders' || (tab === 'freeTime' && !loading && fetchedCalendars.length > 0)) && !addingReminder },
+    { isActive: ((tab === 'calendars' && !loading && calendars.length > 0) || tab === 'reminders' || tab === 'meetings' || (tab === 'freeTime' && !loading && fetchedCalendars.length > 0)) && !addingReminder },
   );
 
   if (addingReminder) {
@@ -340,6 +364,17 @@ export function SettingsView({ onStatus }: Props) {
               })}
           </Box>
           <Text dimColor>↑/↓ navigate · space/x toggle · r reload · esc quit</Text>
+        </>
+      ) : tab === 'meetings' ? (
+        <>
+          <Text dimColor>Choose whether new events include a Google Meet by default.</Text>
+          {getActiveProvider() !== 'google' ? <Text color="yellow">Google Calendar provider required.</Text> : null}
+          <Box marginTop={1} marginBottom={1}>
+            <Text color="cyanBright" bold>
+              &gt; [{defaultGoogleMeet ? 'x' : ' '}] Add Google Meet to new events
+            </Text>
+          </Box>
+          <Text dimColor>space/x toggle · each event can override this · esc quit</Text>
         </>
       ) : tab === 'freeTime' ? (
         <>

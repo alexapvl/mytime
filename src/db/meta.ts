@@ -30,7 +30,17 @@ export const META_KEYS = {
   defaultEventReminders: 'default_event_reminders',
   customEventReminderPresets: 'custom_event_reminder_presets',
   calendarFreeTimeExcludePrefs: 'calendar_free_time_exclude_prefs',
+  defaultMeetingProvider: 'default_meeting_provider',
 } as const;
+
+export function getDefaultMeetingProvider(): 'google_meet' | undefined {
+  return getMeta(META_KEYS.defaultMeetingProvider) === 'google_meet' ? 'google_meet' : undefined;
+}
+
+export function setDefaultMeetingProvider(provider: 'google_meet' | undefined): void {
+  if (provider) setMeta(META_KEYS.defaultMeetingProvider, provider);
+  else deleteMeta(META_KEYS.defaultMeetingProvider);
+}
 
 export function getProviderCalendarFetchPrefs(provider: 'google' | 'apple'): Record<string, boolean> {
   const key = provider === 'google' ? META_KEYS.googleCalendarFetchPrefs : META_KEYS.appleCalendarFetchPrefs;

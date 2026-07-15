@@ -43,6 +43,7 @@ export function buildQuickAddDraft(input: string, opts: QuickAddPreviewOptions =
     source: kind === 'event' ? 'event' : 'task',
     location: undefined,
     reminders: [],
+    attendees: [],
     start,
     end,
     allDay: Boolean(start && allDay),

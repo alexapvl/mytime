@@ -14,7 +14,7 @@ import {
   toggleDone,
   updateItem,
 } from '../db/items.js';
-import type { Item, ItemPriority, Reminder } from '../db/types.js';
+import type { EventAttendee, Item, ItemPriority, MeetingProvider, Reminder } from '../db/types.js';
 import {
   getActiveProvider,
   getActiveProviderStatus,
@@ -30,10 +30,12 @@ import { parseDayArg } from './dates.js';
 import { ensureFresh, markSyncFresh } from './fresh.js';
 import { ok, err, type AgentResult } from './types.js';
 import { detailItem, listScheduleItem, listTask, pastDueItem } from './views.js';
-import { getMeta, META_KEYS } from '../db/meta.js';
+import { getDefaultMeetingProvider, getMeta, META_KEYS } from '../db/meta.js';
 import { inferEventKitBackend, mytimeCalendarName } from '../calendar/backend.js';
 import { getAppleAuthorizationStatus, listAppleCalendars, listAppleSources } from '../apple/client.js';
 import { isAuthenticated as isGoogleAuthenticated } from '../google/auth.js';
+import { respondToInvitation } from '../calendar/invitations.js';
+import type { InvitationResponse } from '../lib/invitations.js';
 
 const SCHEDULE_HINT =
   'Run `mytime agent slots --date <day>` before scheduling, or `mytime agent schedule list` to inspect the day.';
@@ -540,10 +542,22 @@ export async function agentAddEvent(input: {
   end?: string;
   allDay?: boolean;
   reminders?: Reminder[];
+  guests?: string[];
+  googleMeet?: boolean;
 }): Promise<AgentResult> {
-  const { title, notes, location, start, end, allDay, reminders } = input;
+  const { title, notes, location, start, end, allDay, reminders, guests, googleMeet } = input;
   if (!DateTime.fromISO(start).isValid) return err(`Invalid start: ${start}`, undefined, 2);
+  const invalidGuest = guests?.find((email) => !isEmail(email));
+  if (invalidGuest) return err(`Invalid guest email: ${invalidGuest}`, undefined, 2);
   await ensureFresh();
+  const meetingProvider: MeetingProvider | undefined = googleMeet === false
+    ? undefined
+    : googleMeet === true
+      ? 'google_meet'
+      : getDefaultMeetingProvider();
+  if (meetingProvider === 'google_meet' && getActiveProvider() !== 'google') {
+    return err('Google Meet creation requires Google Calendar as active provider');
+  }
   const useAllDay = allDay === true || !start.includes('T');
   let finalStart = start;
   let finalEnd = end ?? defaultEnd(start);
@@ -566,9 +580,11 @@ export async function agentAddEvent(input: {
     end: finalEnd,
     allDay: useAllDay,
     reminders,
+    attendees: attendeesFromEmails(guests),
+    meetingProvider,
   });
   const note = await syncPush(item.id);
-  return ok({ message: `Event added${note}`, item: detailItem(item) });
+  return ok({ message: `Event added${note}`, item: detailItem(getItem(item.id) ?? item) });
 }
 
 export async function agentQuickAddEvent(text: string): Promise<AgentResult> {
@@ -580,27 +596,36 @@ export async function agentQuickAddEvent(text: string): Promise<AgentResult> {
     start: parsed.start,
     end: parsed.end,
     allDay: parsed.allDay,
+    meetingProvider: getActiveProvider() === 'google' ? getDefaultMeetingProvider() : undefined,
   });
   const note = await syncPush(item.id);
-  return ok({ message: `Added event: ${item.title}${note}`, item: detailItem(item) });
+  return ok({ message: `Added event: ${item.title}${note}`, item: detailItem(getItem(item.id) ?? item) });
 }
 
 export async function agentUpdateEvent(
   id: string,
-  updates: { title?: string; notes?: string; location?: string; reminders?: Reminder[] },
+  updates: { title?: string; notes?: string; location?: string; reminders?: Reminder[]; guests?: string[]; googleMeet?: boolean },
 ): Promise<AgentResult> {
   await ensureFresh();
   const existing = getItem(id);
   if (!existing) return err(`No item with id ${id}`);
   if (existing.source !== 'event') return err('Item is not an event');
+  const invalidGuest = updates.guests?.find((email) => !isEmail(email));
+  if (invalidGuest) return err(`Invalid guest email: ${invalidGuest}`, undefined, 2);
   const patch: Partial<Item> = {};
   if (updates.title !== undefined) patch.title = updates.title;
   if (updates.notes !== undefined) patch.notes = updates.notes;
   if (updates.location !== undefined) patch.location = updates.location;
   if (updates.reminders !== undefined) patch.reminders = updates.reminders;
+  if (updates.guests !== undefined) patch.attendees = attendeesFromEmails(updates.guests, existing.attendees);
+  if (updates.googleMeet === true) {
+    if (getActiveProvider() !== 'google') return err('Google Meet creation requires Google Calendar as active provider');
+    patch.meetingProvider = 'google_meet';
+  }
   const updated = updateItem(id, patch);
   const note = await syncPush(id);
-  return ok({ message: `Event updated${note}`, item: updated ? detailItem(updated) : null });
+  const finalItem = getItem(id) ?? updated;
+  return ok({ message: `Event updated${note}`, item: finalItem ? detailItem(finalItem) : null });
 }
 
 export async function agentScheduleEvent(input: {
@@ -643,6 +668,30 @@ export async function agentDeleteEvent(id: string): Promise<AgentResult> {
   const note = await syncRemove(item);
   deleteItem(id);
   return ok({ message: `Deleted event "${item.title}"${note}` });
+}
+
+export async function agentRespondToEvent(id: string, response: InvitationResponse): Promise<AgentResult> {
+  await ensureFresh();
+  const item = getItem(id);
+  if (!item) return err(`No item with id ${id}`);
+  try {
+    const updated = await respondToInvitation(item, response);
+    return ok({ message: `Response sent: ${response}`, item: detailItem(updated) });
+  } catch (error) {
+    return err((error as Error).message);
+  }
+}
+
+function attendeesFromEmails(emails: string[] | undefined, existing: EventAttendee[] = []): EventAttendee[] {
+  if (!emails) return [];
+  return [...new Set(emails.map((email) => email.trim()).filter(Boolean))].map((email) => {
+    const match = existing.find((attendee) => attendee.email.toLowerCase() === email.toLowerCase());
+    return { email, responseStatus: match?.responseStatus ?? 'needsAction' };
+  });
+}
+
+function isEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 export async function agentSync(): Promise<AgentResult> {

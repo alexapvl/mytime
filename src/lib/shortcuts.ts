@@ -12,6 +12,8 @@ export type CalendarHelpContext = {
   item?: { source: string };
   isLocal: boolean;
   hasTime: boolean;
+  hasMeeting: boolean;
+  canRespond: boolean;
 };
 
 export function formatShortcuts<C>(shortcuts: Shortcut<C>[], ctx: C): string {
@@ -41,6 +43,8 @@ export const DAILY_SHORTCUTS: Shortcut<CalendarHelpContext>[] = [
   { keys: 'q', label: 'quick-add' },
   { keys: '⇧a', label: 'add event' },
   { keys: '⇧q', label: 'quick-event' },
+  { keys: 'o', label: 'open meeting', show: (ctx) => ctx.hasMeeting },
+  { keys: 'v', label: 'RSVP', show: (ctx) => ctx.canRespond },
   { keys: 'e', label: 'edit', show: (ctx) => ctx.isLocal },
   { keys: 's', label: 'reschedule', show: (ctx) => ctx.isLocal },
   { keys: '⇧↑/↓', label: 'move 1h', show: (ctx) => ctx.isLocal && ctx.hasTime },
@@ -68,6 +72,8 @@ export const MONTH_SHORTCUTS: Shortcut<CalendarHelpContext>[] = [
   { keys: 'q', label: 'quick-add' },
   { keys: '⇧a', label: 'add event' },
   { keys: '⇧q', label: 'quick-event' },
+  { keys: 'o', label: 'open meeting', show: (ctx) => ctx.hasMeeting },
+  { keys: 'v', label: 'RSVP', show: (ctx) => ctx.canRespond },
 ];
 
 export const WEEK_SHORTCUTS: Shortcut<CalendarHelpContext>[] = [

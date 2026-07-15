@@ -10,6 +10,25 @@ export type Reminder = {
   minutes: number;
 };
 
+export type MeetingProvider = 'google_meet' | 'other';
+
+export type AttendeeResponseStatus = 'needsAction' | 'declined' | 'tentative' | 'accepted';
+
+export type EventAttendee = {
+  email: string;
+  displayName?: string;
+  responseStatus?: AttendeeResponseStatus;
+  self?: boolean;
+  organizer?: boolean;
+  optional?: boolean;
+};
+
+export type EventOrganizer = {
+  email?: string;
+  displayName?: string;
+  self?: boolean;
+};
+
 export type Item = {
   id: string;
   title: string;
@@ -22,6 +41,12 @@ export type Item = {
   originProvider?: 'google' | 'apple';
   location?: string;
   reminders: Reminder[];
+  attendees: EventAttendee[];
+  organizer?: EventOrganizer;
+  selfResponseStatus?: AttendeeResponseStatus;
+  meetingProvider?: MeetingProvider;
+  meetingUrl?: string;
+  conferenceRequestId?: string;
   start?: string;
   end?: string;
   allDay: boolean;
@@ -50,6 +75,12 @@ export type ItemRow = {
   origin_provider: string | null;
   location: string | null;
   reminders: string | null;
+  attendees: string | null;
+  organizer: string | null;
+  self_response_status: string | null;
+  meeting_provider: string | null;
+  meeting_url: string | null;
+  conference_request_id: string | null;
   start: string | null;
   end: string | null;
   all_day: number;
@@ -71,6 +102,15 @@ function parseReminders(raw: string | null): Reminder[] {
   }
 }
 
+function parseJson<T>(raw: string | null, fallback: T): T {
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
 export function rowToItem(row: ItemRow): Item {
   return {
     id: row.id,
@@ -84,6 +124,12 @@ export function rowToItem(row: ItemRow): Item {
     originProvider: (row.origin_provider as 'google' | 'apple' | null) ?? undefined,
     location: row.location ?? undefined,
     reminders: parseReminders(row.reminders),
+    attendees: parseJson<EventAttendee[]>(row.attendees, []),
+    organizer: parseJson<EventOrganizer | undefined>(row.organizer, undefined),
+    selfResponseStatus: (row.self_response_status as AttendeeResponseStatus | null) ?? undefined,
+    meetingProvider: (row.meeting_provider as MeetingProvider | null) ?? undefined,
+    meetingUrl: row.meeting_url ?? undefined,
+    conferenceRequestId: row.conference_request_id ?? undefined,
     start: row.start ?? undefined,
     end: row.end ?? undefined,
     allDay: Boolean(row.all_day),
@@ -109,6 +155,12 @@ export function itemToRow(item: Item): ItemRow {
     origin_provider: item.originProvider ?? null,
     location: item.location ?? null,
     reminders: item.reminders.length ? JSON.stringify(item.reminders) : null,
+    attendees: item.attendees.length ? JSON.stringify(item.attendees) : null,
+    organizer: item.organizer ? JSON.stringify(item.organizer) : null,
+    self_response_status: item.selfResponseStatus ?? null,
+    meeting_provider: item.meetingProvider ?? null,
+    meeting_url: item.meetingUrl ?? null,
+    conference_request_id: item.conferenceRequestId ?? null,
     start: item.start ?? null,
     end: item.end ?? null,
     all_day: item.allDay ? 1 : 0,

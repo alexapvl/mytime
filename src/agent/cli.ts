@@ -14,6 +14,7 @@ import {
   agentPastDue,
   agentQuickAddEvent,
   agentQuickAddTask,
+  agentRespondToEvent,
   agentScheduleEvent,
   agentScheduleList,
   agentScheduleTask,
@@ -37,7 +38,7 @@ const TOP_HELP = [
 ];
 
 const GLOBAL_FLAGS = ['help', 'json'];
-const BOOLEAN_COMMAND_FLAGS = new Set(['all-day', 'done', 'full']);
+const BOOLEAN_COMMAND_FLAGS = new Set(['all-day', 'done', 'full', 'google-meet']);
 
 function validateFlags(
   flags: Map<string, string | boolean>,
@@ -83,11 +84,12 @@ function printAgentHelp(topic?: string, requested = false, json = false): never 
       'mytime agent task delete <id>',
     ],
     event: [
-      'mytime agent event add --title <text> --start <iso> [--end] [--all-day] [--notes] [--location]',
+      'mytime agent event add --title <text> --start <iso> [--end] [--all-day] [--notes] [--location] [--guests a@b.com,c@d.com] [--google-meet]',
       'mytime agent event quick "<natural language>"',
       'mytime agent event update <id> [--title] [--notes] [--location]',
       'mytime agent event schedule <id> --start <iso> [--end] [--all-day] [--duration-minutes 60]',
       'mytime agent event delete <id>',
+      'mytime agent event respond <id> yes|maybe|no',
     ],
     sync: ['mytime agent sync'],
     calendar: [
@@ -337,8 +339,8 @@ async function runEventCommand(
 ): Promise<number> {
   switch (sub) {
     case 'add': {
-      validateFlags(flags, ['title', 'start', 'end', 'all-day', 'notes', 'location', 'reminders'], 'mytime agent event add', [
-        'Usage: mytime agent event add --title <text> --start <iso> [--end] [--all-day] [--notes] [--location]',
+      validateFlags(flags, ['title', 'start', 'end', 'all-day', 'notes', 'location', 'reminders', 'guests', 'google-meet'], 'mytime agent event add', [
+        'Usage: mytime agent event add --title <text> --start <iso> [--end] [--all-day] [--notes] [--location] [--guests a@b.com,c@d.com] [--google-meet]',
       ]);
       const title = flagString(flags, 'title');
       const start = flagString(flags, 'start');
@@ -354,6 +356,8 @@ async function runEventCommand(
           notes: flagString(flags, 'notes'),
           location: flagString(flags, 'location'),
           reminders: parseReminders(flags),
+          guests: flagStringList(flags, 'guests'),
+          googleMeet: flags.has('google-meet') ? flagBool(flags, 'google-meet') : undefined,
         }),
         { json },
       );
@@ -365,8 +369,8 @@ async function runEventCommand(
       return emitResult(await agentQuickAddEvent(text), { json });
     }
     case 'update': {
-      validateFlags(flags, ['title', 'notes', 'location', 'reminders'], 'mytime agent event update', [
-        'Usage: mytime agent event update <id> [--title] [--notes] [--location] [--reminders]',
+      validateFlags(flags, ['title', 'notes', 'location', 'reminders', 'guests', 'google-meet'], 'mytime agent event update', [
+        'Usage: mytime agent event update <id> [--title] [--notes] [--location] [--reminders] [--guests] [--google-meet]',
       ]);
       const id = requirePos([sub, ...rest], 1, 'event id', ['Usage: mytime agent event update <id> [--title] [--notes] [--location]']);
       return emitResult(
@@ -375,6 +379,8 @@ async function runEventCommand(
           notes: flagString(flags, 'notes'),
           location: flagString(flags, 'location'),
           reminders: parseReminders(flags),
+          guests: flagStringList(flags, 'guests'),
+          googleMeet: flags.has('google-meet') ? flagBool(flags, 'google-meet') : undefined,
         }),
         { json },
       );
@@ -401,6 +407,15 @@ async function runEventCommand(
       validateFlags(flags, [], 'mytime agent event delete', ['Usage: mytime agent event delete <id>']);
       const id = requirePos([sub, ...rest], 1, 'event id', ['Usage: mytime agent event delete <id>']);
       return emitResult(await agentDeleteEvent(id), { json });
+    }
+    case 'respond': {
+      validateFlags(flags, [], 'mytime agent event respond', ['Usage: mytime agent event respond <id> yes|maybe|no']);
+      const id = requirePos([sub, ...rest], 1, 'event id', ['Usage: mytime agent event respond <id> yes|maybe|no']);
+      const response = rest[1];
+      if (response !== 'yes' && response !== 'maybe' && response !== 'no') {
+        emitUsage('Usage: mytime agent event respond <id> yes|maybe|no', []);
+      }
+      return emitResult(await agentRespondToEvent(id, response), { json });
     }
     default:
       validateFlags(flags, [], 'mytime agent event', ['Run `mytime agent --help event`']);

@@ -338,7 +338,7 @@ export function MonthView({
           setMode('list');
           refresh();
           pushUndo(`Added: ${item.title}`, makeUndoAdd(cloneItem(item), onStatus));
-          autoPush(item.id, onStatus);
+          autoPush(item.id, onStatus, refresh);
           onStatus(`Added: ${item.title}`);
         }}
       />
@@ -356,7 +356,7 @@ export function MonthView({
           setMode('list');
           refresh();
           pushUndo(`Added: ${item.title}`, makeUndoAdd(cloneItem(item), onStatus));
-          autoPush(item.id, onStatus);
+          autoPush(item.id, onStatus, refresh);
           onStatus(`Added: ${item.title}`);
         }}
       />
@@ -390,6 +390,8 @@ export function MonthView({
             notes: pendingEvent.notes,
             location: pendingEvent.location,
             reminders: pendingEvent.reminders,
+            attendees: pendingEvent.attendees,
+            meetingProvider: pendingEvent.meetingProvider,
             start,
             end,
             allDay,
@@ -398,7 +400,7 @@ export function MonthView({
           setMode('list');
           refresh();
           pushUndo(`Added: ${item.title}`, makeUndoAdd(cloneItem(item), onStatus));
-          autoPush(item.id, onStatus);
+          autoPush(item.id, onStatus, refresh);
           onStatus(`Added event: ${item.title}`);
         }}
       />
@@ -411,7 +413,7 @@ export function MonthView({
         {monthAnchor.toFormat('MMMM yyyy')}
         {isCurrentMonth ? ' (this month)' : ''}
       </Text>
-      <ShortcutBar shortcuts={MONTH_SHORTCUTS} context={{ isLocal: false, hasTime: false }} />
+      <ShortcutBar shortcuts={MONTH_SHORTCUTS} context={{ isLocal: false, hasTime: false, hasMeeting: false, canRespond: false }} />
       <Box marginTop={1} flexDirection="column" width={cellWidth * GRID_COLS}>
         <Box flexDirection="row" height={1}>
           {weekdayLabels.map((label, col) => (

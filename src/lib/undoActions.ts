@@ -3,7 +3,7 @@ import { deleteItem, restoreItem, updateItem } from '../db/items.js';
 import { autoPush, autoRemove } from '../calendar/autoSync.js';
 
 export function cloneItem(item: Item): Item {
-  return { ...item, tags: [...item.tags], reminders: [...item.reminders] };
+  return { ...item, tags: [...item.tags], reminders: [...item.reminders], attendees: [...item.attendees] };
 }
 
 export function makeUndoDelete(snapshot: Item, onStatus: (msg: string) => void): () => void {

@@ -22,7 +22,8 @@ type RemoteLinkRow = {
 
 const ITEM_SELECT = `
   SELECT i.id, i.title, i.notes, i.project, i.tags, i.priority, i.status, i.source, i.origin_provider,
-         i.location, i.reminders, i.all_day, i.start, i.end, i.google_event_id,
+         i.location, i.reminders, i.attendees, i.organizer, i.self_response_status,
+         i.meeting_provider, i.meeting_url, i.conference_request_id, i.all_day, i.start, i.end, i.google_event_id,
          i.google_calendar_id, i.synced_at, i.updated_at, i.created_at, i.completed_at
   FROM items i
 `;

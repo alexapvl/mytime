@@ -7,25 +7,30 @@ import { defaultReminders } from '../lib/reminders.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const SELECT = `
-  SELECT id, title, notes, project, tags, priority, status, source, origin_provider, location, reminders, all_day,
+  SELECT id, title, notes, project, tags, priority, status, source, origin_provider, location, reminders,
+         attendees, organizer, self_response_status, meeting_provider, meeting_url, conference_request_id, all_day,
          start, end, google_event_id, google_calendar_id, synced_at, updated_at, created_at, completed_at
   FROM items
 `;
 
-const INSERT_SQL = `INSERT INTO items (id, title, notes, project, tags, priority, status, source, origin_provider, location, reminders, start, end, all_day, google_event_id, google_calendar_id, synced_at, updated_at, created_at, completed_at)
-       VALUES (@id, @title, @notes, @project, @tags, @priority, @status, @source, @origin_provider, @location, @reminders, @start, @end, @all_day, @google_event_id, @google_calendar_id, @synced_at, @updated_at, @created_at, @completed_at)`;
+const INSERT_SQL = `INSERT INTO items (id, title, notes, project, tags, priority, status, source, origin_provider, location, reminders, attendees, organizer, self_response_status, meeting_provider, meeting_url, conference_request_id, start, end, all_day, google_event_id, google_calendar_id, synced_at, updated_at, created_at, completed_at)
+       VALUES (@id, @title, @notes, @project, @tags, @priority, @status, @source, @origin_provider, @location, @reminders, @attendees, @organizer, @self_response_status, @meeting_provider, @meeting_url, @conference_request_id, @start, @end, @all_day, @google_event_id, @google_calendar_id, @synced_at, @updated_at, @created_at, @completed_at)`;
 
 const UPDATE_SQL = `UPDATE items SET title=@title, notes=@notes, project=@project, tags=@tags, priority=@priority,
-       status=@status, source=@source, origin_provider=@origin_provider, location=@location, reminders=@reminders, start=@start, end=@end, all_day=@all_day, google_event_id=@google_event_id,
+       status=@status, source=@source, origin_provider=@origin_provider, location=@location, reminders=@reminders,
+       attendees=@attendees, organizer=@organizer, self_response_status=@self_response_status,
+       meeting_provider=@meeting_provider, meeting_url=@meeting_url, conference_request_id=@conference_request_id,
+       start=@start, end=@end, all_day=@all_day, google_event_id=@google_event_id,
        google_calendar_id=@google_calendar_id, synced_at=@synced_at, updated_at=@updated_at, completed_at=@completed_at
        WHERE id=@id`;
 
 export function createItem(
-  partial: Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'source' | 'allDay' | 'reminders'> & {
+  partial: Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'source' | 'allDay' | 'reminders' | 'attendees'> & {
     status?: Item['status'];
     source?: Item['source'];
     allDay?: boolean;
     reminders?: Reminder[];
+    attendees?: Item['attendees'];
   },
 ): Item {
   const now = nowISO();
@@ -41,6 +46,13 @@ export function createItem(
     originProvider: partial.originProvider,
     location: partial.location,
     reminders: partial.reminders ?? [],
+    attendees: partial.attendees ?? [],
+    organizer: partial.organizer,
+    selfResponseStatus: partial.selfResponseStatus,
+    meetingProvider: partial.meetingProvider,
+    meetingUrl: partial.meetingUrl,
+    conferenceRequestId: partial.conferenceRequestId ??
+      (partial.meetingProvider === 'google_meet' ? uuidv4() : undefined),
     start: partial.start,
     end: partial.end,
     allDay: partial.allDay ?? false,
@@ -57,9 +69,10 @@ export function createItem(
 }
 
 export function createEvent(
-  partial: Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'source' | 'allDay' | 'reminders' | 'priority' | 'project' | 'tags'> & {
+  partial: Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'source' | 'allDay' | 'reminders' | 'attendees' | 'priority' | 'project' | 'tags'> & {
     allDay?: boolean;
     reminders?: Reminder[];
+    attendees?: Item['attendees'];
   },
 ): Item {
   return createItem({
@@ -103,6 +116,14 @@ export function updateItem(id: string, updates: Partial<Item>): Item | null {
     updatedAt: nowISO(),
     ...(safeUpdates.title !== undefined ? { title: cleanTitle(safeUpdates.title) } : {}),
   };
+
+  if (
+    item.meetingProvider === 'google_meet' &&
+    existing.meetingProvider !== 'google_meet' &&
+    !item.conferenceRequestId
+  ) {
+    item.conferenceRequestId = uuidv4();
+  }
 
   if (item.source === 'event') item = normalizeEventFields(item);
 

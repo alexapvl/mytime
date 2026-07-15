@@ -28,6 +28,14 @@ function initSchema(database: Database.Database): void {
       status TEXT NOT NULL DEFAULT 'open',
       source TEXT NOT NULL DEFAULT 'task',
       origin_provider TEXT,
+      location TEXT,
+      reminders TEXT,
+      attendees TEXT,
+      organizer TEXT,
+      self_response_status TEXT,
+      meeting_provider TEXT,
+      meeting_url TEXT,
+      conference_request_id TEXT,
       start TEXT,
       end TEXT,
       all_day INTEGER NOT NULL DEFAULT 0,
@@ -89,6 +97,24 @@ function migrateSchema(database: Database.Database): void {
   if (!names.has('reminders')) {
     database.exec('ALTER TABLE items ADD COLUMN reminders TEXT');
   }
+  if (!names.has('attendees')) {
+    database.exec('ALTER TABLE items ADD COLUMN attendees TEXT');
+  }
+  if (!names.has('organizer')) {
+    database.exec('ALTER TABLE items ADD COLUMN organizer TEXT');
+  }
+  if (!names.has('self_response_status')) {
+    database.exec('ALTER TABLE items ADD COLUMN self_response_status TEXT');
+  }
+  if (!names.has('meeting_provider')) {
+    database.exec('ALTER TABLE items ADD COLUMN meeting_provider TEXT');
+  }
+  if (!names.has('meeting_url')) {
+    database.exec('ALTER TABLE items ADD COLUMN meeting_url TEXT');
+  }
+  if (!names.has('conference_request_id')) {
+    database.exec('ALTER TABLE items ADD COLUMN conference_request_id TEXT');
+  }
   migrateGoogleRemoteLinks(database);
   normalizeAllDayDates(database);
   normalizeAllDayRanges(database);
@@ -96,6 +122,22 @@ function migrateSchema(database: Database.Database): void {
   removeLegacyRemoteEventDuplicates(database);
   stripEmojiFromStoredTitles(database);
   normalizeEventTaskFields(database);
+  stripInternalEventMarkers(database);
+}
+
+function stripInternalEventMarkers(database: Database.Database): void {
+  const rows = database
+    .prepare("SELECT id, notes FROM items WHERE source = 'event' AND notes IS NOT NULL")
+    .all() as { id: string; notes: string }[];
+  const update = database.prepare('UPDATE items SET notes = ? WHERE id = ?');
+  for (const row of rows) {
+    const notes = row.notes
+      .split('\n')
+      .filter((line) => line.trim().toLowerCase() !== '- mytime event')
+      .join('\n')
+      .trim();
+    if (notes !== row.notes) update.run(notes || null, row.id);
+  }
 }
 
 function normalizeAllDayRanges(database: Database.Database): void {

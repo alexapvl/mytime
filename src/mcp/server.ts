@@ -15,6 +15,7 @@ import {
   agentPastDue,
   agentQuickAddEvent,
   agentQuickAddTask,
+  agentRespondToEvent,
   agentScheduleEvent,
   agentScheduleList,
   agentScheduleTask,
@@ -165,6 +166,8 @@ function registerTools(server: McpServer): void {
         end: z.string().optional().describe('ISO datetime or date for event end'),
         allDay: z.boolean().optional(),
         reminders: z.array(z.object({ method: z.literal('popup'), minutes: z.number().int().nonnegative() })).optional(),
+        guests: z.array(z.string().email()).optional(),
+        googleMeet: z.boolean().optional(),
       },
     },
     async (input) => fromAgent(await agentAddEvent({ ...input, reminders: input.reminders as Reminder[] | undefined })),
@@ -189,6 +192,8 @@ function registerTools(server: McpServer): void {
         notes: z.string().optional(),
         location: z.string().optional(),
         reminders: z.array(z.object({ method: z.literal('popup'), minutes: z.number().int().nonnegative() })).optional(),
+        guests: z.array(z.string().email()).optional(),
+        googleMeet: z.boolean().optional(),
       },
     },
     async ({ id, ...updates }) => fromAgent(await agentUpdateEvent(id, { ...updates, reminders: updates.reminders as Reminder[] | undefined })),
@@ -218,6 +223,15 @@ function registerTools(server: McpServer): void {
     'delete_event',
     { description: 'Permanently delete a mytime event and its active-provider calendar entry.', inputSchema: { id: z.string() } },
     async ({ id }) => fromAgent(await agentDeleteEvent(id)),
+  );
+
+  server.registerTool(
+    'respond_to_event',
+    {
+      description: 'Respond yes, maybe, or no to a Google Calendar invitation where the current user is an attendee.',
+      inputSchema: { id: z.string(), response: z.enum(['yes', 'maybe', 'no']) },
+    },
+    async ({ id, response }) => fromAgent(await agentRespondToEvent(id, response)),
   );
 
   server.registerTool(

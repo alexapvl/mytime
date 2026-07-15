@@ -1,17 +1,26 @@
 import React, { useState } from 'react';
 import { Box, Text } from 'ink';
 import { useAppInput } from '../hooks/useAppInput.js';
-import type { Item, Reminder } from '../db/types.js';
+import type { EventAttendee, Item, MeetingProvider, Reminder } from '../db/types.js';
 import { listReminderPresets, defaultReminders, reminderLabel } from '../lib/reminders.js';
+import { getDefaultMeetingProvider } from '../db/meta.js';
+import { getActiveProvider } from '../calendar/provider.js';
 
 type Props = {
   item?: Item;
   mode: 'add' | 'edit';
-  onSubmit: (data: { title: string; notes?: string; location?: string; reminders: Reminder[] }) => void;
+  onSubmit: (data: {
+    title: string;
+    notes?: string;
+    location?: string;
+    reminders: Reminder[];
+    attendees: EventAttendee[];
+    meetingProvider?: MeetingProvider;
+  }) => void;
   onCancel: () => void;
 };
 
-type Field = 'title' | 'notes' | 'location' | 'reminders';
+type Field = 'title' | 'notes' | 'location' | 'guests' | 'meeting' | 'reminders';
 
 const NOTES_LABEL = 'Notes: ';
 const NOTES_INDENT = ' '.repeat(NOTES_LABEL.length);
@@ -66,23 +75,35 @@ function NotesField({ value, editing }: { value: string; editing: boolean }) {
 }
 
 export function EventEditor({ item, mode, onSubmit, onCancel }: Props) {
+  const googleMeetAvailable = getActiveProvider() === 'google';
   const [field, setField] = useState<Field>('title');
   const [title, setTitle] = useState(item?.title ?? '');
   const [notes, setNotes] = useState(item?.notes ?? '');
   const [location, setLocation] = useState(item?.location ?? '');
+  const [guests, setGuests] = useState(() =>
+    (item?.attendees ?? [])
+      .filter((attendee) => !attendee.organizer || attendee.self)
+      .map((attendee) => attendee.email)
+      .join(', '),
+  );
+  const [googleMeet, setGoogleMeet] = useState(
+    item ? item.meetingProvider === 'google_meet' : googleMeetAvailable && getDefaultMeetingProvider() === 'google_meet',
+  );
+  const [guestError, setGuestError] = useState('');
   const [enabledReminders, setEnabledReminders] = useState<number[]>(
     () => item?.reminders.map((r) => r.minutes) ?? defaultReminders().map((r) => r.minutes),
   );
   const [reminderIndex, setReminderIndex] = useState(0);
   const reminderPresets = listReminderPresets();
 
-  const fields: Field[] = ['title', 'notes', 'location', 'reminders'];
+  const fields: Field[] = ['title', 'guests', 'meeting', 'notes', 'location', 'reminders'];
   const isLastField = field === fields[fields.length - 1];
-  const values: Record<Exclude<Field, 'reminders'>, string> = { title, notes, location };
-  const setters: Record<Exclude<Field, 'reminders'>, (value: string) => void> = {
+  const values: Record<Exclude<Field, 'meeting' | 'reminders'>, string> = { title, notes, location, guests };
+  const setters: Record<Exclude<Field, 'meeting' | 'reminders'>, (value: string) => void> = {
     title: setTitle,
     notes: setNotes,
     location: setLocation,
+    guests: setGuests,
   };
 
   const submit = () => {
@@ -91,11 +112,26 @@ export function EventEditor({ item, mode, onSubmit, onCancel }: Props) {
       return;
     }
 
+    const guestEmails = [...new Set(guests.split(/[,\s]+/).map((email) => email.trim()).filter(Boolean))];
+    const invalidGuest = guestEmails.find((email) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+    if (invalidGuest) {
+      setGuestError(`Invalid guest email: ${invalidGuest}`);
+      setField('guests');
+      return;
+    }
+    setGuestError('');
+    const attendees = guestEmails.map((email) => {
+      const existing = item?.attendees.find((attendee) => attendee.email.toLowerCase() === email.toLowerCase());
+      return { email, responseStatus: existing?.responseStatus ?? 'needsAction' } satisfies EventAttendee;
+    });
+
     onSubmit({
       title: title.trim(),
       notes: notes.trim() || undefined,
       location: location.trim() || undefined,
       reminders: enabledReminders.map((minutes) => ({ method: 'popup', minutes })),
+      attendees,
+      meetingProvider: googleMeet ? 'google_meet' : undefined,
     });
   };
 
@@ -118,6 +154,16 @@ export function EventEditor({ item, mode, onSubmit, onCancel }: Props) {
   useAppInput((input, key) => {
     if (key.escape) onCancel();
     if (input === '\n' || (key.return && (key.shift || key.ctrl || key.meta))) {
+      return;
+    }
+
+    if (field === 'meeting') {
+      if ((input === ' ' || input === 'x') && googleMeetAvailable && !(item?.meetingProvider === 'google_meet' && item.meetingUrl)) {
+        setGoogleMeet((enabled) => !enabled);
+        return;
+      }
+      if (key.tab && key.shift) prevField();
+      else if (key.tab || key.return) nextField();
       return;
     }
 
@@ -188,6 +234,19 @@ export function EventEditor({ item, mode, onSubmit, onCancel }: Props) {
       <Box>
         <Text color={field === 'title' ? 'cyanBright' : undefined}>Title*: </Text>
         {field === 'title' ? editableText(title) : <Text>{title || '—'}</Text>}
+      </Box>
+      <Box>
+        <Text color={field === 'guests' ? 'cyanBright' : undefined}>Guests: </Text>
+        {field === 'guests' ? editableText(guests) : <Text>{guests || '-'}</Text>}
+      </Box>
+      <Text dimColor>Guest email addresses only, separated by commas or spaces.</Text>
+      {guestError ? <Text color="red">{guestError}</Text> : null}
+      <Box>
+        <Text color={field === 'meeting' ? 'cyanBright' : undefined}>
+          [{googleMeet ? 'x' : ' '}] Google Meet
+        </Text>
+        {item?.meetingProvider === 'google_meet' && item.meetingUrl ? <Text dimColor> (already created)</Text> : null}
+        {!googleMeetAvailable ? <Text dimColor> (requires Google Calendar provider)</Text> : null}
       </Box>
       <NotesField value={notes} editing={field === 'notes'} />
       <Box>

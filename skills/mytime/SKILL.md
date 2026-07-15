@@ -57,11 +57,12 @@ commands[10]:
 - `mytime agent task schedule <id> --start <iso> [--end] [--all-day] [--duration-minutes 60]`
 - `mytime agent task done <id> [--done true|false]`
 - `mytime agent task delete <id>`
-- `mytime agent event add --title <text> --start <iso> [--end] [--all-day] [--notes] [--location]`
+- `mytime agent event add --title <text> --start <iso> [--end] [--all-day] [--notes] [--location] [--guests a@b.com,c@d.com] [--google-meet]`
 - `mytime agent event quick "<text>"`
 - `mytime agent event update <id> [--title] [--notes] [--location]`
 - `mytime agent event schedule <id> --start <iso> [--end] [--all-day]`
 - `mytime agent event delete <id>`
+- `mytime agent event respond <id> yes|maybe|no`
 - `mytime agent sync` - full sync with the active calendar provider
 
 Run `mytime agent --help` or `mytime agent --help task` for concise reference.
