@@ -17,10 +17,11 @@ export function eventDetailLines(item: Item): string[] {
   if (item.location) lines.push(`location: ${item.location}`);
   const meetingUrl = meetingUrlForItem(item);
   if (meetingUrl) lines.push(`meeting: ${meetingUrl}`);
-  if (item.organizer?.displayName || item.organizer?.email) {
+  const canRespond = canRespondToInvitation(item);
+  if ((meetingUrl || canRespond) && (item.organizer?.displayName || item.organizer?.email)) {
     lines.push(`organizer: ${item.organizer.displayName ?? item.organizer.email}`);
   }
-  if (canRespondToInvitation(item)) lines.push(`response: ${responseLabel(item.selfResponseStatus)}`);
+  if (canRespond) lines.push(`response: ${responseLabel(item.selfResponseStatus)}`);
   if (item.attendees.length) {
     const participantEmails = new Set<string>();
     if (item.organizer?.email) participantEmails.add(item.organizer.email.toLowerCase());
