@@ -6,8 +6,8 @@ class Mytime < Formula
 
   head "https://github.com/alexapvl/mytime.git", branch: "main"
 
-  depends_on "node@20"
   depends_on macos: :sonoma
+  depends_on "node@20"
 
   # Slim prebuilt pack (dist + node_modules). Uses Homebrew node@20. See scripts/build-macos-pack.sh.
   on_macos do
