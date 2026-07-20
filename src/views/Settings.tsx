@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Text, useApp } from 'ink';
-import TextInput from 'ink-text-input';
 import {
   getProviderCalendarFreeTimeExcludePrefs,
   setProviderCalendarFreeTimeExcludePref,
@@ -29,6 +28,7 @@ import {
   getDefaultMeetingProvider,
   setDefaultMeetingProvider,
 } from '../db/meta.js';
+import { AppTextInput } from '../components/AppTextInput.js';
 
 type Props = {
   onStatus: (msg: string) => void;
@@ -304,7 +304,7 @@ export function SettingsView({ onStatus }: Props) {
         <Text dimColor>e.g. 30m · 2h · 1d · 90 (minutes)</Text>
         <Box marginTop={1}>
           <Text>&gt; </Text>
-          <TextInput
+          <AppTextInput
             value={addInput}
             onChange={setAddInput}
             onSubmit={submitCustomReminder}

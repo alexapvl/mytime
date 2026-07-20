@@ -76,17 +76,17 @@ function printAgentHelp(topic?: string, requested = false, json = false): never 
     item: ['mytime agent item <id> [--full]'],
     search: ['mytime agent search <query>'],
     task: [
-      'mytime agent task add --title <text> [--notes] [--project] [--tags a,b] [--priority 0-3]',
+      'mytime agent task add --title <text> [--notes] [--url] [--project] [--tags a,b] [--priority 0-3]',
       'mytime agent task quick "<natural language>"',
-      'mytime agent task update <id> [--title] [--notes] [--project] [--tags] [--priority]',
+      'mytime agent task update <id> [--title] [--notes] [--url] [--project] [--tags] [--priority]',
       'mytime agent task schedule <id> --start <iso> [--end] [--all-day] [--duration-minutes 60]',
       'mytime agent task done <id> [--done true|false]',
       'mytime agent task delete <id>',
     ],
     event: [
-      'mytime agent event add --title <text> --start <iso> [--end] [--all-day] [--notes] [--location] [--guests a@b.com,c@d.com] [--google-meet]',
+      'mytime agent event add --title <text> --start <iso> [--end] [--all-day] [--notes] [--location] [--url] [--guests a@b.com,c@d.com] [--google-meet]',
       'mytime agent event quick "<natural language>"',
-      'mytime agent event update <id> [--title] [--notes] [--location]',
+      'mytime agent event update <id> [--title] [--notes] [--location] [--url]',
       'mytime agent event schedule <id> --start <iso> [--end] [--all-day] [--duration-minutes 60]',
       'mytime agent event delete <id>',
       'mytime agent event respond <id> yes|maybe|no',
@@ -259,8 +259,8 @@ async function runTaskCommand(
 ): Promise<number> {
   switch (sub) {
     case 'add': {
-      validateFlags(flags, ['title', 'notes', 'project', 'tags', 'priority'], 'mytime agent task add', [
-        'Usage: mytime agent task add --title <text> [--notes] [--project] [--tags a,b] [--priority 0-3]',
+      validateFlags(flags, ['title', 'notes', 'url', 'project', 'tags', 'priority'], 'mytime agent task add', [
+        'Usage: mytime agent task add --title <text> [--notes] [--url] [--project] [--tags a,b] [--priority 0-3]',
       ]);
       const title = flagString(flags, 'title');
       if (!title) emitUsage('Usage: mytime agent task add --title <text>', ['Run `mytime agent task add --title "Fix bug"`']);
@@ -268,6 +268,7 @@ async function runTaskCommand(
         await agentAddTask({
           title,
           notes: flagString(flags, 'notes'),
+          url: flagString(flags, 'url'),
           project: flagString(flags, 'project'),
           tags: flagStringList(flags, 'tags'),
           priority: flagInt(flags, 'priority'),
@@ -282,14 +283,15 @@ async function runTaskCommand(
       return emitResult(await agentQuickAddTask(text), { json });
     }
     case 'update': {
-      validateFlags(flags, ['title', 'notes', 'project', 'tags', 'priority'], 'mytime agent task update', [
-        'Usage: mytime agent task update <id> [--title] [--notes] [--project] [--tags] [--priority]',
+      validateFlags(flags, ['title', 'notes', 'url', 'project', 'tags', 'priority'], 'mytime agent task update', [
+        'Usage: mytime agent task update <id> [--title] [--notes] [--url] [--project] [--tags] [--priority]',
       ]);
-      const id = requirePos([sub, ...rest], 1, 'task id', ['Usage: mytime agent task update <id> [--title] [--notes] [--project] [--tags] [--priority]']);
+      const id = requirePos([sub, ...rest], 1, 'task id', ['Usage: mytime agent task update <id> [--title] [--notes] [--url] [--project] [--tags] [--priority]']);
       return emitResult(
         await agentUpdateTask(id, {
           title: flagString(flags, 'title'),
           notes: flagString(flags, 'notes'),
+          url: flagString(flags, 'url'),
           project: flagString(flags, 'project'),
           tags: flagStringList(flags, 'tags'),
           priority: flagInt(flags, 'priority'),
@@ -339,8 +341,8 @@ async function runEventCommand(
 ): Promise<number> {
   switch (sub) {
     case 'add': {
-      validateFlags(flags, ['title', 'start', 'end', 'all-day', 'notes', 'location', 'reminders', 'guests', 'google-meet'], 'mytime agent event add', [
-        'Usage: mytime agent event add --title <text> --start <iso> [--end] [--all-day] [--notes] [--location] [--guests a@b.com,c@d.com] [--google-meet]',
+      validateFlags(flags, ['title', 'start', 'end', 'all-day', 'notes', 'location', 'url', 'reminders', 'guests', 'google-meet'], 'mytime agent event add', [
+        'Usage: mytime agent event add --title <text> --start <iso> [--end] [--all-day] [--notes] [--location] [--url] [--guests a@b.com,c@d.com] [--google-meet]',
       ]);
       const title = flagString(flags, 'title');
       const start = flagString(flags, 'start');
@@ -355,6 +357,7 @@ async function runEventCommand(
           allDay: flagBool(flags, 'all-day'),
           notes: flagString(flags, 'notes'),
           location: flagString(flags, 'location'),
+          url: flagString(flags, 'url'),
           reminders: parseReminders(flags),
           guests: flagStringList(flags, 'guests'),
           googleMeet: flags.has('google-meet') ? flagBool(flags, 'google-meet') : undefined,
@@ -369,15 +372,16 @@ async function runEventCommand(
       return emitResult(await agentQuickAddEvent(text), { json });
     }
     case 'update': {
-      validateFlags(flags, ['title', 'notes', 'location', 'reminders', 'guests', 'google-meet'], 'mytime agent event update', [
-        'Usage: mytime agent event update <id> [--title] [--notes] [--location] [--reminders] [--guests] [--google-meet]',
+      validateFlags(flags, ['title', 'notes', 'location', 'url', 'reminders', 'guests', 'google-meet'], 'mytime agent event update', [
+        'Usage: mytime agent event update <id> [--title] [--notes] [--location] [--url] [--reminders] [--guests] [--google-meet]',
       ]);
-      const id = requirePos([sub, ...rest], 1, 'event id', ['Usage: mytime agent event update <id> [--title] [--notes] [--location]']);
+      const id = requirePos([sub, ...rest], 1, 'event id', ['Usage: mytime agent event update <id> [--title] [--notes] [--location] [--url]']);
       return emitResult(
         await agentUpdateEvent(id, {
           title: flagString(flags, 'title'),
           notes: flagString(flags, 'notes'),
           location: flagString(flags, 'location'),
+          url: flagString(flags, 'url'),
           reminders: parseReminders(flags),
           guests: flagStringList(flags, 'guests'),
           googleMeet: flags.has('google-meet') ? flagBool(flags, 'google-meet') : undefined,

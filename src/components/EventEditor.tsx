@@ -5,6 +5,7 @@ import type { EventAttendee, Item, MeetingProvider, Reminder } from '../db/types
 import { listReminderPresets, defaultReminders, reminderLabel } from '../lib/reminders.js';
 import { getDefaultMeetingProvider } from '../db/meta.js';
 import { getActiveProvider } from '../calendar/provider.js';
+import { deleteTextInput } from '../lib/textInput.js';
 
 type Props = {
   item?: Item;
@@ -13,6 +14,7 @@ type Props = {
     title: string;
     notes?: string;
     location?: string;
+    url?: string;
     reminders: Reminder[];
     attendees: EventAttendee[];
     meetingProvider?: MeetingProvider;
@@ -20,7 +22,7 @@ type Props = {
   onCancel: () => void;
 };
 
-type Field = 'title' | 'notes' | 'location' | 'guests' | 'meeting' | 'reminders';
+type Field = 'title' | 'notes' | 'location' | 'url' | 'guests' | 'meeting' | 'reminders';
 
 const NOTES_LABEL = 'Notes: ';
 const NOTES_INDENT = ' '.repeat(NOTES_LABEL.length);
@@ -80,6 +82,7 @@ export function EventEditor({ item, mode, onSubmit, onCancel }: Props) {
   const [title, setTitle] = useState(item?.title ?? '');
   const [notes, setNotes] = useState(item?.notes ?? '');
   const [location, setLocation] = useState(item?.location ?? '');
+  const [url, setUrl] = useState(item?.url ?? '');
   const [guests, setGuests] = useState(() =>
     (item?.attendees ?? [])
       .filter((attendee) => !attendee.organizer || attendee.self)
@@ -96,13 +99,14 @@ export function EventEditor({ item, mode, onSubmit, onCancel }: Props) {
   const [reminderIndex, setReminderIndex] = useState(0);
   const reminderPresets = listReminderPresets();
 
-  const fields: Field[] = ['title', 'guests', 'meeting', 'notes', 'location', 'reminders'];
+  const fields: Field[] = ['title', 'guests', 'meeting', 'notes', 'location', 'url', 'reminders'];
   const isLastField = field === fields[fields.length - 1];
-  const values: Record<Exclude<Field, 'meeting' | 'reminders'>, string> = { title, notes, location, guests };
+  const values: Record<Exclude<Field, 'meeting' | 'reminders'>, string> = { title, notes, location, url, guests };
   const setters: Record<Exclude<Field, 'meeting' | 'reminders'>, (value: string) => void> = {
     title: setTitle,
     notes: setNotes,
     location: setLocation,
+    url: setUrl,
     guests: setGuests,
   };
 
@@ -129,6 +133,7 @@ export function EventEditor({ item, mode, onSubmit, onCancel }: Props) {
       title: title.trim(),
       notes: notes.trim() || undefined,
       location: location.trim() || undefined,
+      url: url.trim() || undefined,
       reminders: enabledReminders.map((minutes) => ({ method: 'popup', minutes })),
       attendees,
       meetingProvider: googleMeet ? 'google_meet' : undefined,
@@ -214,8 +219,9 @@ export function EventEditor({ item, mode, onSubmit, onCancel }: Props) {
       else nextField();
       return;
     }
-    if (key.backspace || key.delete) {
-      setters[field](values[field].slice(0, -1));
+    const deletion = deleteTextInput(values[field], values[field].length, input, key);
+    if (deletion) {
+      setters[field](deletion.value);
       return;
     }
     const typed = cleanTypedInput(input);
@@ -229,7 +235,7 @@ export function EventEditor({ item, mode, onSubmit, onCancel }: Props) {
       <Text bold color="cyanBright">
         {mode === 'add' ? 'New event' : 'Edit event'}
       </Text>
-      <Text dimColor>type to edit · tab/enter/↓ next · shift+tab/↑ prev · enter save (last) · esc cancel</Text>
+      <Text dimColor>type · ⌥⌫/ctrl+w word · ⌘⌫/ctrl+u clear · tab/enter/↓ next · shift+tab/↑ prev · enter save (last) · esc cancel</Text>
 
       <Box>
         <Text color={field === 'title' ? 'cyanBright' : undefined}>Title*: </Text>
@@ -252,6 +258,10 @@ export function EventEditor({ item, mode, onSubmit, onCancel }: Props) {
       <Box>
         <Text color={field === 'location' ? 'cyanBright' : undefined}>Location: </Text>
         {field === 'location' ? editableText(location) : <Text>{location || '—'}</Text>}
+      </Box>
+      <Box>
+        <Text color={field === 'url' ? 'cyanBright' : undefined}>Link: </Text>
+        {field === 'url' ? editableText(url) : <Text>{url || '-'}</Text>}
       </Box>
       <Box flexDirection="column">
         <Text color={field === 'reminders' ? 'cyanBright' : undefined}>Reminders:</Text>

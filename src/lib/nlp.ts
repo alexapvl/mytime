@@ -1,6 +1,7 @@
 import * as chrono from 'chrono-node';
 import { DateTime } from 'luxon';
 import { allDayRange, defaultEnd, findAllDayDateRangeInText, findTimeRangeInText, multiDayAllDayRange } from './time.js';
+import { extractFirstUrl } from './links.js';
 
 export type ParsedItem = {
   title: string;
@@ -10,6 +11,7 @@ export type ParsedItem = {
   tags: string[];
   project?: string;
   priority: 0 | 1 | 2 | 3;
+  url?: string;
 };
 
 type EmbeddedDuration = {
@@ -51,7 +53,9 @@ function removeTextSpan(text: string, index: number, length: number): string {
 }
 
 export function parseQuickAdd(input: string, referenceDate: Date = new Date()): ParsedItem {
-  let text = input.trim();
+  const extractedUrl = extractFirstUrl(input.trim());
+  let text = extractedUrl.text;
+  const fallbackTitle = text;
   const tags: string[] = [];
   let project: string | undefined;
   let priority: 0 | 1 | 2 | 3 = 0;
@@ -149,8 +153,8 @@ export function parseQuickAdd(input: string, referenceDate: Date = new Date()): 
   }
 
   if (!title) {
-    title = input.trim();
+    title = fallbackTitle || 'Untitled';
   }
 
-  return { title, start, end, allDay, tags, project, priority };
+  return { title, start, end, allDay, tags, project, priority, url: extractedUrl.url };
 }

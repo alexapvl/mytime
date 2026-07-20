@@ -13,6 +13,7 @@ import {
   parseAllDayDateRangeInput,
   parseScheduleRangeInput,
 } from '../lib/time.js';
+import { deleteTextInput } from '../lib/textInput.js';
 
 type Props = {
   item: Item;
@@ -173,9 +174,10 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
       return;
     }
     if (rangeMode) {
-      if (key.backspace || key.delete) {
+      const deletion = deleteTextInput(rangeInput, rangeInput.length, input, key);
+      if (deletion) {
         setRangeInput((r) => {
-          const next = r.slice(0, -1);
+          const next = deleteTextInput(r, r.length, input, key)?.value ?? r;
           if (!next) setRangeMode(false);
           return next;
         });
@@ -207,8 +209,9 @@ export function ScheduleEditor({ item, onSubmit, onCancel }: Props) {
       setSelected((s) => Math.max(s - 1, 0));
       return;
     }
-    if (key.backspace || key.delete) {
-      setFilter((f) => f.slice(0, -1));
+    const deletion = deleteTextInput(filter, filter.length, input, key);
+    if (deletion) {
+      setFilter(deletion.value);
       setSelected(0);
       return;
     }

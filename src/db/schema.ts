@@ -29,6 +29,7 @@ function initSchema(database: Database.Database): void {
       source TEXT NOT NULL DEFAULT 'task',
       origin_provider TEXT,
       location TEXT,
+      url TEXT,
       reminders TEXT,
       attendees TEXT,
       organizer TEXT,
@@ -93,6 +94,9 @@ function migrateSchema(database: Database.Database): void {
   }
   if (!names.has('location')) {
     database.exec('ALTER TABLE items ADD COLUMN location TEXT');
+  }
+  if (!names.has('url')) {
+    database.exec('ALTER TABLE items ADD COLUMN url TEXT');
   }
   if (!names.has('reminders')) {
     database.exec('ALTER TABLE items ADD COLUMN reminders TEXT');

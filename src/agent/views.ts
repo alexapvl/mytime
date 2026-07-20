@@ -22,6 +22,7 @@ export function listEvent(item: Item) {
     start: item.start ?? null,
     end: item.end ?? null,
     allDay: item.allDay,
+    url: item.url ?? null,
     meetingUrl: item.meetingUrl ?? null,
     response: item.selfResponseStatus ?? null,
   };
@@ -45,6 +46,7 @@ export function detailItem(item: Item, full = false) {
           title: item.title,
           source: item.source,
           location: item.location ?? null,
+          url: item.url ?? null,
           reminders: item.reminders,
           organizer: item.organizer ?? null,
           attendees: item.attendees,
@@ -64,6 +66,7 @@ export function detailItem(item: Item, full = false) {
           priority: item.priority,
           project: item.project ?? null,
           tags: item.tags,
+          url: item.url ?? null,
           start: item.start ?? null,
           end: item.end ?? null,
           allDay: item.allDay,

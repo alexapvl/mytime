@@ -31,7 +31,7 @@ export function MouseProvider({ children }: { children: React.ReactNode }) {
 
   // Patch the input emitter so mouse escape sequences are intercepted (and
   // dispatched as clicks) here, then stripped before any other listener —
-  // including ink-text-input — ever sees them. Otherwise raw SGR sequences
+  // including text inputs - ever sees them. Otherwise raw SGR sequences
   // like "\x1b[<0;24;13M" get typed into focused text inputs.
   useEffect(() => {
     if (!internal_eventEmitter) return;

@@ -94,6 +94,7 @@ function registerTools(server: McpServer): void {
       inputSchema: {
         title: z.string(),
         notes: z.string().optional(),
+        url: z.union([z.string().url(), z.literal('')]).optional(),
         project: z.string().optional(),
         tags: z.array(z.string()).optional(),
         priority: z.number().int().min(0).max(3).optional(),
@@ -105,7 +106,7 @@ function registerTools(server: McpServer): void {
   server.registerTool(
     'quick_add',
     {
-      description: 'Add a task from natural language. Parses date/time, #tags, @project and pN priority. e.g. "review PR tomorrow 3pm @work #swe p2".',
+      description: 'Add a task from natural language. Parses date/time, an HTTP(S) link, #tags, @project and pN priority. e.g. "review PR tomorrow 3pm @work #swe p2".',
       inputSchema: { text: z.string() },
     },
     async ({ text }) => fromAgent(await agentQuickAddTask(text)),
@@ -119,6 +120,7 @@ function registerTools(server: McpServer): void {
         id: z.string(),
         title: z.string().optional(),
         notes: z.string().optional(),
+        url: z.union([z.string().url(), z.literal('')]).optional(),
         project: z.string().optional(),
         tags: z.array(z.string()).optional(),
         priority: z.number().int().min(0).max(3).optional(),
@@ -162,6 +164,7 @@ function registerTools(server: McpServer): void {
         title: z.string(),
         notes: z.string().optional(),
         location: z.string().optional(),
+        url: z.string().url().optional(),
         start: z.string().describe('ISO datetime or date for event start'),
         end: z.string().optional().describe('ISO datetime or date for event end'),
         allDay: z.boolean().optional(),
@@ -176,7 +179,7 @@ function registerTools(server: McpServer): void {
   server.registerTool(
     'quick_add_event',
     {
-      description: 'Add a calendar event from natural language. Parses date/time only (no priority/project). e.g. "team lunch tomorrow 12pm", "vacation jun 1-5".',
+      description: 'Add a calendar event from natural language. Parses date/time and an HTTP(S) link (no priority/project). e.g. "team lunch tomorrow 12pm", "vacation jun 1-5".',
       inputSchema: { text: z.string() },
     },
     async ({ text }) => fromAgent(await agentQuickAddEvent(text)),
@@ -191,6 +194,7 @@ function registerTools(server: McpServer): void {
         title: z.string().optional(),
         notes: z.string().optional(),
         location: z.string().optional(),
+        url: z.union([z.string().url(), z.literal('')]).optional(),
         reminders: z.array(z.object({ method: z.literal('popup'), minutes: z.number().int().nonnegative() })).optional(),
         guests: z.array(z.string().email()).optional(),
         googleMeet: z.boolean().optional(),

@@ -6,6 +6,11 @@ export type Shortcut<C> = {
 
 export type BacklogHelpContext = {
   scheduled: boolean;
+  hasLink: boolean;
+};
+
+export type PastDueHelpContext = {
+  hasLink: boolean;
 };
 
 export type CalendarHelpContext = {
@@ -13,6 +18,7 @@ export type CalendarHelpContext = {
   isLocal: boolean;
   hasTime: boolean;
   hasMeeting: boolean;
+  hasLink: boolean;
   canRespond: boolean;
 };
 
@@ -33,6 +39,7 @@ export const BACKLOG_SHORTCUTS: Shortcut<BacklogHelpContext>[] = [
   { keys: 's', label: (ctx) => (ctx.scheduled ? 'reschedule' : 'schedule') },
   { keys: 'x', label: 'done' },
   { keys: 'd', label: 'delete' },
+  { keys: 'o', label: 'open link', show: (ctx) => ctx.hasLink },
 ];
 
 export const DAILY_SHORTCUTS: Shortcut<CalendarHelpContext>[] = [
@@ -43,7 +50,8 @@ export const DAILY_SHORTCUTS: Shortcut<CalendarHelpContext>[] = [
   { keys: 'q', label: 'quick-add' },
   { keys: '⇧a', label: 'add event' },
   { keys: '⇧q', label: 'quick-event' },
-  { keys: 'o', label: 'open meeting', show: (ctx) => ctx.hasMeeting },
+  { keys: 'o', label: (ctx) => ctx.hasMeeting ? 'open meeting' : 'open link', show: (ctx) => ctx.hasMeeting || ctx.hasLink },
+  { keys: '⇧o', label: 'open link', show: (ctx) => ctx.hasMeeting && ctx.hasLink },
   { keys: 'v', label: 'RSVP', show: (ctx) => ctx.canRespond },
   { keys: 'e', label: 'edit', show: (ctx) => ctx.isLocal },
   { keys: 's', label: 'reschedule', show: (ctx) => ctx.isLocal },
@@ -54,12 +62,13 @@ export const DAILY_SHORTCUTS: Shortcut<CalendarHelpContext>[] = [
   { keys: 'd', label: 'delete', show: (ctx) => ctx.isLocal },
 ];
 
-export const PAST_DUE_SHORTCUTS: Shortcut<Record<string, never>>[] = [
+export const PAST_DUE_SHORTCUTS: Shortcut<PastDueHelpContext>[] = [
   { keys: '↑/↓', label: 'navigate' },
   { keys: 'e', label: 'edit' },
   { keys: 's', label: 'reschedule' },
   { keys: 'x', label: 'done' },
   { keys: 'd', label: 'delete' },
+  { keys: 'o', label: 'open link', show: (ctx) => ctx.hasLink },
 ];
 
 export const MONTH_SHORTCUTS: Shortcut<CalendarHelpContext>[] = [
@@ -72,7 +81,8 @@ export const MONTH_SHORTCUTS: Shortcut<CalendarHelpContext>[] = [
   { keys: 'q', label: 'quick-add' },
   { keys: '⇧a', label: 'add event' },
   { keys: '⇧q', label: 'quick-event' },
-  { keys: 'o', label: 'open meeting', show: (ctx) => ctx.hasMeeting },
+  { keys: 'o', label: (ctx) => ctx.hasMeeting ? 'open meeting' : 'open link', show: (ctx) => ctx.hasMeeting || ctx.hasLink },
+  { keys: '⇧o', label: 'open link', show: (ctx) => ctx.hasMeeting && ctx.hasLink },
   { keys: 'v', label: 'RSVP', show: (ctx) => ctx.canRespond },
 ];
 
@@ -85,6 +95,8 @@ export const WEEK_SHORTCUTS: Shortcut<CalendarHelpContext>[] = [
   { keys: 'q', label: 'quick-add' },
   { keys: '⇧a', label: 'add event' },
   { keys: '⇧q', label: 'quick-event' },
+  { keys: 'o', label: (ctx) => ctx.hasMeeting ? 'open meeting' : 'open link', show: (ctx) => ctx.hasMeeting || ctx.hasLink },
+  { keys: '⇧o', label: 'open link', show: (ctx) => ctx.hasMeeting && ctx.hasLink },
   { keys: 'e', label: 'edit', show: (ctx) => ctx.isLocal },
   { keys: 's', label: 'reschedule', show: (ctx) => ctx.isLocal },
   { keys: '⇧↑/↓', label: 'move 1h', show: (ctx) => ctx.isLocal && ctx.hasTime },

@@ -1,18 +1,15 @@
-import { spawn } from 'node:child_process';
 import type { Item, MeetingProvider } from '../db/types.js';
-
-const URL_PATTERN = /https?:\/\/[^\s<>"')\]]+/gi;
-
-function trimUrl(url: string): string {
-  return url.replace(/[.,;:!?]+$/, '');
-}
+import { firstUrl, openUrl } from './links.js';
 
 export function meetingProviderForUrl(url: string): MeetingProvider {
   return /(^|\.)meet\.google\.com$/i.test(new URL(url).hostname) ? 'google_meet' : 'other';
 }
 
 export function findMeetingUrl(...values: Array<string | null | undefined>): string | undefined {
-  const urls = values.flatMap((value) => value?.match(URL_PATTERN) ?? []).map(trimUrl);
+  const urls = values.flatMap((value) => {
+    const matches = value?.match(/https?:\/\/[^\s<>"')\]]+/gi) ?? [];
+    return matches.flatMap((match) => firstUrl(match) ?? []);
+  });
   return urls.find((url) => {
     try {
       const host = new URL(url).hostname.toLowerCase();
@@ -33,12 +30,5 @@ export function meetingUrlForItem(item: Item): string | undefined {
 export function openMeeting(item: Item): Promise<void> {
   const url = meetingUrlForItem(item);
   if (!url) return Promise.reject(new Error('No meeting link found'));
-  return new Promise((resolve, reject) => {
-    const child = spawn('/usr/bin/open', [url], { detached: true, stdio: 'ignore' });
-    child.once('error', reject);
-    child.once('spawn', () => {
-      child.unref();
-      resolve();
-    });
-  });
+  return openUrl(url);
 }

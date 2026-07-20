@@ -389,6 +389,7 @@ export function MonthView({
             title: pendingEvent.title,
             notes: pendingEvent.notes,
             location: pendingEvent.location,
+            url: pendingEvent.url,
             reminders: pendingEvent.reminders,
             attendees: pendingEvent.attendees,
             meetingProvider: pendingEvent.meetingProvider,
@@ -413,7 +414,7 @@ export function MonthView({
         {monthAnchor.toFormat('MMMM yyyy')}
         {isCurrentMonth ? ' (this month)' : ''}
       </Text>
-      <ShortcutBar shortcuts={MONTH_SHORTCUTS} context={{ isLocal: false, hasTime: false, hasMeeting: false, canRespond: false }} />
+      <ShortcutBar shortcuts={MONTH_SHORTCUTS} context={{ isLocal: false, hasTime: false, hasMeeting: false, hasLink: false, canRespond: false }} />
       <Box marginTop={1} flexDirection="column" width={cellWidth * GRID_COLS}>
         <Box flexDirection="row" height={1}>
           {weekdayLabels.map((label, col) => (

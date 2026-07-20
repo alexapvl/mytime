@@ -426,6 +426,7 @@ export async function agentSearch(query: string): Promise<AgentResult> {
 export async function agentAddTask(input: {
   title: string;
   notes?: string;
+  url?: string;
   project?: string;
   tags?: string[];
   priority?: number;
@@ -434,6 +435,7 @@ export async function agentAddTask(input: {
   const item = createItem({
     title: input.title,
     notes: input.notes,
+    url: input.url,
     project: input.project,
     tags: input.tags ?? [],
     priority: (input.priority ?? 0) as ItemPriority,
@@ -452,6 +454,7 @@ export async function agentQuickAddTask(text: string): Promise<AgentResult> {
     tags: parsed.tags,
     project: parsed.project,
     priority: parsed.priority,
+    url: parsed.url,
     start: parsed.start,
     end: parsed.end,
     allDay: parsed.allDay,
@@ -465,7 +468,7 @@ export async function agentQuickAddTask(text: string): Promise<AgentResult> {
 
 export async function agentUpdateTask(
   id: string,
-  updates: { title?: string; notes?: string; project?: string; tags?: string[]; priority?: number },
+  updates: { title?: string; notes?: string; url?: string; project?: string; tags?: string[]; priority?: number },
 ): Promise<AgentResult> {
   await ensureFresh();
   const existing = getItem(id);
@@ -474,6 +477,7 @@ export async function agentUpdateTask(
   const patch: Partial<Item> = {};
   if (updates.title !== undefined) patch.title = updates.title;
   if (updates.notes !== undefined) patch.notes = updates.notes;
+  if (updates.url !== undefined) patch.url = updates.url;
   if (updates.project !== undefined) patch.project = updates.project;
   if (updates.tags !== undefined) patch.tags = updates.tags;
   if (updates.priority !== undefined) patch.priority = updates.priority as ItemPriority;
@@ -538,6 +542,7 @@ export async function agentAddEvent(input: {
   title: string;
   notes?: string;
   location?: string;
+  url?: string;
   start: string;
   end?: string;
   allDay?: boolean;
@@ -545,7 +550,7 @@ export async function agentAddEvent(input: {
   guests?: string[];
   googleMeet?: boolean;
 }): Promise<AgentResult> {
-  const { title, notes, location, start, end, allDay, reminders, guests, googleMeet } = input;
+  const { title, notes, location, url, start, end, allDay, reminders, guests, googleMeet } = input;
   if (!DateTime.fromISO(start).isValid) return err(`Invalid start: ${start}`, undefined, 2);
   const invalidGuest = guests?.find((email) => !isEmail(email));
   if (invalidGuest) return err(`Invalid guest email: ${invalidGuest}`, undefined, 2);
@@ -576,6 +581,7 @@ export async function agentAddEvent(input: {
     title,
     notes,
     location,
+    url,
     start: finalStart,
     end: finalEnd,
     allDay: useAllDay,
@@ -593,6 +599,7 @@ export async function agentQuickAddEvent(text: string): Promise<AgentResult> {
   if (!parsed.start) return err('Events require a date/time in the text', ['Example: `mytime agent event quick "team lunch tomorrow 12pm"`'], 2);
   const item = createEvent({
     title: parsed.title,
+    url: parsed.url,
     start: parsed.start,
     end: parsed.end,
     allDay: parsed.allDay,
@@ -604,7 +611,7 @@ export async function agentQuickAddEvent(text: string): Promise<AgentResult> {
 
 export async function agentUpdateEvent(
   id: string,
-  updates: { title?: string; notes?: string; location?: string; reminders?: Reminder[]; guests?: string[]; googleMeet?: boolean },
+  updates: { title?: string; notes?: string; location?: string; url?: string; reminders?: Reminder[]; guests?: string[]; googleMeet?: boolean },
 ): Promise<AgentResult> {
   await ensureFresh();
   const existing = getItem(id);
@@ -616,6 +623,7 @@ export async function agentUpdateEvent(
   if (updates.title !== undefined) patch.title = updates.title;
   if (updates.notes !== undefined) patch.notes = updates.notes;
   if (updates.location !== undefined) patch.location = updates.location;
+  if (updates.url !== undefined) patch.url = updates.url;
   if (updates.reminders !== undefined) patch.reminders = updates.reminders;
   if (updates.guests !== undefined) patch.attendees = attendeesFromEmails(updates.guests, existing.attendees);
   if (updates.googleMeet === true) {

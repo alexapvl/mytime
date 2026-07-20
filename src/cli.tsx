@@ -61,6 +61,7 @@ async function main() {
         tags: parsed.tags,
         project: parsed.project,
         priority: parsed.priority,
+        url: parsed.url,
         start: parsed.start,
         end: parsed.end,
         allDay: parsed.allDay,
@@ -85,6 +86,7 @@ async function main() {
       }
       const item = createEvent({
         title: parsed.title,
+        url: parsed.url,
         start: parsed.start,
         end: parsed.end,
         allDay: parsed.allDay,
@@ -208,6 +210,10 @@ TUI keys:
   u         Undo
   esc       Quit
 
+Text inputs:
+  Option+Backspace / Ctrl+W Delete previous word
+  Cmd+Backspace / Ctrl+U    Clear input
+
 Backlog:
   ←/→       Move priority
   ↑/↓       Navigate
@@ -217,10 +223,12 @@ Backlog:
   s         Schedule
   x         Toggle done
   d         Delete
+  o         Open attached link
 
 Daily / Week:
   Shift+A   Add event (guests and optional Google Meet)
-  o         Open selected meeting link
+  o         Open meeting link, or attached link when there is no meeting
+  Shift+O   Open attached link when a meeting link also exists
   v         Respond to invitation (yes/maybe/no)
 `);
 }

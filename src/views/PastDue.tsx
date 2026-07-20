@@ -26,6 +26,7 @@ import { overdueLabel } from '../lib/overdue.js';
 import { formatDate, formatScheduleTime } from '../lib/time.js';
 import { PAST_DUE_SHORTCUTS } from '../lib/shortcuts.js';
 import { cloneItem, makeUndoDelete, makeUndoToggleDone } from '../lib/undoActions.js';
+import { openItemUrl } from '../lib/links.js';
 
 type Props = {
   onRefresh: () => void;
@@ -86,6 +87,11 @@ export function PastDueView({ onRefresh, onStatus, refreshToken }: Props) {
       if (input === 'j' || key.downArrow) setSelected((s) => Math.min(s + 1, items.length - 1));
       if (input === 'k' || key.upArrow) setSelected((s) => Math.max(s - 1, 0));
       if (input === 'e' && selectedItem) setMode('edit');
+      if (input === 'o' && selectedItem?.url) {
+        void openItemUrl(selectedItem)
+          .then(() => onStatus('Opened link'))
+          .catch((error) => onStatus(`Could not open link: ${(error as Error).message}`));
+      }
       if (input === 'x' && selectedItem) {
         const before = cloneItem(selectedItem);
         const id = selectedItem.id;
@@ -123,6 +129,7 @@ export function PastDueView({ onRefresh, onStatus, refreshToken }: Props) {
           updateItem(item.id, {
             title: data.title,
             notes: data.notes,
+            url: data.url,
             project: data.project,
             tags: data.tags,
             priority: data.priority,
@@ -156,7 +163,7 @@ export function PastDueView({ onRefresh, onStatus, refreshToken }: Props) {
 
   return (
     <Box flexDirection="column">
-      <ShortcutBar shortcuts={PAST_DUE_SHORTCUTS} context={{}} />
+      <ShortcutBar shortcuts={PAST_DUE_SHORTCUTS} context={{ hasLink: Boolean(selectedItem?.url) }} />
       <Box marginTop={1} flexDirection="column">
         {items.length === 0 ? (
           <Text dimColor>No past due tasks</Text>
