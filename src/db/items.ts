@@ -7,17 +7,17 @@ import { defaultReminders } from '../lib/reminders.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const SELECT = `
-  SELECT id, title, notes, project, tags, priority, status, source, origin_provider, location, reminders,
+  SELECT id, title, notes, project, tags, priority, status, source, origin_provider, location, url, reminders,
          attendees, organizer, self_response_status, meeting_provider, meeting_url, conference_request_id, all_day,
          start, end, google_event_id, google_calendar_id, synced_at, updated_at, created_at, completed_at
   FROM items
 `;
 
-const INSERT_SQL = `INSERT INTO items (id, title, notes, project, tags, priority, status, source, origin_provider, location, reminders, attendees, organizer, self_response_status, meeting_provider, meeting_url, conference_request_id, start, end, all_day, google_event_id, google_calendar_id, synced_at, updated_at, created_at, completed_at)
-       VALUES (@id, @title, @notes, @project, @tags, @priority, @status, @source, @origin_provider, @location, @reminders, @attendees, @organizer, @self_response_status, @meeting_provider, @meeting_url, @conference_request_id, @start, @end, @all_day, @google_event_id, @google_calendar_id, @synced_at, @updated_at, @created_at, @completed_at)`;
+const INSERT_SQL = `INSERT INTO items (id, title, notes, project, tags, priority, status, source, origin_provider, location, url, reminders, attendees, organizer, self_response_status, meeting_provider, meeting_url, conference_request_id, start, end, all_day, google_event_id, google_calendar_id, synced_at, updated_at, created_at, completed_at)
+       VALUES (@id, @title, @notes, @project, @tags, @priority, @status, @source, @origin_provider, @location, @url, @reminders, @attendees, @organizer, @self_response_status, @meeting_provider, @meeting_url, @conference_request_id, @start, @end, @all_day, @google_event_id, @google_calendar_id, @synced_at, @updated_at, @created_at, @completed_at)`;
 
 const UPDATE_SQL = `UPDATE items SET title=@title, notes=@notes, project=@project, tags=@tags, priority=@priority,
-       status=@status, source=@source, origin_provider=@origin_provider, location=@location, reminders=@reminders,
+       status=@status, source=@source, origin_provider=@origin_provider, location=@location, url=@url, reminders=@reminders,
        attendees=@attendees, organizer=@organizer, self_response_status=@self_response_status,
        meeting_provider=@meeting_provider, meeting_url=@meeting_url, conference_request_id=@conference_request_id,
        start=@start, end=@end, all_day=@all_day, google_event_id=@google_event_id,
@@ -45,6 +45,7 @@ export function createItem(
     source: partial.source ?? 'task',
     originProvider: partial.originProvider,
     location: partial.location,
+    url: partial.url,
     reminders: partial.reminders ?? [],
     attendees: partial.attendees ?? [],
     organizer: partial.organizer,

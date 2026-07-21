@@ -40,6 +40,7 @@ export type Item = {
   source: ItemSource;
   originProvider?: 'google' | 'apple';
   location?: string;
+  url?: string;
   reminders: Reminder[];
   attendees: EventAttendee[];
   organizer?: EventOrganizer;
@@ -74,6 +75,7 @@ export type ItemRow = {
   source: string;
   origin_provider: string | null;
   location: string | null;
+  url: string | null;
   reminders: string | null;
   attendees: string | null;
   organizer: string | null;
@@ -123,6 +125,7 @@ export function rowToItem(row: ItemRow): Item {
     source: (row.source as ItemSource) || 'task',
     originProvider: (row.origin_provider as 'google' | 'apple' | null) ?? undefined,
     location: row.location ?? undefined,
+    url: row.url ?? undefined,
     reminders: parseReminders(row.reminders),
     attendees: parseJson<EventAttendee[]>(row.attendees, []),
     organizer: parseJson<EventOrganizer | undefined>(row.organizer, undefined),
@@ -154,6 +157,7 @@ export function itemToRow(item: Item): ItemRow {
     source: item.source,
     origin_provider: item.originProvider ?? null,
     location: item.location ?? null,
+    url: item.url ?? null,
     reminders: item.reminders.length ? JSON.stringify(item.reminders) : null,
     attendees: item.attendees.length ? JSON.stringify(item.attendees) : null,
     organizer: item.organizer ? JSON.stringify(item.organizer) : null,

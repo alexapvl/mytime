@@ -51,15 +51,15 @@ commands[10]:
 
 ### Writes
 
-- `mytime agent task add --title <text> [--notes] [--project] [--tags a,b] [--priority 0-3]`
-- `mytime agent task quick "<text>"` — NLP add (may include schedule)
-- `mytime agent task update <id> [--title] [--notes] [--project] [--tags] [--priority]`
+- `mytime agent task add --title <text> [--notes] [--url] [--project] [--tags a,b] [--priority 0-3]`
+- `mytime agent task quick "<text>"` - NLP add (may include schedule and an HTTP(S) link)
+- `mytime agent task update <id> [--title] [--notes] [--url] [--project] [--tags] [--priority]`
 - `mytime agent task schedule <id> --start <iso> [--end] [--all-day] [--duration-minutes 60]`
 - `mytime agent task done <id> [--done true|false]`
 - `mytime agent task delete <id>`
-- `mytime agent event add --title <text> --start <iso> [--end] [--all-day] [--notes] [--location] [--guests a@b.com,c@d.com] [--google-meet]`
+- `mytime agent event add --title <text> --start <iso> [--end] [--all-day] [--notes] [--location] [--url] [--guests a@b.com,c@d.com] [--google-meet]`
 - `mytime agent event quick "<text>"`
-- `mytime agent event update <id> [--title] [--notes] [--location]`
+- `mytime agent event update <id> [--title] [--notes] [--location] [--url]`
 - `mytime agent event schedule <id> --start <iso> [--end] [--all-day]`
 - `mytime agent event delete <id>`
 - `mytime agent event respond <id> yes|maybe|no`

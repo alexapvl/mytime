@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Text } from 'ink';
-import TextInput from 'ink-text-input';
 import { DateTime } from 'luxon';
 import { ItemEditor } from '../components/ItemEditor.js';
 import { ScheduleEditor } from '../components/ScheduleEditor.js';
@@ -24,6 +23,8 @@ import { BACKLOG_SHORTCUTS } from '../lib/shortcuts.js';
 import { padToWidth } from '../lib/textWidth.js';
 import { formatDate, formatScheduleTime } from '../lib/time.js';
 import { cloneItem, makeUndoDelete, makeUndoToggleDone } from '../lib/undoActions.js';
+import { AppTextInput } from '../components/AppTextInput.js';
+import { openItemUrl } from '../lib/links.js';
 
 type Props = {
   onRefresh: () => void;
@@ -276,6 +277,11 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
       if (input === 'a') setMode('add');
       if (input === 'q') setMode('quick');
       if (input === 'e' && selectedItem) setMode('edit');
+      if (input === 'o' && selectedItem?.url) {
+        void openItemUrl(selectedItem)
+          .then(() => onStatus('Opened link'))
+          .catch((error) => onStatus(`Could not open link: ${(error as Error).message}`));
+      }
       if (input === 'x' && selectedItem) {
         const before = cloneItem(selectedItem);
         const id = selectedItem.id;
@@ -310,7 +316,7 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
         <Text dimColor>e.g. "review PR tomorrow 3pm @work p2 #swe"</Text>
         <Box marginTop={1}>
           <Text>&gt; </Text>
-          <TextInput
+          <AppTextInput
             value={quickInput}
             onChange={setQuickInput}
             onSubmit={(val) => {
@@ -321,6 +327,7 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
                 tags: parsed.tags,
                 project: parsed.project,
                 priority,
+                url: parsed.url,
                 start: parsed.start,
                 end: parsed.end,
                 allDay: parsed.allDay,
@@ -354,6 +361,7 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
           const created = createItem({
             title: data.title,
             notes: data.notes,
+            url: data.url,
             project: data.project,
             tags: data.tags,
             priority: data.priority,
@@ -378,6 +386,7 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
           updateItem(item.id, {
             title: data.title,
             notes: data.notes,
+            url: data.url,
             project: data.project,
             tags: data.tags,
             priority: data.priority,
@@ -411,7 +420,7 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
 
   return (
     <Box flexDirection="column">
-      <ShortcutBar shortcuts={BACKLOG_SHORTCUTS} context={{ scheduled: Boolean(selectedItem?.start) }} />
+      <ShortcutBar shortcuts={BACKLOG_SHORTCUTS} context={{ scheduled: Boolean(selectedItem?.start), hasLink: Boolean(selectedItem?.url) }} />
       <Box marginTop={1} flexDirection="column" width={viewWidth}>
         <Box flexDirection="row">
           {PRIORITIES.map((priority, columnIndex) => {

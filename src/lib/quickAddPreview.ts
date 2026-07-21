@@ -44,6 +44,7 @@ export function buildQuickAddDraft(input: string, opts: QuickAddPreviewOptions =
     location: undefined,
     reminders: [],
     attendees: [],
+    url: parsed.url,
     start,
     end,
     allDay: Boolean(start && allDay),
@@ -57,11 +58,14 @@ export function formatQuickAddPreviewLine(item: Item): string {
 
   if (item.start) {
     if (isAllDaySchedule(item.start, item.end, item.allDay)) {
-      parts.push(formatAllDaySchedule(item.start, item.end));
+      const allDayLabel = formatAllDaySchedule(item.start, item.end);
+      parts.push(allDayLabel === 'all day' ? `${formatDate(item.start)} all day` : allDayLabel);
     } else {
       parts.push(`${formatDate(item.start)} ${formatScheduleTime(item.start, item.end, item.allDay)}`);
     }
   }
+
+  if (item.url) parts.push(`link: ${item.url}`);
 
   if (item.source === 'task') {
     const meta = metaLabel(item);

@@ -15,6 +15,7 @@ export function eventDetailLines(item: Item): string[] {
   if (item.source === 'task') return [];
   const lines: string[] = [];
   if (item.location) lines.push(`location: ${item.location}`);
+  if (item.url) lines.push(`link: ${item.url}`);
   const meetingUrl = meetingUrlForItem(item);
   if (meetingUrl) lines.push(`meeting: ${meetingUrl}`);
   const canRespond = canRespondToInvitation(item);
@@ -54,6 +55,7 @@ export function detailLines(
     else {
       const meta = metaLabel(item);
       if (meta) lines.push(meta);
+      if (item.url) lines.push(`link: ${item.url}`);
     }
   }
   return lines;

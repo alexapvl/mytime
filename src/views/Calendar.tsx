@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from 'ink';
-import TextInput from 'ink-text-input';
 import { DateTime } from 'luxon';
 import type { EventAttendee, Item, MeetingProvider, Reminder } from '../db/types.js';
 import { isLocalItem } from '../db/types.js';
@@ -33,6 +32,8 @@ import { respondToInvitation } from '../calendar/invitations.js';
 import { RsvpEditor } from '../components/RsvpEditor.js';
 import { getDefaultMeetingProvider } from '../db/meta.js';
 import { getActiveProvider } from '../calendar/provider.js';
+import { AppTextInput } from '../components/AppTextInput.js';
+import { openItemUrl } from '../lib/links.js';
 
 type Props = {
   onRefresh: () => void;
@@ -47,6 +48,7 @@ export type PendingEventDraft = {
   title: string;
   notes?: string;
   location?: string;
+  url?: string;
   reminders: Reminder[];
   attendees: EventAttendee[];
   meetingProvider?: MeetingProvider;
@@ -115,6 +117,7 @@ export function createCalendarItemFromQuickAdd(input: string, day: DateTime, kin
   if (!draft) throw new Error('empty quick add');
   const fields = {
     title: draft.title,
+    url: draft.url,
     start: draft.start!,
     end: draft.end,
     allDay: draft.allDay,
@@ -146,8 +149,18 @@ function calendarHelpContext(item: Item | undefined) {
     isLocal: !!item && isLocalItem(item),
     hasTime: item ? hasWeekTime(item) : false,
     hasMeeting: item ? Boolean(meetingUrlForItem(item)) : false,
+    hasLink: Boolean(item?.url),
     canRespond: item ? canRespondToInvitation(item) : false,
   };
+}
+
+function openCalendarLink(item: Item, attached: boolean, onStatus: (message: string) => void): void {
+  const useAttached = attached || !meetingUrlForItem(item);
+  const open = useAttached ? openItemUrl(item) : openMeeting(item);
+  const label = useAttached ? 'link' : 'meeting link';
+  void open
+    .then(() => onStatus(`Opened ${label}`))
+    .catch((error) => onStatus(`Could not open ${label}: ${(error as Error).message}`));
 }
 
 /** +/- adjust end; shift+/- adjust start (_ is shift+- when the terminal omits key.shift). */
@@ -221,7 +234,7 @@ export function CalendarItemCreator({
       <Text dimColor>Time-only input uses this day. No time makes an all-day {kind}.</Text>
       <Box marginTop={1}>
         <Text>&gt; </Text>
-        <TextInput
+        <AppTextInput
           value={quickInput}
           onChange={setQuickInput}
           onSubmit={(val) => {
@@ -423,10 +436,12 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
         return;
       }
 
-      if (item && input === 'o' && meetingUrlForItem(item)) {
-        void openMeeting(item)
-          .then(() => onStatus('Opened meeting link'))
-          .catch((error) => onStatus(`Could not open meeting: ${(error as Error).message}`));
+      if (item && input === 'o' && (meetingUrlForItem(item) || item.url)) {
+        openCalendarLink(item, false, onStatus);
+        return;
+      }
+      if (item && input === 'O' && meetingUrlForItem(item) && item.url) {
+        openCalendarLink(item, true, onStatus);
         return;
       }
       if (item && input === 'v' && canRespondToInvitation(item)) {
@@ -550,6 +565,7 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
             title: pendingEvent.title,
             notes: pendingEvent.notes,
             location: pendingEvent.location,
+            url: pendingEvent.url,
             reminders: pendingEvent.reminders,
             attendees: pendingEvent.attendees,
             meetingProvider: pendingEvent.meetingProvider,
@@ -579,6 +595,7 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
           updateItem(item.id, {
             title: data.title,
             notes: data.notes,
+            url: data.url,
             project: data.project,
             tags: data.tags,
             priority: data.priority,
@@ -604,6 +621,7 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
             title: data.title,
             notes: data.notes,
             location: data.location,
+            url: data.url,
             reminders: data.reminders,
             attendees: data.attendees,
             meetingProvider: data.meetingProvider,
@@ -927,10 +945,12 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
         return;
       }
 
-      if (item && input === 'o' && meetingUrlForItem(item)) {
-        void openMeeting(item)
-          .then(() => onStatus('Opened meeting link'))
-          .catch((error) => onStatus(`Could not open meeting: ${(error as Error).message}`));
+      if (item && input === 'o' && (meetingUrlForItem(item) || item.url)) {
+        openCalendarLink(item, false, onStatus);
+        return;
+      }
+      if (item && input === 'O' && meetingUrlForItem(item) && item.url) {
+        openCalendarLink(item, true, onStatus);
         return;
       }
       if (item && input === 'v' && canRespondToInvitation(item)) {
@@ -1054,6 +1074,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
             title: pendingEvent.title,
             notes: pendingEvent.notes,
             location: pendingEvent.location,
+            url: pendingEvent.url,
             reminders: pendingEvent.reminders,
             attendees: pendingEvent.attendees,
             meetingProvider: pendingEvent.meetingProvider,
@@ -1083,6 +1104,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
           updateItem(item.id, {
             title: data.title,
             notes: data.notes,
+            url: data.url,
             project: data.project,
             tags: data.tags,
             priority: data.priority,
@@ -1108,6 +1130,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
             title: data.title,
             notes: data.notes,
             location: data.location,
+            url: data.url,
             reminders: data.reminders,
             attendees: data.attendees,
             meetingProvider: data.meetingProvider,
