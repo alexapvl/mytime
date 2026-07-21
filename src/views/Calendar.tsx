@@ -181,10 +181,11 @@ function calendarHelpContext(item: Item | undefined) {
 function externalEditorFields(item: Item): EventEditorField[] {
   const capabilities = eventCapabilities(item);
   return [
-    ...(capabilities.canEditDetails
-      ? (['title', 'notes', 'location', ...(item.originProvider === 'apple' ? ['url'] : [])] as EventEditorField[])
-      : []),
+    ...(capabilities.canEditDetails ? (['title'] as EventEditorField[]) : []),
     ...(capabilities.canEditGuests ? (['guests'] as EventEditorField[]) : []),
+    ...(capabilities.canEditDetails
+      ? (['notes', 'location', ...(item.originProvider === 'apple' ? ['url'] : [])] as EventEditorField[])
+      : []),
     ...(capabilities.canEditReminders ? (['reminders'] as EventEditorField[]) : []),
   ];
 }
