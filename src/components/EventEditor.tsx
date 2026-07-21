@@ -239,7 +239,7 @@ export function EventEditor({ item, mode, onSubmit, onCancel, enabledFields }: P
       <Text bold color="cyanBright">
         {mode === 'add' ? 'New event' : 'Edit event'}
       </Text>
-      <Text dimColor>type · ⌥⌫/ctrl+w word · ⌘⌫/ctrl+u clear · tab/enter/↓ next · shift+tab/↑ prev · enter save (last) · esc cancel</Text>
+      <Text dimColor>type · tab/enter/↓ next · shift+tab/↑ prev · enter save (last) · esc cancel</Text>
 
       {fields.includes('title') ? <Box>
         <Text color={field === 'title' ? 'cyanBright' : undefined}>Title*: </Text>

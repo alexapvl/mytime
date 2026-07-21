@@ -161,7 +161,7 @@ export function ItemEditor({ item, mode, defaultPriority = 0, onSubmit, onCancel
       <Text bold color="cyanBright">
         {mode === 'add' ? 'New task' : 'Edit task'}
       </Text>
-      <Text dimColor>type · ⌥⌫/ctrl+w word · ⌘⌫/ctrl+u clear · tab/enter/↓ next · shift+tab/↑ prev · enter save (last) · esc cancel</Text>
+      <Text dimColor>type · tab/enter/↓ next · shift+tab/↑ prev · enter save (last) · esc cancel</Text>
 
       <Box>
         <Text color={field === 'title' ? 'cyanBright' : undefined}>Title*: </Text>
