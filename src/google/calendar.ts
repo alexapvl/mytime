@@ -24,6 +24,7 @@ export type CalendarInfo = {
   summary: string;
   primary?: boolean;
   googleSelected?: boolean;
+  accessRole?: string;
 };
 
 export function isCalendarFetchEnabled(
@@ -46,6 +47,7 @@ export async function listAccountCalendars(): Promise<CalendarInfo[]> {
       summary: c.summaryOverride ?? c.summary ?? c.id!,
       primary: c.primary ?? false,
       googleSelected: c.selected !== false,
+      accessRole: c.accessRole ?? undefined,
     }));
 }
 
@@ -221,14 +223,92 @@ export async function deleteEvent(calendarId: string, eventId: string, notifyGue
   return calendar.events.delete({ calendarId, eventId, sendUpdates: notifyGuests ? 'all' : undefined });
 }
 
+export async function patchGoogleEvent(
+  calendarId: string,
+  eventId: string,
+  requestBody: calendar_v3.Schema$Event,
+  options: { etag?: string; notifyGuests?: boolean } = {},
+) {
+  const calendar = getCalendarClient();
+  return calendar.events.patch(
+    {
+      calendarId,
+      eventId,
+      requestBody,
+      conferenceDataVersion: 1,
+      sendUpdates: options.notifyGuests ? 'all' : 'none',
+    },
+    options.etag ? { headers: { 'If-Match': options.etag } } : undefined,
+  );
+}
+
+export async function deleteGoogleEvent(
+  calendarId: string,
+  eventId: string,
+  options: { etag?: string; notifyGuests?: boolean } = {},
+): Promise<void> {
+  const calendar = getCalendarClient();
+  await calendar.events.delete(
+    {
+      calendarId,
+      eventId,
+      sendUpdates: options.notifyGuests ? 'all' : 'none',
+    },
+    options.etag ? { headers: { 'If-Match': options.etag } } : undefined,
+  );
+}
+
+export async function restoreGoogleEvent(
+  calendarId: string,
+  eventId: string,
+  snapshot: calendar_v3.Schema$Event,
+  notifyGuests = false,
+) {
+  const calendar = getCalendarClient();
+  const requestBody: calendar_v3.Schema$Event = {
+    summary: snapshot.summary,
+    description: snapshot.description,
+    location: snapshot.location,
+    start: snapshot.start,
+    end: snapshot.end,
+    recurrence: snapshot.recurrence,
+    attendees: snapshot.attendees,
+    reminders: snapshot.reminders,
+    conferenceData: snapshot.conferenceData,
+    transparency: snapshot.transparency,
+    visibility: snapshot.visibility,
+    colorId: snapshot.colorId,
+    guestsCanInviteOthers: snapshot.guestsCanInviteOthers,
+    guestsCanModify: snapshot.guestsCanModify,
+    guestsCanSeeOtherGuests: snapshot.guestsCanSeeOtherGuests,
+    anyoneCanAddSelf: snapshot.anyoneCanAddSelf,
+    attachments: snapshot.attachments,
+    extendedProperties: snapshot.extendedProperties,
+    eventType: snapshot.eventType,
+    focusTimeProperties: snapshot.focusTimeProperties,
+    outOfOfficeProperties: snapshot.outOfOfficeProperties,
+    workingLocationProperties: snapshot.workingLocationProperties,
+    birthdayProperties: snapshot.birthdayProperties,
+    status: 'confirmed',
+  };
+  return calendar.events.update({
+    calendarId,
+    eventId,
+    requestBody,
+    conferenceDataVersion: 1,
+    supportsAttachments: Boolean(snapshot.attachments?.length),
+    sendUpdates: notifyGuests ? 'all' : 'none',
+  });
+}
+
 export async function respondToGoogleEvent(
   calendarId: string,
   eventId: string,
   attendeeEmail: string,
   responseStatus: AttendeeResponseStatus,
-): Promise<void> {
+) {
   const calendar = getCalendarClient();
-  await calendar.events.patch({
+  return calendar.events.patch({
     calendarId,
     eventId,
     requestBody: {

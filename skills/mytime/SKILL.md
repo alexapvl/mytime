@@ -71,7 +71,8 @@ Run `mytime agent --help` or `mytime agent --help task` for concise reference.
 
 - Treat conversation origin as project context. For example, work requested while operating in the `mytime` repository belongs to `@mytime` unless the user indicates another project.
 - Output is TOON-encoded and token-efficient; pipe through `grep` when filtering long lists.
-- External calendar events (`source: external`) are read-only. Only mytime tasks/events can be edited.
+- External calendar events (`source: external`) can be edited, rescheduled, or deleted when their original calendar grants write access. Check item `capabilities` first.
+- Google invitations can be answered with `mytime agent event respond <id> yes|maybe|no`, even when event is external.
 - Write commands auto-sync only to the currently active provider.
 - Only one provider is writable at a time. When switching, setup removes old-provider external events from the local cache and asks whether to delete the old dedicated mytime calendar. The default is to keep it. Never delete unrelated calendars.
 - Dedicated calendars use backend names: `mytime-google`, `mytime-icloud`, or `mytime-local`. EventKit using Google must adopt `mytime-google`, not create a second calendar.

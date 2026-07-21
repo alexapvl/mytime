@@ -20,6 +20,7 @@ export const META_KEYS = {
   calendarProviderSwitching: 'calendar_provider_switching',
   googleCalendarId: 'google_calendar_id',
   googleSyncTokens: 'google_sync_tokens',
+  googleExternalAccessVersion: 'google_external_access_version',
   googleCalendarFetchPrefs: 'google_calendar_fetch_prefs',
   appleCalendarId: 'apple_calendar_id',
   appleSourceId: 'apple_source_id',

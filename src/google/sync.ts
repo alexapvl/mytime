@@ -16,7 +16,7 @@ import {
   getItem,
   updateItem,
 } from '../db/items.js';
-import { META_KEYS, getMeta, getSyncTokens, setSyncTokens, clearSyncToken } from '../db/meta.js';
+import { META_KEYS, getMeta, getSyncTokens, setMeta, setSyncTokens, clearSyncToken } from '../db/meta.js';
 import {
   deleteRemoteLink,
   findItemByRemote,
@@ -25,6 +25,7 @@ import {
   listItemsNeedingProviderSync,
   upsertRemoteLink,
 } from '../db/remoteLinks.js';
+import type { RemoteEventAccess } from '../db/remoteLinks.js';
 import { errorMessage, isSyncTokenExpired } from './errors.js';
 import { nowISO } from '../lib/time.js';
 import { cleanTitle } from '../lib/textClean.js';
@@ -52,6 +53,8 @@ export async function syncWithGoogle(): Promise<SyncResult> {
   try {
     const mytimeCalendarId = await getOrCreateMytimeCalendarId();
     const syncTokens = getSyncTokens();
+    const refreshExternalAccess = getMeta(META_KEYS.googleExternalAccessVersion) !== '1';
+    let externalAccessRefreshFailed = false;
 
     const toPush = listItemsNeedingProviderSync('google');
     for (const item of toPush) {
@@ -68,7 +71,7 @@ export async function syncWithGoogle(): Promise<SyncResult> {
 
     for (const cal of calendars) {
       try {
-        let syncToken = syncTokens[cal.id];
+        let syncToken = refreshExternalAccess ? undefined : syncTokens[cal.id];
         let response;
 
         try {
@@ -125,6 +128,7 @@ export async function syncWithGoogle(): Promise<SyncResult> {
           const rawSummary = event.summary ?? 'Untitled';
           const title = cleanPulledTitle(rawSummary, isMytimeCalendar);
           let source = resolveMytimeSource(event, isMytimeCalendar, local);
+          const access = googleRemoteAccess(cal.accessRole, event);
           if (
             !local &&
             isMytimeCalendar &&
@@ -143,7 +147,9 @@ export async function syncWithGoogle(): Promise<SyncResult> {
               );
             }
           }
-          const reminders = source === 'event' ? parseGoogleReminders(event.reminders?.overrides) : [];
+          const reminders = source === 'event' || source === 'external'
+            ? parseGoogleReminders(event.reminders?.overrides)
+            : [];
           const notes = source === 'event'
             ? cleanPulledEventNotes(event.description)
             : event.description ?? undefined;
@@ -187,7 +193,7 @@ export async function syncWithGoogle(): Promise<SyncResult> {
               source,
               originProvider: source === 'external' ? 'google' : undefined,
             });
-            upsertRemoteLink(local.id, 'google', cal.id, event.id, nowISO());
+            upsertRemoteLink(local.id, 'google', cal.id, event.id, nowISO(), access);
             result.pulled++;
           } else {
             const created = createItem({
@@ -209,7 +215,7 @@ export async function syncWithGoogle(): Promise<SyncResult> {
               end: endISO,
               allDay,
             });
-            upsertRemoteLink(created.id, 'google', cal.id, event.id, nowISO());
+            upsertRemoteLink(created.id, 'google', cal.id, event.id, nowISO(), access);
             result.pulled++;
           }
         }
@@ -218,6 +224,7 @@ export async function syncWithGoogle(): Promise<SyncResult> {
           syncTokens[cal.id] = response.data.nextSyncToken;
         }
       } catch (e) {
+        if (refreshExternalAccess) externalAccessRefreshFailed = true;
         if (isSyncTokenExpired(e)) {
           delete syncTokens[cal.id];
           clearSyncToken(cal.id);
@@ -227,11 +234,31 @@ export async function syncWithGoogle(): Promise<SyncResult> {
     }
 
     setSyncTokens(syncTokens);
+    if (refreshExternalAccess && !externalAccessRefreshFailed) {
+      setMeta(META_KEYS.googleExternalAccessVersion, '1');
+    }
   } catch (e) {
     result.errors.push((e as Error).message);
   }
 
   return result;
+}
+
+function googleRemoteAccess(
+  accessRole: string | undefined,
+  event: calendar_v3.Schema$Event,
+): RemoteEventAccess {
+  const calendarWritable = accessRole === 'writer' || accessRole === 'owner';
+  const organizerCopy = event.organizer?.self === true;
+  const unlocked = event.locked !== true;
+  return {
+    canEditDetails: calendarWritable && unlocked && (organizerCopy || event.guestsCanModify === true),
+    canEditReminders: calendarWritable,
+    canEditGuests: calendarWritable && unlocked && organizerCopy,
+    canDelete: calendarWritable,
+    recurring: Boolean(event.recurringEventId || event.recurrence?.length),
+    etag: event.etag ?? undefined,
+  };
 }
 
 const DONE_PREFIX = '✓ ';

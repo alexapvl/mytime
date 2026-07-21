@@ -296,6 +296,22 @@ private func writableCalendar(id: String) throws -> EKCalendar {
     return result
 }
 
+private func requestedEvent(_ request: [String: Any], eventId: String, calendarId: String) throws -> EKEvent? {
+    guard let occurrenceStart = try string(request, "occurrenceStart", required: false) else {
+        return eventStore.event(withIdentifier: eventId)
+    }
+    let occurrenceDate = try parseDate(occurrenceStart, key: "occurrenceStart")
+    let searchStart = Calendar.autoupdatingCurrent.date(byAdding: .day, value: -1, to: occurrenceDate) ?? occurrenceDate
+    let searchEnd = Calendar.autoupdatingCurrent.date(byAdding: .day, value: 2, to: occurrenceDate) ?? occurrenceDate
+    let targetCalendar = try calendar(id: calendarId)
+    let predicate = eventStore.predicateForEvents(withStart: searchStart, end: searchEnd, calendars: [targetCalendar])
+    return eventStore.events(matching: predicate).first { event in
+        guard event.eventIdentifier == eventId else { return false }
+        let candidate = event.occurrenceDate ?? event.startDate!
+        return formatDate(candidate, allDay: event.isAllDay) == occurrenceStart
+    }
+}
+
 private func sourceCanCreateCalendar(_ source: EKSource) -> Bool {
     switch source.sourceType {
     case .local, .exchange, .calDAV, .mobileMe: return true
@@ -431,6 +447,18 @@ private func handle(_ request: [String: Any]) throws -> Never {
             .map(eventJSON)
         succeed(["events": events, "count": events.count])
 
+    case "event.get":
+        try requireFullAccess()
+        let eventId = try string(request, "eventId")!
+        let calendarId = try string(request, "calendarId")!
+        guard let event = try requestedEvent(request, eventId: eventId, calendarId: calendarId) else {
+            throw HelperError("event_not_found", "Event not found: \(eventId)")
+        }
+        guard event.calendar.calendarIdentifier == calendarId else {
+            throw HelperError("provider_scope_mismatch", "Event does not belong to calendar: \(calendarId)")
+        }
+        succeed(["event": eventJSON(event)])
+
     case "event.upsert":
         try requireFullAccess()
         let calendarId = try string(request, "calendarId")!
@@ -439,7 +467,7 @@ private func handle(_ request: [String: Any]) throws -> Never {
         let event: EKEvent
         let created: Bool
         if let eventId {
-            guard let existing = eventStore.event(withIdentifier: eventId) else {
+            guard let existing = try requestedEvent(request, eventId: eventId, calendarId: calendarId) else {
                 throw HelperError("event_not_found", "Event not found: \(eventId)")
             }
             guard existing.calendar.calendarIdentifier == calendarId else {
@@ -495,7 +523,7 @@ private func handle(_ request: [String: Any]) throws -> Never {
         try requireFullAccess()
         let eventId = try string(request, "eventId")!
         let calendarId = try string(request, "calendarId")!
-        guard let event = eventStore.event(withIdentifier: eventId) else {
+        guard let event = try requestedEvent(request, eventId: eventId, calendarId: calendarId) else {
             succeed(["eventId": eventId, "deleted": false, "reason": "not_found"])
         }
         _ = try writableCalendar(id: calendarId)
@@ -510,7 +538,7 @@ private func handle(_ request: [String: Any]) throws -> Never {
         throw HelperError(
             "unknown_command",
             "Unknown command: \(command)",
-            hint: "Valid commands: auth.status, auth.request, source.list, calendar.list, calendar.create, calendar.rename, calendar.delete, event.query, event.upsert, event.delete"
+            hint: "Valid commands: auth.status, auth.request, source.list, calendar.list, calendar.create, calendar.rename, calendar.delete, event.query, event.get, event.upsert, event.delete"
         )
     }
 }

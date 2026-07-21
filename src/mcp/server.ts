@@ -188,7 +188,7 @@ function registerTools(server: McpServer): void {
   server.registerTool(
     'update_event',
     {
-      description: 'Update fields of an existing mytime event. Only provided fields change.',
+      description: 'Update a mytime event or a writable fetched calendar event. Only provided fields change.',
       inputSchema: {
         id: z.string(),
         title: z.string().optional(),
@@ -213,7 +213,7 @@ function registerTools(server: McpServer): void {
 
   server.registerTool(
     'schedule_event',
-    { description: `Schedule or reschedule a mytime event. ${scheduleHint}`, inputSchema: eventScheduleSchema },
+    { description: `Schedule or reschedule a mytime event or writable fetched event. ${scheduleHint}`, inputSchema: eventScheduleSchema },
     async (input) => fromAgent(await agentScheduleEvent(input)),
   );
 
@@ -225,7 +225,7 @@ function registerTools(server: McpServer): void {
 
   server.registerTool(
     'delete_event',
-    { description: 'Permanently delete a mytime event and its active-provider calendar entry.', inputSchema: { id: z.string() } },
+    { description: 'Delete a mytime event or writable fetched event from its original calendar.', inputSchema: { id: z.string() } },
     async ({ id }) => fromAgent(await agentDeleteEvent(id)),
   );
 

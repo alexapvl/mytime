@@ -36,6 +36,14 @@ import { getAppleAuthorizationStatus, listAppleCalendars, listAppleSources } fro
 import { isAuthenticated as isGoogleAuthenticated } from '../google/auth.js';
 import { respondToInvitation } from '../calendar/invitations.js';
 import type { InvitationResponse } from '../lib/invitations.js';
+import {
+  deleteExternalEvent,
+  externalDeleteMayNotifyGuests,
+  externalPatchMayNotifyGuests,
+  hasOtherAttendees,
+  updateExternalEvent,
+  type ExternalEventPatch,
+} from '../calendar/externalEvents.js';
 
 const SCHEDULE_HINT =
   'Run `mytime agent slots --date <day>` before scheduling, or `mytime agent schedule list` to inspect the day.';
@@ -159,7 +167,7 @@ export async function agentCalendarDashboard(): Promise<AgentResult> {
         detail: status?.detail ?? null,
         sharedGoogleCalendar,
         googleBackendRelation,
-        writes: `Only ${calendarName} is writable through the active adapter`,
+        writes: `mytime tasks/events use ${calendarName}; fetched events write back to their original calendar when permitted`,
         switchingEffect: sharedGoogleCalendar
           ? 'Google API and EventKit share one remote calendar; switching adapter does not copy or delete events'
           : googleBackendRelation === 'unknown'
@@ -616,7 +624,7 @@ export async function agentUpdateEvent(
   await ensureFresh();
   const existing = getItem(id);
   if (!existing) return err(`No item with id ${id}`);
-  if (existing.source !== 'event') return err('Item is not an event');
+  if (existing.source !== 'event' && existing.source !== 'external') return err('Item is not an event');
   const invalidGuest = updates.guests?.find((email) => !isEmail(email));
   if (invalidGuest) return err(`Invalid guest email: ${invalidGuest}`, undefined, 2);
   const patch: Partial<Item> = {};
@@ -627,8 +635,20 @@ export async function agentUpdateEvent(
   if (updates.reminders !== undefined) patch.reminders = updates.reminders;
   if (updates.guests !== undefined) patch.attendees = attendeesFromEmails(updates.guests, existing.attendees);
   if (updates.googleMeet === true) {
+    if (existing.source === 'external') return err('Google Meet creation is not supported when editing external events');
     if (getActiveProvider() !== 'google') return err('Google Meet creation requires Google Calendar as active provider');
     patch.meetingProvider = 'google_meet';
+  }
+  if (existing.source === 'external') {
+    try {
+      const externalPatch = patch as ExternalEventPatch;
+      const updated = await updateExternalEvent(existing, externalPatch, {
+        notifyGuests: externalPatchMayNotifyGuests(existing, externalPatch),
+      });
+      return ok({ message: 'External event updated', item: detailItem(updated) });
+    } catch (error) {
+      return err((error as Error).message);
+    }
   }
   const updated = updateItem(id, patch);
   const note = await syncPush(id);
@@ -649,12 +669,24 @@ export async function agentScheduleEvent(input: {
   await ensureFresh();
   const item = getItem(id);
   if (!item) return err(`No item with id ${id}`);
-  if (item.source !== 'event') return err('Item is not an event');
+  if (item.source !== 'event' && item.source !== 'external') return err('Item is not an event');
   const useAllDay = allDay === true || !start.includes('T');
   if (useAllDay) {
     const range = allDayRange(start);
     const finalEnd = end ? allDayRange(end).end : range.end;
     if (DateTime.fromISO(finalEnd) <= DateTime.fromISO(range.start)) return err('end must be after start', undefined, 2);
+    if (item.source === 'external') {
+      try {
+        const updated = await updateExternalEvent(
+          item,
+          { start: range.start, end: finalEnd, allDay: true },
+          { notifyGuests: hasOtherAttendees(item) },
+        );
+        return ok({ message: 'External event rescheduled all day', item: detailItem(updated) });
+      } catch (error) {
+        return err((error as Error).message);
+      }
+    }
     const result = rescheduleLocalItem(id, range.start, finalEnd, true);
     if (!result) return err(`Cannot reschedule event ${id}`);
     const note = await syncPush(id);
@@ -662,6 +694,18 @@ export async function agentScheduleEvent(input: {
   }
   const finalEnd = end ?? defaultEnd(start, durationMinutes ?? 60);
   if (DateTime.fromISO(finalEnd) <= DateTime.fromISO(start)) return err('end must be after start', undefined, 2);
+  if (item.source === 'external') {
+    try {
+      const updated = await updateExternalEvent(
+        item,
+        { start, end: finalEnd, allDay: false },
+        { notifyGuests: hasOtherAttendees(item) },
+      );
+      return ok({ message: 'External event rescheduled', item: detailItem(updated) }, [SCHEDULE_HINT]);
+    } catch (error) {
+      return err((error as Error).message);
+    }
+  }
   const result = rescheduleLocalItem(id, start, finalEnd, false);
   if (!result) return err(`Cannot reschedule event ${id}`);
   const note = await syncPush(id);
@@ -672,7 +716,16 @@ export async function agentDeleteEvent(id: string): Promise<AgentResult> {
   await ensureFresh();
   const item = getItem(id);
   if (!item) return err(`No item with id ${id}`);
-  if (item.source !== 'event') return err('Item is not an event');
+  if (item.source !== 'event' && item.source !== 'external') return err('Item is not an event');
+  if (item.source === 'external') {
+    try {
+      await deleteExternalEvent(item, { notifyGuests: externalDeleteMayNotifyGuests(item) });
+      deleteItem(id);
+      return ok({ message: `Deleted external event "${item.title}"` });
+    } catch (error) {
+      return err((error as Error).message);
+    }
+  }
   const note = await syncRemove(item);
   deleteItem(id);
   return ok({ message: `Deleted event "${item.title}"${note}` });

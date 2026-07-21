@@ -107,13 +107,13 @@ function AppShell({ screen, onNeedAuth }: { screen: Screen; onNeedAuth?: () => v
         if (input === '5') setTab('pastdue');
         if (input === 'r') void doSync();
         if (input === 'u') {
-          const label = undoLast();
-          if (label) {
-            refresh();
-            setStatus(`Undid: ${label}`);
-          } else {
-            setStatus('Nothing to undo');
-          }
+          setStatus('Undoing...');
+          void undoLast()
+            .then((label) => {
+              refresh();
+              setStatus(label ? `Undid: ${label}` : 'Nothing to undo');
+            })
+            .catch((error) => setStatus(`Undo failed: ${(error as Error).message}`));
         }
       }
     },

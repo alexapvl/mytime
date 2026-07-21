@@ -20,9 +20,13 @@ type Props = {
     meetingProvider?: MeetingProvider;
   }) => void;
   onCancel: () => void;
+  enabledFields?: EventEditorField[];
 };
 
-type Field = 'title' | 'notes' | 'location' | 'url' | 'guests' | 'meeting' | 'reminders';
+export type EventEditorField = 'title' | 'notes' | 'location' | 'url' | 'guests' | 'meeting' | 'reminders';
+type Field = EventEditorField;
+
+const DEFAULT_FIELDS: Field[] = ['title', 'guests', 'meeting', 'notes', 'location', 'url', 'reminders'];
 
 const NOTES_LABEL = 'Notes: ';
 const NOTES_INDENT = ' '.repeat(NOTES_LABEL.length);
@@ -76,9 +80,10 @@ function NotesField({ value, editing }: { value: string; editing: boolean }) {
   );
 }
 
-export function EventEditor({ item, mode, onSubmit, onCancel }: Props) {
-  const googleMeetAvailable = getActiveProvider() === 'google';
-  const [field, setField] = useState<Field>('title');
+export function EventEditor({ item, mode, onSubmit, onCancel, enabledFields }: Props) {
+  const fields = enabledFields?.length ? enabledFields : DEFAULT_FIELDS;
+  const googleMeetAvailable = getActiveProvider() === 'google' && fields.includes('meeting');
+  const [field, setField] = useState<Field>(fields[0]!);
   const [title, setTitle] = useState(item?.title ?? '');
   const [notes, setNotes] = useState(item?.notes ?? '');
   const [location, setLocation] = useState(item?.location ?? '');
@@ -99,7 +104,6 @@ export function EventEditor({ item, mode, onSubmit, onCancel }: Props) {
   const [reminderIndex, setReminderIndex] = useState(0);
   const reminderPresets = listReminderPresets();
 
-  const fields: Field[] = ['title', 'guests', 'meeting', 'notes', 'location', 'url', 'reminders'];
   const isLastField = field === fields[fields.length - 1];
   const values: Record<Exclude<Field, 'meeting' | 'reminders'>, string> = { title, notes, location, url, guests };
   const setters: Record<Exclude<Field, 'meeting' | 'reminders'>, (value: string) => void> = {
@@ -237,33 +241,33 @@ export function EventEditor({ item, mode, onSubmit, onCancel }: Props) {
       </Text>
       <Text dimColor>type · ⌥⌫/ctrl+w word · ⌘⌫/ctrl+u clear · tab/enter/↓ next · shift+tab/↑ prev · enter save (last) · esc cancel</Text>
 
-      <Box>
+      {fields.includes('title') ? <Box>
         <Text color={field === 'title' ? 'cyanBright' : undefined}>Title*: </Text>
         {field === 'title' ? editableText(title) : <Text>{title || '—'}</Text>}
-      </Box>
-      <Box>
+      </Box> : null}
+      {fields.includes('guests') ? <Box>
         <Text color={field === 'guests' ? 'cyanBright' : undefined}>Guests: </Text>
         {field === 'guests' ? editableText(guests) : <Text>{guests || '-'}</Text>}
-      </Box>
-      <Text dimColor>Guest email addresses only, separated by commas or spaces.</Text>
-      {guestError ? <Text color="red">{guestError}</Text> : null}
-      <Box>
+      </Box> : null}
+      {fields.includes('guests') ? <Text dimColor>Guest email addresses only, separated by commas or spaces.</Text> : null}
+      {fields.includes('guests') && guestError ? <Text color="red">{guestError}</Text> : null}
+      {fields.includes('meeting') ? <Box>
         <Text color={field === 'meeting' ? 'cyanBright' : undefined}>
           [{googleMeet ? 'x' : ' '}] Google Meet
         </Text>
         {item?.meetingProvider === 'google_meet' && item.meetingUrl ? <Text dimColor> (already created)</Text> : null}
         {!googleMeetAvailable ? <Text dimColor> (requires Google Calendar provider)</Text> : null}
-      </Box>
-      <NotesField value={notes} editing={field === 'notes'} />
-      <Box>
+      </Box> : null}
+      {fields.includes('notes') ? <NotesField value={notes} editing={field === 'notes'} /> : null}
+      {fields.includes('location') ? <Box>
         <Text color={field === 'location' ? 'cyanBright' : undefined}>Location: </Text>
         {field === 'location' ? editableText(location) : <Text>{location || '—'}</Text>}
-      </Box>
-      <Box>
+      </Box> : null}
+      {fields.includes('url') ? <Box>
         <Text color={field === 'url' ? 'cyanBright' : undefined}>Link: </Text>
         {field === 'url' ? editableText(url) : <Text>{url || '-'}</Text>}
-      </Box>
-      <Box flexDirection="column">
+      </Box> : null}
+      {fields.includes('reminders') ? <Box flexDirection="column">
         <Text color={field === 'reminders' ? 'cyanBright' : undefined}>Reminders:</Text>
         {reminderPresets.map((preset, idx) => {
           const enabled = enabledReminders.includes(preset.minutes);
@@ -276,7 +280,7 @@ export function EventEditor({ item, mode, onSubmit, onCancel }: Props) {
           );
         })}
         {field === 'reminders' ? <Text dimColor>  space/x toggle · ↑/↓ navigate</Text> : null}
-      </Box>
+      </Box> : null}
     </Box>
   );
 }

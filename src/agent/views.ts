@@ -1,5 +1,6 @@
 import type { Item } from '../db/types.js';
 import { overdueLabel } from '../lib/overdue.js';
+import { eventCapabilities } from '../calendar/eventCapabilities.js';
 
 const NOTES_PREVIEW = 500;
 
@@ -57,6 +58,7 @@ export function detailItem(item: Item, full = false) {
           end: item.end ?? null,
           allDay: item.allDay,
           notes: formatNotes(item.notes, full),
+          ...(item.source === 'external' ? { capabilities: eventCapabilities(item) } : {}),
         }
       : {
           id: item.id,

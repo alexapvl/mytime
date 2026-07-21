@@ -15,7 +15,9 @@ export type PastDueHelpContext = {
 
 export type CalendarHelpContext = {
   item?: { source: string };
-  isLocal: boolean;
+  canEdit: boolean;
+  canReschedule: boolean;
+  canDelete: boolean;
   hasTime: boolean;
   hasMeeting: boolean;
   hasLink: boolean;
@@ -53,13 +55,13 @@ export const DAILY_SHORTCUTS: Shortcut<CalendarHelpContext>[] = [
   { keys: 'o', label: (ctx) => ctx.hasMeeting ? 'open meeting' : 'open link', show: (ctx) => ctx.hasMeeting || ctx.hasLink },
   { keys: '⇧o', label: 'open link', show: (ctx) => ctx.hasMeeting && ctx.hasLink },
   { keys: 'v', label: 'RSVP', show: (ctx) => ctx.canRespond },
-  { keys: 'e', label: 'edit', show: (ctx) => ctx.isLocal },
-  { keys: 's', label: 'reschedule', show: (ctx) => ctx.isLocal },
-  { keys: '⇧↑/↓', label: 'move 1h', show: (ctx) => ctx.isLocal && ctx.hasTime },
-  { keys: '+/-', label: 'end ±15m', show: (ctx) => ctx.isLocal && ctx.hasTime },
-  { keys: '⇧+/-', label: 'start ±15m', show: (ctx) => ctx.isLocal && ctx.hasTime },
+  { keys: 'e', label: 'edit', show: (ctx) => ctx.canEdit },
+  { keys: 's', label: 'reschedule', show: (ctx) => ctx.canReschedule },
+  { keys: '⇧↑/↓', label: 'move 1h', show: (ctx) => ctx.canReschedule && ctx.hasTime },
+  { keys: '+/-', label: 'end ±15m', show: (ctx) => ctx.canReschedule && ctx.hasTime },
+  { keys: '⇧+/-', label: 'start ±15m', show: (ctx) => ctx.canReschedule && ctx.hasTime },
   { keys: 'x', label: 'done', show: (ctx) => ctx.item?.source === 'task' },
-  { keys: 'd', label: 'delete', show: (ctx) => ctx.isLocal },
+  { keys: 'd', label: 'delete', show: (ctx) => ctx.canDelete },
 ];
 
 export const PAST_DUE_SHORTCUTS: Shortcut<PastDueHelpContext>[] = [
@@ -97,11 +99,11 @@ export const WEEK_SHORTCUTS: Shortcut<CalendarHelpContext>[] = [
   { keys: '⇧q', label: 'quick-event' },
   { keys: 'o', label: (ctx) => ctx.hasMeeting ? 'open meeting' : 'open link', show: (ctx) => ctx.hasMeeting || ctx.hasLink },
   { keys: '⇧o', label: 'open link', show: (ctx) => ctx.hasMeeting && ctx.hasLink },
-  { keys: 'e', label: 'edit', show: (ctx) => ctx.isLocal },
-  { keys: 's', label: 'reschedule', show: (ctx) => ctx.isLocal },
-  { keys: '⇧↑/↓', label: 'move 1h', show: (ctx) => ctx.isLocal && ctx.hasTime },
-  { keys: '+/-', label: 'end ±15m', show: (ctx) => ctx.isLocal && ctx.hasTime },
-  { keys: '⇧+/-', label: 'start ±15m', show: (ctx) => ctx.isLocal && ctx.hasTime },
+  { keys: 'e', label: 'edit', show: (ctx) => ctx.canEdit },
+  { keys: 's', label: 'reschedule', show: (ctx) => ctx.canReschedule },
+  { keys: '⇧↑/↓', label: 'move 1h', show: (ctx) => ctx.canReschedule && ctx.hasTime },
+  { keys: '+/-', label: 'end ±15m', show: (ctx) => ctx.canReschedule && ctx.hasTime },
+  { keys: '⇧+/-', label: 'start ±15m', show: (ctx) => ctx.canReschedule && ctx.hasTime },
   { keys: 'x', label: 'done', show: (ctx) => ctx.item?.source === 'task' },
-  { keys: 'd', label: 'delete', show: (ctx) => ctx.isLocal },
+  { keys: 'd', label: 'delete', show: (ctx) => ctx.canDelete },
 ];
