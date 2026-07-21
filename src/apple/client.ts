@@ -52,6 +52,7 @@ export type AppleEvent = {
   mytimeItemId?: string;
   mytimeItemType?: 'task' | 'event';
   occurrenceStart?: string;
+  hasRecurrenceRules: boolean;
 };
 
 function helperPath(): string {
@@ -163,21 +164,42 @@ export async function queryAppleEvents(calendarId: string, start: string, end: s
 export async function upsertAppleEvent(request: {
   calendarId: string;
   eventId?: string;
+  occurrenceStart?: string;
   title: string;
   notes?: string;
   location?: string;
-  mytimeItemId: string;
-  mytimeItemType: 'task' | 'event';
+  mytimeItemId?: string;
+  mytimeItemType?: 'task' | 'event';
   start: string;
   end: string;
   allDay: boolean;
   reminders?: { method: 'popup'; minutes: number }[];
+  url?: string;
 }): Promise<AppleEvent> {
   const data = await callEventKit<{ event: AppleEvent }>({ command: 'event.upsert', ...request });
   return data.event;
 }
 
-export async function deleteAppleEvent(calendarId: string, eventId: string): Promise<boolean> {
-  const data = await callEventKit<{ deleted: boolean }>({ command: 'event.delete', calendarId, eventId });
+export async function getAppleEvent(calendarId: string, eventId: string, occurrenceStart?: string): Promise<AppleEvent> {
+  const data = await callEventKit<{ event: AppleEvent }>({
+    command: 'event.get',
+    calendarId,
+    eventId,
+    occurrenceStart,
+  });
+  return data.event;
+}
+
+export async function deleteAppleEvent(
+  calendarId: string,
+  eventId: string,
+  occurrenceStart?: string,
+): Promise<boolean> {
+  const data = await callEventKit<{ deleted: boolean }>({
+    command: 'event.delete',
+    calendarId,
+    eventId,
+    occurrenceStart,
+  });
   return data.deleted;
 }

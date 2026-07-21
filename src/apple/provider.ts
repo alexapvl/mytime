@@ -238,6 +238,14 @@ async function syncWithApple(): Promise<SyncResult> {
         }
 
         const source = eventSource(event, isMytimeCalendar, local);
+        const writable = calendar.writable && !calendar.immutable;
+        const access = {
+          canEditDetails: writable,
+          canEditReminders: writable,
+          canEditGuests: false,
+          canDelete: writable,
+          recurring: event.hasRecurrenceRules,
+        };
         if (local) {
           const link = getRemoteLink(local.id, 'apple');
           const remoteUpdated = event.lastModified ? DateTime.fromISO(event.lastModified).toMillis() : 0;
@@ -251,21 +259,23 @@ async function syncWithApple(): Promise<SyncResult> {
             title: cleanPulledTitle(event.title || 'Untitled', isMytimeCalendar),
             notes: event.notes ?? local.notes,
             location: event.location ?? local.location,
-            reminders: source === 'event' ? event.reminders ?? [] : local.reminders,
+            url: event.url ?? local.url,
+            reminders: source === 'event' || source === 'external' ? event.reminders ?? [] : local.reminders,
             start: event.start,
             end: event.end,
             allDay: event.allDay,
             source,
             originProvider: source === 'external' ? 'apple' : undefined,
           });
-          upsertRemoteLink(local.id, 'apple', calendar.id, scopedEventId);
+          upsertRemoteLink(local.id, 'apple', calendar.id, scopedEventId, undefined, access);
           result.pulled++;
         } else {
           const created = createItem({
             title: cleanPulledTitle(event.title || 'Untitled', isMytimeCalendar),
             notes: event.notes,
             location: event.location,
-            reminders: source === 'event' ? event.reminders ?? [] : [],
+            url: event.url,
+            reminders: source === 'event' || source === 'external' ? event.reminders ?? [] : [],
             tags: source === 'external' ? ['#apple'] : [],
             priority: 0,
             source,
@@ -274,7 +284,7 @@ async function syncWithApple(): Promise<SyncResult> {
             end: event.end,
             allDay: event.allDay,
           });
-          upsertRemoteLink(created.id, 'apple', calendar.id, scopedEventId);
+          upsertRemoteLink(created.id, 'apple', calendar.id, scopedEventId, undefined, access);
           result.pulled++;
         }
       }

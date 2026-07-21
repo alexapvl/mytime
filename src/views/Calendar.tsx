@@ -3,13 +3,12 @@ import { Box, Text } from 'ink';
 import type { Key } from 'ink';
 import { DateTime } from 'luxon';
 import type { EventAttendee, Item, MeetingProvider, Reminder } from '../db/types.js';
-import { isLocalItem } from '../db/types.js';
 import { createItem, createEvent, deleteItem, listScheduledInRange, rescheduleLocalItem, toggleDone, updateItem } from '../db/items.js';
 import { padToWidth } from '../lib/textWidth.js';
 import { addMinutes, allDayRange, hourLabels, itemSpansDay } from '../lib/time.js';
 import { autoPush, autoRemove } from '../calendar/autoSync.js';
 import { ItemEditor } from '../components/ItemEditor.js';
-import { EventEditor } from '../components/EventEditor.js';
+import { EventEditor, type EventEditorField } from '../components/EventEditor.js';
 import { useClickRegions } from '../components/Mouse.js';
 import { ScheduleEditor } from '../components/ScheduleEditor.js';
 import { CalendarEventRow, CALENDAR_PREFIX_COL, hasWeekTime } from '../components/CalendarEventRow.js';
@@ -25,7 +24,15 @@ import { DAY_VIEW_HEADER_ROWS, VIEW_ROW0, WEEK_VIEW_HEADER_ROWS } from '../lib/l
 import { QuickAddPreview } from '../components/QuickAddPreview.js';
 import { buildQuickAddDraft, calendarQuickAddReference } from '../lib/quickAddPreview.js';
 import { DAILY_SHORTCUTS, WEEK_SHORTCUTS } from '../lib/shortcuts.js';
-import { cloneItem, makeUndoAdd, makeUndoDelete, makeUndoToggleDone } from '../lib/undoActions.js';
+import {
+  cloneItem,
+  makeUndoAdd,
+  makeUndoDelete,
+  makeUndoExternalDelete,
+  makeUndoExternalUpdate,
+  makeUndoInvitationResponse,
+  makeUndoToggleDone,
+} from '../lib/undoActions.js';
 import { meetingUrlForItem, openMeeting } from '../lib/meetings.js';
 import { canRespondToInvitation, needsInvitationResponse } from '../lib/invitations.js';
 import { respondToInvitation } from '../calendar/invitations.js';
@@ -34,6 +41,14 @@ import { getDefaultMeetingProvider } from '../db/meta.js';
 import { getActiveProvider } from '../calendar/provider.js';
 import { AppTextInput } from '../components/AppTextInput.js';
 import { openItemUrl } from '../lib/links.js';
+import { eventCapabilities } from '../calendar/eventCapabilities.js';
+import {
+  deleteExternalEvent,
+  externalDeleteMayNotifyGuests,
+  externalPatchMayNotifyGuests,
+  updateExternalEvent,
+  type ExternalEventPatch,
+} from '../calendar/externalEvents.js';
 
 type Props = {
   onRefresh: () => void;
@@ -42,7 +57,13 @@ type Props = {
   focusedDateISO?: string;
   onFocusedDateChange?: (iso: string) => void;
 };
-type CalendarMode = 'list' | 'add' | 'quick' | 'addEvent' | 'quickEvent' | 'edit' | 'editEvent' | 'schedule' | 'scheduleNewEvent' | 'respond';
+type CalendarMode = 'list' | 'add' | 'quick' | 'addEvent' | 'quickEvent' | 'edit' | 'editEvent' | 'schedule' | 'scheduleNewEvent' | 'respond' | 'confirm';
+
+type PendingConfirmation = {
+  title: string;
+  message: string;
+  run: () => Promise<void>;
+};
 
 export type PendingEventDraft = {
   title: string;
@@ -144,14 +165,70 @@ export function draftScheduleItem(title: string): Item {
 }
 
 function calendarHelpContext(item: Item | undefined) {
+  const capabilities = item ? eventCapabilities(item) : undefined;
   return {
     item,
-    isLocal: !!item && isLocalItem(item),
+    canEdit: capabilities?.canEdit ?? false,
+    canReschedule: capabilities?.canReschedule ?? false,
+    canDelete: capabilities?.canDelete ?? false,
     hasTime: item ? hasWeekTime(item) : false,
     hasMeeting: item ? Boolean(meetingUrlForItem(item)) : false,
     hasLink: Boolean(item?.url),
     canRespond: item ? canRespondToInvitation(item) : false,
   };
+}
+
+function externalEditorFields(item: Item): EventEditorField[] {
+  const capabilities = eventCapabilities(item);
+  return [
+    ...(capabilities.canEditDetails ? (['title'] as EventEditorField[]) : []),
+    ...(capabilities.canEditGuests ? (['guests'] as EventEditorField[]) : []),
+    ...(capabilities.canEditDetails
+      ? (['notes', 'location', ...(item.originProvider === 'apple' ? ['url'] : [])] as EventEditorField[])
+      : []),
+    ...(capabilities.canEditReminders ? (['reminders'] as EventEditorField[]) : []),
+  ];
+}
+
+function externalEditorPatch(
+  item: Item,
+  data: PendingEventDraft,
+): ExternalEventPatch {
+  const capabilities = eventCapabilities(item);
+  return {
+    ...(capabilities.canEditDetails
+      ? {
+          title: data.title,
+          notes: data.notes,
+          location: data.location,
+          ...(item.originProvider === 'apple' ? { url: data.url } : {}),
+        }
+      : {}),
+    ...(capabilities.canEditGuests ? { attendees: data.attendees } : {}),
+    ...(capabilities.canEditReminders ? { reminders: data.reminders } : {}),
+  };
+}
+
+function ConfirmationPrompt({
+  confirmation,
+  onConfirm,
+  onCancel,
+}: {
+  confirmation: PendingConfirmation;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  useAppInput((input, key) => {
+    if (input.toLowerCase() === 'y' || key.return) onConfirm();
+    if (input.toLowerCase() === 'n' || key.escape) onCancel();
+  });
+  return (
+    <Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={1}>
+      <Text bold color="yellow">{confirmation.title}</Text>
+      <Text>{confirmation.message}</Text>
+      <Text dimColor>y/enter confirm · n/esc cancel</Text>
+    </Box>
+  );
 }
 
 function openCalendarLink(item: Item, attached: boolean, onStatus: (message: string) => void): void {
@@ -188,22 +265,6 @@ function timedResizeInput(item: Item, input: string, key: Key): { updates: Parti
     return { updates: { end: newEnd }, message: 'End 15m earlier' };
   }
   return null;
-}
-
-function applyTimedResize(
-  item: Item,
-  input: string,
-  key: Key,
-  onStatus: (msg: string) => void,
-  refresh: () => void,
-): boolean {
-  const resize = timedResizeInput(item, input, key);
-  if (!resize) return false;
-  updateItem(item.id, resize.updates);
-  refresh();
-  autoPush(item.id, onStatus, refresh);
-  onStatus(resize.message);
-  return true;
 }
 
 export function CalendarItemCreator({
@@ -281,6 +342,7 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
   const [selected, setSelected] = useState(0);
   const [mode, setMode] = useState<CalendarMode>('list');
   const [pendingEvent, setPendingEvent] = useState<PendingEventDraft | null>(null);
+  const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null);
   const pendingSelectRef = useRef<'first' | 'last' | 'nearest'>('nearest');
 
   useEffect(() => {
@@ -311,6 +373,77 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
   const refresh = () => {
     setItems(listScheduledInRange(day.startOf('day').toISO()!, day.endOf('day').toISO()!));
     onRefresh();
+  };
+
+  const runOrConfirm = (confirmation: PendingConfirmation, needsConfirmation: boolean) => {
+    if (needsConfirmation) {
+      setPendingConfirmation(confirmation);
+      setMode('confirm');
+      return;
+    }
+    setMode('list');
+    void confirmation.run().catch((error) => onStatus(`Calendar update failed: ${(error as Error).message}`));
+  };
+
+  const submitExternalUpdate = (item: Item, patch: ExternalEventPatch, message: string) => {
+    const before = cloneItem(item);
+    const notifyGuests = externalPatchMayNotifyGuests(item, patch);
+    runOrConfirm(
+      {
+        title: 'Update event?',
+        message: notifyGuests ? 'This change may notify guests.' : message,
+        run: async () => {
+          await updateExternalEvent(item, patch, { notifyGuests });
+          pushUndo(`Updated: ${before.title}`, makeUndoExternalUpdate(before, notifyGuests));
+          refresh();
+          onStatus(message);
+        },
+      },
+      notifyGuests,
+    );
+  };
+
+  const submitScheduleChange = (item: Item, patch: ExternalEventPatch, message: string) => {
+    if (item.source === 'external') {
+      submitExternalUpdate(item, patch, message);
+      return;
+    }
+    updateItem(item.id, patch);
+    refresh();
+    autoPush(item.id, onStatus, refresh);
+    onStatus(message);
+  };
+
+  const submitDelete = (item: Item) => {
+    const victim = cloneItem(item);
+    if (item.source !== 'external') {
+      autoRemove(victim, onStatus);
+      deleteItem(victim.id);
+      pushUndo(`Deleted: ${victim.title}`, makeUndoDelete(victim, onStatus));
+      setSelected((current) => Math.max(0, current - 1));
+      refresh();
+      onStatus('Deleted');
+      return;
+    }
+
+    const notifyGuests = externalDeleteMayNotifyGuests(item);
+    runOrConfirm(
+      {
+        title: 'Delete external event?',
+        message: notifyGuests
+          ? 'This removes the event from its original calendar and may notify guests.'
+          : 'This removes the event from its original calendar.',
+        run: async () => {
+          const snapshot = await deleteExternalEvent(victim, { notifyGuests });
+          deleteItem(victim.id);
+          pushUndo(`Deleted: ${victim.title}`, makeUndoExternalDelete(snapshot, notifyGuests));
+          setSelected((current) => Math.max(0, current - 1));
+          refresh();
+          onStatus('Deleted external event');
+        },
+      },
+      true,
+    );
   };
 
   const scheduled = items.filter((i) => i.start);
@@ -417,21 +550,24 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
       if (orderedItems.length === 0) return;
 
       const item = orderedItems[sel];
+      const capabilities = item ? eventCapabilities(item) : undefined;
       if (input === 'J' || (key.shift && key.downArrow)) {
-        if (item?.start && item.end && isLocalItem(item) && hasWeekTime(item)) {
-          updateItem(item.id, { start: addMinutes(item.start, 60), end: addMinutes(item.end, 60) });
-          refresh();
-          autoPush(item.id, onStatus, refresh);
-          onStatus('Moved 1h later');
+        if (item?.start && item.end && capabilities?.canReschedule && hasWeekTime(item)) {
+          submitScheduleChange(
+            item,
+            { start: addMinutes(item.start, 60), end: addMinutes(item.end, 60) },
+            'Moved 1h later',
+          );
         }
         return;
       }
       if (input === 'K' || (key.shift && key.upArrow)) {
-        if (item?.start && item.end && isLocalItem(item) && hasWeekTime(item)) {
-          updateItem(item.id, { start: addMinutes(item.start, -60), end: addMinutes(item.end, -60) });
-          refresh();
-          autoPush(item.id, onStatus, refresh);
-          onStatus('Moved 1h earlier');
+        if (item?.start && item.end && capabilities?.canReschedule && hasWeekTime(item)) {
+          submitScheduleChange(
+            item,
+            { start: addMinutes(item.start, -60), end: addMinutes(item.end, -60) },
+            'Moved 1h earlier',
+          );
         }
         return;
       }
@@ -449,13 +585,13 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
         return;
       }
 
-      if (!item?.start || !item.end || !isLocalItem(item)) return;
+      if (!item?.start || !item.end || !capabilities) return;
 
-      if (input === 'e') {
-        setMode(item.source === 'event' ? 'editEvent' : 'edit');
+      if (input === 'e' && capabilities.canEdit) {
+        setMode(item.source === 'task' ? 'edit' : 'editEvent');
         return;
       }
-      if (input === 's') {
+      if (input === 's' && capabilities.canReschedule) {
         setMode('schedule');
         return;
       }
@@ -471,20 +607,39 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
         onStatus('Marked done');
         return;
       }
-      if (input === 'd') {
-        const victim = cloneItem(item);
-        autoRemove(victim, onStatus);
-        deleteItem(victim.id);
-        pushUndo(`Deleted: ${victim.title}`, makeUndoDelete(victim, onStatus));
-        setSelected((s) => Math.max(0, s - 1));
-        refresh();
-        onStatus('Deleted');
+      if (input === 'd' && capabilities.canDelete) {
+        submitDelete(item);
         return;
       }
-      if (applyTimedResize(item, input, key, onStatus, refresh)) return;
+      if (capabilities.canReschedule) {
+        const resize = timedResizeInput(item, input, key);
+        if (resize) {
+          submitScheduleChange(item, resize.updates, resize.message);
+          return;
+        }
+      }
     },
     { isActive: mode === 'list' },
   );
+
+  if (mode === 'confirm' && pendingConfirmation) {
+    return (
+      <ConfirmationPrompt
+        confirmation={pendingConfirmation}
+        onCancel={() => {
+          setPendingConfirmation(null);
+          setMode('list');
+          onStatus('Cancelled');
+        }}
+        onConfirm={() => {
+          const action = pendingConfirmation;
+          setPendingConfirmation(null);
+          setMode('list');
+          void action.run().catch((error) => onStatus(`Calendar update failed: ${(error as Error).message}`));
+        }}
+      />
+    );
+  }
 
   if (mode === 'respond' && selectedDayItem) {
     return (
@@ -492,9 +647,11 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
         item={selectedDayItem}
         onCancel={() => setMode('list')}
         onSubmit={(response) => {
+          const before = cloneItem(selectedDayItem);
           setMode('list');
           void respondToInvitation(selectedDayItem, response)
             .then(() => {
+              pushUndo(`RSVP: ${before.title}`, makeUndoInvitationResponse(before));
               refresh();
               onStatus(`Response sent: ${response}`);
             })
@@ -609,14 +766,19 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
     );
   }
 
-  if (mode === 'editEvent' && selectedDayItem?.source === 'event') {
+  if (mode === 'editEvent' && selectedDayItem && selectedDayItem.source !== 'task') {
     const item = selectedDayItem;
     return (
       <EventEditor
         mode="edit"
         item={item}
+        enabledFields={item.source === 'external' ? externalEditorFields(item) : undefined}
         onCancel={() => setMode('list')}
         onSubmit={(data) => {
+          if (item.source === 'external') {
+            submitExternalUpdate(item, externalEditorPatch(item, data), 'External event updated');
+            return;
+          }
           updateItem(item.id, {
             title: data.title,
             notes: data.notes,
@@ -635,13 +797,17 @@ export function DayView({ onRefresh, onStatus, refreshToken, focusedDateISO, onF
     );
   }
 
-  if (mode === 'schedule' && selectedDayItem && isLocalItem(selectedDayItem)) {
+  if (mode === 'schedule' && selectedDayItem && eventCapabilities(selectedDayItem).canReschedule) {
     const item = selectedDayItem;
     return (
       <ScheduleEditor
         item={item}
         onCancel={() => setMode('list')}
         onSubmit={(start, end, allDay) => {
+          if (item.source === 'external') {
+            submitExternalUpdate(item, { start, end, allDay }, 'External event rescheduled');
+            return;
+          }
           rescheduleLocalItem(item.id, start, end, allDay);
           refresh();
           autoPush(item.id, onStatus, refresh);
@@ -710,6 +876,7 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
   const [selected, setSelected] = useState(0);
   const [mode, setMode] = useState<CalendarMode>('list');
   const [pendingEvent, setPendingEvent] = useState<PendingEventDraft | null>(null);
+  const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null);
   const pendingItemIdRef = useRef<string | null>(null);
   const weekSelectIntentRef = useRef<{ dayISO: string; select: 'first' | 'last' } | null>(null);
   useEffect(() => {
@@ -749,6 +916,77 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
   const refresh = () => {
     setItems(listScheduledInRange(weekStart.toISO()!, weekStart.endOf('week').toISO()!));
     onRefresh();
+  };
+
+  const runOrConfirm = (confirmation: PendingConfirmation, needsConfirmation: boolean) => {
+    if (needsConfirmation) {
+      setPendingConfirmation(confirmation);
+      setMode('confirm');
+      return;
+    }
+    setMode('list');
+    void confirmation.run().catch((error) => onStatus(`Calendar update failed: ${(error as Error).message}`));
+  };
+
+  const submitExternalUpdate = (item: Item, patch: ExternalEventPatch, message: string) => {
+    const before = cloneItem(item);
+    const notifyGuests = externalPatchMayNotifyGuests(item, patch);
+    runOrConfirm(
+      {
+        title: 'Update event?',
+        message: notifyGuests ? 'This change may notify guests.' : message,
+        run: async () => {
+          await updateExternalEvent(item, patch, { notifyGuests });
+          pushUndo(`Updated: ${before.title}`, makeUndoExternalUpdate(before, notifyGuests));
+          refresh();
+          onStatus(message);
+        },
+      },
+      notifyGuests,
+    );
+  };
+
+  const submitScheduleChange = (item: Item, patch: ExternalEventPatch, message: string) => {
+    if (item.source === 'external') {
+      submitExternalUpdate(item, patch, message);
+      return;
+    }
+    updateItem(item.id, patch);
+    refresh();
+    autoPush(item.id, onStatus, refresh);
+    onStatus(message);
+  };
+
+  const submitDelete = (item: Item) => {
+    const victim = cloneItem(item);
+    if (item.source !== 'external') {
+      autoRemove(victim, onStatus);
+      deleteItem(victim.id);
+      pushUndo(`Deleted: ${victim.title}`, makeUndoDelete(victim, onStatus));
+      setSelected((current) => Math.max(0, current - 1));
+      refresh();
+      onStatus('Deleted');
+      return;
+    }
+
+    const notifyGuests = externalDeleteMayNotifyGuests(item);
+    runOrConfirm(
+      {
+        title: 'Delete external event?',
+        message: notifyGuests
+          ? 'This removes the event from its original calendar and may notify guests.'
+          : 'This removes the event from its original calendar.',
+        run: async () => {
+          const snapshot = await deleteExternalEvent(victim, { notifyGuests });
+          deleteItem(victim.id);
+          pushUndo(`Deleted: ${victim.title}`, makeUndoExternalDelete(snapshot, notifyGuests));
+          setSelected((current) => Math.max(0, current - 1));
+          refresh();
+          onStatus('Deleted external event');
+        },
+      },
+      true,
+    );
   };
 
   const days = Array.from({ length: 7 }, (_, i) => weekStart.plus({ days: i }));
@@ -926,21 +1164,24 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
       if (input === 'k' || key.upArrow) moveVertical(-1);
 
       const item = selectedWeekItem;
+      const capabilities = item ? eventCapabilities(item) : undefined;
       if (input === 'J' || (key.shift && key.downArrow)) {
-        if (item?.start && item.end && isLocalItem(item) && hasWeekTime(item)) {
-          updateItem(item.id, { start: addMinutes(item.start, 60), end: addMinutes(item.end, 60) });
-          refresh();
-          autoPush(item.id, onStatus, refresh);
-          onStatus('Moved 1h later');
+        if (item?.start && item.end && capabilities?.canReschedule && hasWeekTime(item)) {
+          submitScheduleChange(
+            item,
+            { start: addMinutes(item.start, 60), end: addMinutes(item.end, 60) },
+            'Moved 1h later',
+          );
         }
         return;
       }
       if (input === 'K' || (key.shift && key.upArrow)) {
-        if (item?.start && item.end && isLocalItem(item) && hasWeekTime(item)) {
-          updateItem(item.id, { start: addMinutes(item.start, -60), end: addMinutes(item.end, -60) });
-          refresh();
-          autoPush(item.id, onStatus, refresh);
-          onStatus('Moved 1h earlier');
+        if (item?.start && item.end && capabilities?.canReschedule && hasWeekTime(item)) {
+          submitScheduleChange(
+            item,
+            { start: addMinutes(item.start, -60), end: addMinutes(item.end, -60) },
+            'Moved 1h earlier',
+          );
         }
         return;
       }
@@ -958,13 +1199,13 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
         return;
       }
 
-      if (!item?.start || !item.end || !isLocalItem(item)) return;
+      if (!item?.start || !item.end || !capabilities) return;
 
-      if (input === 'e') {
-        setMode(item.source === 'event' ? 'editEvent' : 'edit');
+      if (input === 'e' && capabilities.canEdit) {
+        setMode(item.source === 'task' ? 'edit' : 'editEvent');
         return;
       }
-      if (input === 's') {
+      if (input === 's' && capabilities.canReschedule) {
         setMode('schedule');
         return;
       }
@@ -980,20 +1221,39 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
         onStatus('Marked done');
         return;
       }
-      if (input === 'd') {
-        const victim = cloneItem(item);
-        autoRemove(victim, onStatus);
-        deleteItem(victim.id);
-        pushUndo(`Deleted: ${victim.title}`, makeUndoDelete(victim, onStatus));
-        setSelected((s) => Math.max(0, s - 1));
-        refresh();
-        onStatus('Deleted');
+      if (input === 'd' && capabilities.canDelete) {
+        submitDelete(item);
         return;
       }
-      if (applyTimedResize(item, input, key, onStatus, refresh)) return;
+      if (capabilities.canReschedule) {
+        const resize = timedResizeInput(item, input, key);
+        if (resize) {
+          submitScheduleChange(item, resize.updates, resize.message);
+          return;
+        }
+      }
     },
     { isActive: mode === 'list' },
   );
+
+  if (mode === 'confirm' && pendingConfirmation) {
+    return (
+      <ConfirmationPrompt
+        confirmation={pendingConfirmation}
+        onCancel={() => {
+          setPendingConfirmation(null);
+          setMode('list');
+          onStatus('Cancelled');
+        }}
+        onConfirm={() => {
+          const action = pendingConfirmation;
+          setPendingConfirmation(null);
+          setMode('list');
+          void action.run().catch((error) => onStatus(`Calendar update failed: ${(error as Error).message}`));
+        }}
+      />
+    );
+  }
 
   if (mode === 'respond' && selectedWeekItem) {
     return (
@@ -1001,9 +1261,11 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
         item={selectedWeekItem}
         onCancel={() => setMode('list')}
         onSubmit={(response) => {
+          const before = cloneItem(selectedWeekItem);
           setMode('list');
           void respondToInvitation(selectedWeekItem, response)
             .then(() => {
+              pushUndo(`RSVP: ${before.title}`, makeUndoInvitationResponse(before));
               refresh();
               onStatus(`Response sent: ${response}`);
             })
@@ -1118,14 +1380,19 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
     );
   }
 
-  if (mode === 'editEvent' && selectedWeekItem?.source === 'event') {
+  if (mode === 'editEvent' && selectedWeekItem && selectedWeekItem.source !== 'task') {
     const item = selectedWeekItem;
     return (
       <EventEditor
         mode="edit"
         item={item}
+        enabledFields={item.source === 'external' ? externalEditorFields(item) : undefined}
         onCancel={() => setMode('list')}
         onSubmit={(data) => {
+          if (item.source === 'external') {
+            submitExternalUpdate(item, externalEditorPatch(item, data), 'External event updated');
+            return;
+          }
           updateItem(item.id, {
             title: data.title,
             notes: data.notes,
@@ -1144,13 +1411,17 @@ export function WeekView({ onRefresh, onStatus, refreshToken }: Props) {
     );
   }
 
-  if (mode === 'schedule' && selectedWeekItem && isLocalItem(selectedWeekItem)) {
+  if (mode === 'schedule' && selectedWeekItem && eventCapabilities(selectedWeekItem).canReschedule) {
     const item = selectedWeekItem;
     return (
       <ScheduleEditor
         item={item}
         onCancel={() => setMode('list')}
         onSubmit={(start, end, allDay) => {
+          if (item.source === 'external') {
+            submitExternalUpdate(item, { start, end, allDay }, 'External event rescheduled');
+            return;
+          }
           rescheduleLocalItem(item.id, start, end, allDay);
           refresh();
           autoPush(item.id, onStatus, refresh);

@@ -64,6 +64,12 @@ function initSchema(database: Database.Database): void {
       remote_calendar_id TEXT NOT NULL,
       remote_event_id TEXT NOT NULL,
       synced_at TEXT NOT NULL,
+      can_edit_details INTEGER NOT NULL DEFAULT 0,
+      can_edit_reminders INTEGER NOT NULL DEFAULT 0,
+      can_edit_guests INTEGER NOT NULL DEFAULT 0,
+      can_delete INTEGER NOT NULL DEFAULT 0,
+      recurring INTEGER NOT NULL DEFAULT 0,
+      etag TEXT,
       PRIMARY KEY (item_id, provider),
       UNIQUE (provider, remote_calendar_id, remote_event_id),
       FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
@@ -118,6 +124,27 @@ function migrateSchema(database: Database.Database): void {
   }
   if (!names.has('conference_request_id')) {
     database.exec('ALTER TABLE items ADD COLUMN conference_request_id TEXT');
+  }
+
+  const remoteLinkColumns = database.prepare('PRAGMA table_info(remote_links)').all() as { name: string }[];
+  const remoteLinkNames = new Set(remoteLinkColumns.map((column) => column.name));
+  if (!remoteLinkNames.has('can_edit_details')) {
+    database.exec('ALTER TABLE remote_links ADD COLUMN can_edit_details INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!remoteLinkNames.has('can_edit_reminders')) {
+    database.exec('ALTER TABLE remote_links ADD COLUMN can_edit_reminders INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!remoteLinkNames.has('can_edit_guests')) {
+    database.exec('ALTER TABLE remote_links ADD COLUMN can_edit_guests INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!remoteLinkNames.has('can_delete')) {
+    database.exec('ALTER TABLE remote_links ADD COLUMN can_delete INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!remoteLinkNames.has('recurring')) {
+    database.exec('ALTER TABLE remote_links ADD COLUMN recurring INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!remoteLinkNames.has('etag')) {
+    database.exec('ALTER TABLE remote_links ADD COLUMN etag TEXT');
   }
   migrateGoogleRemoteLinks(database);
   normalizeAllDayDates(database);

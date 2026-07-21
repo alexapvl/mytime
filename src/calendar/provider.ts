@@ -81,6 +81,7 @@ export async function listActiveProviderCalendars(): Promise<ProviderCalendarInf
         (!isMytimeCalendarName(calendar.summary) &&
           (calendar.id in prefs ? prefs[calendar.id]! : calendar.googleSelected !== false)),
       locked: calendar.id === mytimeId || isMytimeCalendarName(calendar.summary),
+      writable: calendar.accessRole === 'writer' || calendar.accessRole === 'owner',
     }));
   }
   const mytimeId = getMeta(META_KEYS.appleCalendarId);
@@ -90,6 +91,7 @@ export async function listActiveProviderCalendars(): Promise<ProviderCalendarInf
     sourceTitle: calendar.sourceTitle,
     enabled: calendar.id === mytimeId || (!isMytimeCalendarName(calendar.title) && prefs[calendar.id] !== false),
     locked: calendar.id === mytimeId || isMytimeCalendarName(calendar.title),
+    writable: calendar.writable && !calendar.immutable,
   }));
 }
 

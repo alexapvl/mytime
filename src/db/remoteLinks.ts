@@ -10,7 +10,18 @@ export type RemoteLink = {
   remoteCalendarId: string;
   remoteEventId: string;
   syncedAt: string;
+  canEditDetails: boolean;
+  canEditReminders: boolean;
+  canEditGuests: boolean;
+  canDelete: boolean;
+  recurring: boolean;
+  etag?: string;
 };
+
+export type RemoteEventAccess = Pick<
+  RemoteLink,
+  'canEditDetails' | 'canEditReminders' | 'canEditGuests' | 'canDelete' | 'recurring'
+> & { etag?: string };
 
 type RemoteLinkRow = {
   item_id: string;
@@ -18,6 +29,12 @@ type RemoteLinkRow = {
   remote_calendar_id: string;
   remote_event_id: string;
   synced_at: string;
+  can_edit_details: number;
+  can_edit_reminders: number;
+  can_edit_guests: number;
+  can_delete: number;
+  recurring: number;
+  etag: string | null;
 };
 
 const ITEM_SELECT = `
@@ -35,6 +52,12 @@ function rowToLink(row: RemoteLinkRow): RemoteLink {
     remoteCalendarId: row.remote_calendar_id,
     remoteEventId: row.remote_event_id,
     syncedAt: row.synced_at,
+    canEditDetails: Boolean(row.can_edit_details),
+    canEditReminders: Boolean(row.can_edit_reminders),
+    canEditGuests: Boolean(row.can_edit_guests),
+    canDelete: Boolean(row.can_delete),
+    recurring: Boolean(row.recurring),
+    etag: row.etag ?? undefined,
   };
 }
 
@@ -109,6 +132,7 @@ export function upsertRemoteLink(
   remoteCalendarId: string,
   remoteEventId: string,
   syncedAt = nowISO(),
+  access?: RemoteEventAccess,
 ): void {
   getDb()
     .prepare(
@@ -120,6 +144,30 @@ export function upsertRemoteLink(
          synced_at = excluded.synced_at`,
     )
     .run(itemId, provider, remoteCalendarId, remoteEventId, syncedAt);
+
+  if (access) {
+    getDb()
+      .prepare(
+        `UPDATE remote_links SET
+           can_edit_details = ?,
+           can_edit_reminders = ?,
+           can_edit_guests = ?,
+           can_delete = ?,
+           recurring = ?,
+           etag = ?
+         WHERE item_id = ? AND provider = ?`,
+      )
+      .run(
+        access.canEditDetails ? 1 : 0,
+        access.canEditReminders ? 1 : 0,
+        access.canEditGuests ? 1 : 0,
+        access.canDelete ? 1 : 0,
+        access.recurring ? 1 : 0,
+        access.etag ?? null,
+        itemId,
+        provider,
+      );
+  }
 
   if (provider === 'google') {
     getDb()

@@ -2,12 +2,12 @@ import React, { createContext, useCallback, useContext, useMemo, useState } from
 
 type UndoEntry = {
   label: string;
-  run: () => void;
+  run: () => void | Promise<void>;
 };
 
 type UndoContextValue = {
-  pushUndo: (label: string, run: () => void) => void;
-  undoLast: () => string | null;
+  pushUndo: (label: string, run: () => void | Promise<void>) => void;
+  undoLast: () => Promise<string | null>;
   canUndo: boolean;
 };
 
@@ -16,15 +16,20 @@ const UndoContext = createContext<UndoContextValue | null>(null);
 export function UndoProvider({ children }: { children: React.ReactNode }) {
   const [stack, setStack] = useState<UndoEntry[]>([]);
 
-  const pushUndo = useCallback((label: string, run: () => void) => {
+  const pushUndo = useCallback((label: string, run: () => void | Promise<void>) => {
     setStack((s) => [...s, { label, run }]);
   }, []);
 
-  const undoLast = useCallback((): string | null => {
+  const undoLast = useCallback(async (): Promise<string | null> => {
     const entry = stack[stack.length - 1];
     if (!entry) return null;
     setStack((s) => s.slice(0, -1));
-    entry.run();
+    try {
+      await entry.run();
+    } catch (error) {
+      setStack((s) => [...s, entry]);
+      throw error;
+    }
     return entry.label;
   }, [stack]);
 
@@ -39,7 +44,7 @@ export function UndoProvider({ children }: { children: React.ReactNode }) {
 export function useUndo() {
   const ctx = useContext(UndoContext);
   if (!ctx) {
-    return { pushUndo: () => {}, undoLast: () => null, canUndo: false };
+    return { pushUndo: () => {}, undoLast: async () => null, canUndo: false };
   }
   return ctx;
 }

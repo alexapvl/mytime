@@ -25,6 +25,7 @@ export type ProviderCalendarInfo = {
   sourceTitle?: string;
   enabled: boolean;
   locked: boolean;
+  writable: boolean;
 };
 
 export type CalendarProviderAdapter = {
