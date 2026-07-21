@@ -170,7 +170,7 @@ function normalizeTimedOvernightRanges(database: Database.Database): void {
   for (const row of rows) {
     const start = DateTime.fromISO(row.start);
     const end = DateTime.fromISO(row.end);
-    if (!start.isValid || !end.isValid || end > start || end.toISODate() !== start.toISODate()) continue;
+    if (!start.isValid || !end.isValid || end >= start || end.toISODate() !== start.toISODate()) continue;
 
     const repairedEnd = end.plus({ days: 1 }).toISO();
     if (repairedEnd) update.run(repairedEnd, DateTime.local().toISO(), row.id);
