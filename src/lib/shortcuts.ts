@@ -35,6 +35,7 @@ export const BACKLOG_SHORTCUTS: Shortcut<BacklogHelpContext>[] = [
   { keys: '←/→', label: 'priority' },
   { keys: '↑/↓', label: 'navigate' },
   { keys: '⇧←/→', label: 'move priority' },
+  { keys: 'f', label: 'find' },
   { keys: 'a', label: 'add' },
   { keys: 'q', label: 'quick-add' },
   { keys: 'e', label: 'edit' },
@@ -42,6 +43,13 @@ export const BACKLOG_SHORTCUTS: Shortcut<BacklogHelpContext>[] = [
   { keys: 'x', label: 'done' },
   { keys: 'd', label: 'delete' },
   { keys: 'o', label: 'open link', show: (ctx) => ctx.hasLink },
+];
+
+export const BACKLOG_FIND_SHORTCUTS: Shortcut<Record<string, never>>[] = [
+  { keys: '↑/↓', label: 'navigate' },
+  { keys: '←/→', label: 'priority' },
+  { keys: 'enter', label: 'accept' },
+  { keys: 'esc', label: 'cancel' },
 ];
 
 export const DAILY_SHORTCUTS: Shortcut<CalendarHelpContext>[] = [

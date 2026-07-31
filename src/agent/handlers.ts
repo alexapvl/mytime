@@ -24,6 +24,7 @@ import {
   syncCalendar,
 } from '../calendar/provider.js';
 import { parseQuickAdd } from '../lib/nlp.js';
+import { rankItems } from '../lib/itemSearch.js';
 import { listFreeSlots } from '../lib/scheduleOverlap.js';
 import { allDayRange, defaultEnd, multiDayAllDayRange, todayEnd, todayStart } from '../lib/time.js';
 import { parseDayArg } from './dates.js';
@@ -415,13 +416,7 @@ export async function agentSearch(query: string): Promise<AgentResult> {
   const all = new Map<string, Item>();
   for (const item of listBacklog()) all.set(item.id, item);
   for (const item of listAllScheduled()) all.set(item.id, item);
-  const q = query.toLowerCase();
-  const matches = [...all.values()].filter(
-    (item) =>
-      item.title.toLowerCase().includes(q) ||
-      item.project?.toLowerCase().includes(q) ||
-      item.tags.some((t) => t.toLowerCase().includes(q)),
-  );
+  const matches = rankItems([...all.values()], query);
   if (matches.length === 0) {
     return ok({ count: 0, query, items: `0 matches for "${query}"` }, ['Try a shorter query or `mytime agent backlog list`']);
   }
