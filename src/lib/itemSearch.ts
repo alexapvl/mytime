@@ -1,4 +1,5 @@
 import type { Item } from '../db/types.js';
+import { stripMytimeSyncEnvelope } from './syncNotes.js';
 
 // Field weights dominate quality bonuses so title always outranks project/tags/notes.
 const TITLE_WEIGHT = 120;
@@ -33,7 +34,7 @@ function bestTokenScore(item: Item, token: string): number {
     best = Math.max(best, fieldScore(tag, token, TAG_WEIGHT));
     best = Math.max(best, fieldScore(`#${tag}`, token, TAG_WEIGHT));
   }
-  best = Math.max(best, fieldScore(item.notes, token, NOTES_WEIGHT));
+  best = Math.max(best, fieldScore(stripMytimeSyncEnvelope(item.notes), token, NOTES_WEIGHT));
   return best;
 }
 

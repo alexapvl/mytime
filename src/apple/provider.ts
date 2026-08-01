@@ -25,6 +25,7 @@ import {
 } from '../db/meta.js';
 import type { Item, ItemSource } from '../db/types.js';
 import { cleanTitle } from '../lib/textClean.js';
+import { stripMytimeSyncEnvelope } from '../lib/syncNotes.js';
 import { listMytimeGoogleEventIdentities, type GoogleEventIdentity } from '../google/calendar.js';
 import { isMytimeCalendarName } from '../calendar/backend.js';
 import {
@@ -257,7 +258,10 @@ async function syncWithApple(): Promise<SyncResult> {
 
           updateItem(local.id, {
             title: cleanPulledTitle(event.title || 'Untitled', isMytimeCalendar),
-            notes: event.notes ?? local.notes,
+            notes:
+              source === 'task' || source === 'event'
+                ? stripMytimeSyncEnvelope(event.notes ?? local.notes)
+                : event.notes ?? local.notes,
             location: event.location ?? local.location,
             url: event.url ?? local.url,
             reminders: source === 'event' || source === 'external' ? event.reminders ?? [] : local.reminders,
@@ -272,7 +276,10 @@ async function syncWithApple(): Promise<SyncResult> {
         } else {
           const created = createItem({
             title: cleanPulledTitle(event.title || 'Untitled', isMytimeCalendar),
-            notes: event.notes,
+            notes:
+              source === 'task' || source === 'event'
+                ? stripMytimeSyncEnvelope(event.notes)
+                : event.notes,
             location: event.location,
             url: event.url,
             reminders: source === 'event' || source === 'external' ? event.reminders ?? [] : [],
@@ -314,7 +321,8 @@ async function syncWithApple(): Promise<SyncResult> {
 
 function taskNotes(item: Item): string {
   const parts: string[] = [];
-  if (item.notes) parts.push(item.notes);
+  const notes = stripMytimeSyncEnvelope(item.notes);
+  if (notes) parts.push(notes);
   if (item.project) parts.push(`Project: @${item.project}`);
   if (item.tags.length) parts.push(`Tags: ${item.tags.join(' ')}`);
   if (item.priority) parts.push(`Priority: P${item.priority}`);
@@ -338,7 +346,7 @@ async function pushAppleItem(item: Item): Promise<boolean> {
     calendarId,
     eventId: link?.remoteCalendarId === calendarId ? link.remoteEventId : undefined,
     title: item.source === 'task' && item.status === 'done' ? `${DONE_PREFIX}${item.title}` : item.title,
-    notes: item.source === 'task' ? taskNotes(item) : [item.notes, '- mytime event'].filter(Boolean).join('\n'),
+    notes: item.source === 'task' ? taskNotes(item) : [stripMytimeSyncEnvelope(item.notes), '- mytime event'].filter(Boolean).join('\n'),
     location: item.location,
     mytimeItemId: item.id,
     mytimeItemType: item.source,

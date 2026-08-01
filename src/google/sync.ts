@@ -29,6 +29,7 @@ import type { RemoteEventAccess } from '../db/remoteLinks.js';
 import { errorMessage, isSyncTokenExpired } from './errors.js';
 import { nowISO } from '../lib/time.js';
 import { cleanTitle } from '../lib/textClean.js';
+import { stripMytimeSyncEnvelope } from '../lib/syncNotes.js';
 import { parseGoogleReminders } from '../lib/reminders.js';
 import { findMeetingUrl, meetingProviderForUrl } from '../lib/meetings.js';
 import type {
@@ -150,9 +151,10 @@ export async function syncWithGoogle(): Promise<SyncResult> {
           const reminders = source === 'event' || source === 'external'
             ? parseGoogleReminders(event.reminders?.overrides)
             : [];
-          const notes = source === 'event'
-            ? cleanPulledEventNotes(event.description)
-            : event.description ?? undefined;
+          const notes =
+            source === 'task' || source === 'event'
+              ? stripMytimeSyncEnvelope(event.description)
+              : event.description ?? undefined;
           const attendees = googleAttendees(event);
           const organizer = googleOrganizer(event);
           const selfResponseStatus = attendees.find((attendee) => attendee.self)?.responseStatus;
@@ -178,7 +180,10 @@ export async function syncWithGoogle(): Promise<SyncResult> {
 
             updateItem(local.id, {
               title,
-              notes: notes ?? local.notes,
+              notes:
+                source === 'task' || source === 'event'
+                  ? stripMytimeSyncEnvelope(event.description ?? local.notes)
+                  : notes ?? local.notes,
               location: event.location ?? local.location,
               reminders: source === 'event' ? reminders : local.reminders,
               attendees,
@@ -375,7 +380,8 @@ function parseEventTime(value: string, allDay: boolean): string {
 
 function buildTaskDescription(item: Item): string {
   const parts: string[] = [];
-  if (item.notes) parts.push(item.notes);
+  const notes = stripMytimeSyncEnvelope(item.notes);
+  if (notes) parts.push(notes);
   if (item.project) parts.push(`Project: @${item.project}`);
   if (item.tags.length) parts.push(`Tags: ${item.tags.join(' ')}`);
   if (item.priority) parts.push(`Priority: P${item.priority}`);
@@ -385,19 +391,10 @@ function buildTaskDescription(item: Item): string {
 
 function buildEventDescription(item: Item): string {
   const parts: string[] = [];
-  if (item.notes) parts.push(item.notes);
+  const notes = stripMytimeSyncEnvelope(item.notes);
+  if (notes) parts.push(notes);
   parts.push('- mytime event');
   return parts.join('\n');
-}
-
-function cleanPulledEventNotes(description: string | null | undefined): string | undefined {
-  if (!description) return undefined;
-  const notes = description
-    .split('\n')
-    .filter((line) => line.trim().toLowerCase() !== '- mytime event')
-    .join('\n')
-    .trim();
-  return notes || undefined;
 }
 
 function googleAttendees(event: calendar_v3.Schema$Event): EventAttendee[] {

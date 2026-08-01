@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { DateTime } from 'luxon';
 import { ensureMytimeDir, DB_PATH } from '../lib/config.js';
 import { cleanTitle } from '../lib/textClean.js';
+import { stripMytimeSyncEnvelope } from '../lib/syncNotes.js';
 
 let db: Database.Database | null = null;
 
@@ -158,16 +159,12 @@ function migrateSchema(database: Database.Database): void {
 
 function stripInternalEventMarkers(database: Database.Database): void {
   const rows = database
-    .prepare("SELECT id, notes FROM items WHERE source = 'event' AND notes IS NOT NULL")
+    .prepare('SELECT id, notes FROM items WHERE notes IS NOT NULL')
     .all() as { id: string; notes: string }[];
   const update = database.prepare('UPDATE items SET notes = ? WHERE id = ?');
   for (const row of rows) {
-    const notes = row.notes
-      .split('\n')
-      .filter((line) => line.trim().toLowerCase() !== '- mytime event')
-      .join('\n')
-      .trim();
-    if (notes !== row.notes) update.run(notes || null, row.id);
+    const notes = stripMytimeSyncEnvelope(row.notes) ?? null;
+    if (notes !== row.notes) update.run(notes, row.id);
   }
 }
 
@@ -209,11 +206,7 @@ function normalizeTimedOvernightRanges(database: Database.Database): void {
 }
 
 function normalizedEventNotes(value: string | null): string {
-  return (value ?? '')
-    .split('\n')
-    .filter((line) => !/^\s*[\u2014-]\s*mytime event\s*$/i.test(line))
-    .join('\n')
-    .trim();
+  return stripMytimeSyncEnvelope(value) ?? '';
 }
 
 function normalizedReminderMinutes(value: string | null): string {
