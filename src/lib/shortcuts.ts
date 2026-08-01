@@ -7,6 +7,7 @@ export type Shortcut<C> = {
 export type BacklogHelpContext = {
   scheduled: boolean;
   hasLink: boolean;
+  filtered?: boolean;
 };
 
 export type PastDueHelpContext = {
@@ -35,6 +36,7 @@ export const BACKLOG_SHORTCUTS: Shortcut<BacklogHelpContext>[] = [
   { keys: '←/→', label: 'priority' },
   { keys: '↑/↓', label: 'navigate' },
   { keys: '⇧←/→', label: 'move priority' },
+  { keys: 'f', label: 'find' },
   { keys: 'a', label: 'add' },
   { keys: 'q', label: 'quick-add' },
   { keys: 'e', label: 'edit' },
@@ -42,6 +44,14 @@ export const BACKLOG_SHORTCUTS: Shortcut<BacklogHelpContext>[] = [
   { keys: 'x', label: 'done' },
   { keys: 'd', label: 'delete' },
   { keys: 'o', label: 'open link', show: (ctx) => ctx.hasLink },
+  { keys: 'esc', label: 'clear filter', show: (ctx) => Boolean(ctx.filtered) },
+];
+
+export const BACKLOG_FIND_SHORTCUTS: Shortcut<Record<string, never>>[] = [
+  { keys: '↑/↓', label: 'navigate' },
+  { keys: '←/→', label: 'priority' },
+  { keys: 'enter', label: 'keep filter' },
+  { keys: 'esc', label: 'cancel' },
 ];
 
 export const DAILY_SHORTCUTS: Shortcut<CalendarHelpContext>[] = [

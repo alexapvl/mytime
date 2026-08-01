@@ -83,7 +83,7 @@ function registerTools(server: McpServer): void {
 
   server.registerTool(
     'search_tasks',
-    { description: 'Search tasks and events by a substring of title, project, or tags (case-insensitive).', inputSchema: { query: z.string() } },
+    { description: 'Search tasks and events by title, project, tags, or notes (case-insensitive, ranked).', inputSchema: { query: z.string() } },
     async ({ query }) => fromAgent(await agentSearch(query)),
   );
 

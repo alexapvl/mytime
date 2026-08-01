@@ -43,7 +43,7 @@ commands[10]:
 - `mytime agent past-due` — overdue open tasks
 - `mytime agent slots [--date <iso>] [--step-minutes 60] [--time-filter 09] [--exclude-id <id>]`
 - `mytime agent item <id> [--full]` — item detail (notes truncated unless `--full`)
-- `mytime agent search <query>` — search title, project, tags
+- `mytime agent search <query>` — search title, project, tags, notes (ranked)
 - `mytime agent calendar` - live adapter/backend state and contextual effects
 - `mytime agent calendar sources` - Google API state and writable Calendar.app sources
 - `mytime agent calendar setup|switch|cleanup` - structured explanation of each operation

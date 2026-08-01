@@ -40,7 +40,7 @@ type AppProps = {
 function AppShell({ screen, onNeedAuth }: { screen: Screen; onNeedAuth?: () => void }) {
   const { rows } = useViewport();
   const { exit } = useApp();
-  const { inputFocused } = useInputFocus();
+  const { inputFocused, suppressAppEscape } = useInputFocus();
   const { undoLast } = useUndo();
   const [tab, setTab] = useState<Tab>('backlog');
   const [focusedDateISO, setFocusedDateISO] = useState(() => DateTime.local().toISODate()!);
@@ -96,6 +96,7 @@ function AppShell({ screen, onNeedAuth }: { screen: Screen; onNeedAuth?: () => v
   useAppInput(
     (input, key) => {
       if (key.escape) {
+        if (suppressAppEscape) return;
         exit();
         return;
       }

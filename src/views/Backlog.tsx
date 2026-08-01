@@ -19,7 +19,9 @@ import type { Item } from '../db/types.js';
 import { createItem, deleteItem, listBacklog, scheduleAllDayItem, scheduleItem, toggleDone, updateItem } from '../db/items.js';
 import { autoPush, autoRemove } from '../calendar/autoSync.js';
 import { parseQuickAdd } from '../lib/nlp.js';
-import { BACKLOG_SHORTCUTS } from '../lib/shortcuts.js';
+import { BACKLOG_FIND_SHORTCUTS, BACKLOG_SHORTCUTS } from '../lib/shortcuts.js';
+import { itemMatchesQuery, scoreItem } from '../lib/itemSearch.js';
+import { deleteTextInput } from '../lib/textInput.js';
 import { padToWidth } from '../lib/textWidth.js';
 import { formatDate, formatScheduleTime } from '../lib/time.js';
 import { cloneItem, makeUndoDelete, makeUndoToggleDone } from '../lib/undoActions.js';
@@ -32,7 +34,13 @@ type Props = {
   refreshToken?: number;
 };
 
-type Mode = 'list' | 'add' | 'edit' | 'schedule' | 'quick';
+type Mode = 'list' | 'add' | 'edit' | 'schedule' | 'quick' | 'find';
+
+type FindSnapshot = {
+  priority: Item['priority'];
+  index: number;
+  filterQuery: string;
+};
 
 const PRIORITIES: Item['priority'][] = [0, 1, 2, 3];
 
@@ -77,7 +85,7 @@ function defaultBacklogSelection(items: Item[]): { priority: Item['priority']; i
 }
 
 export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
-  const { setInputFocused } = useInputFocus();
+  const { setInputFocused, setSuppressAppEscape } = useInputFocus();
   const { pushUndo } = useUndo();
   const { columns: terminalColumns, contentRows } = useViewport();
   const [boot] = useState(() => {
@@ -90,11 +98,25 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
   const [selectedPriority, setSelectedPriority] = useState<Item['priority']>(boot.priority);
   const [mode, setMode] = useState<Mode>('list');
   const [quickInput, setQuickInput] = useState('');
+  /** Committed filter shown after Enter; empty means show all. */
+  const [filterQuery, setFilterQuery] = useState('');
+  /** Draft query while mode === 'find'. */
+  const [findQuery, setFindQuery] = useState('');
+  const [findSnapshot, setFindSnapshot] = useState<FindSnapshot | null>(null);
+
+  const activeQuery = mode === 'find' ? findQuery : filterQuery;
+  const filtering = Boolean(activeQuery.trim());
 
   useEffect(() => {
     setInputFocused(mode !== 'list');
     return () => setInputFocused(false);
   }, [mode, setInputFocused]);
+
+  useEffect(() => {
+    const blockQuit = Boolean(filterQuery.trim()) && mode === 'list';
+    setSuppressAppEscape(blockQuit);
+    return () => setSuppressAppEscape(false);
+  }, [filterQuery, mode, setSuppressAppEscape]);
 
   useEffect(() => {
     if (refreshToken === undefined || refreshToken === 0) return;
@@ -112,10 +134,36 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
     setSelected(selectedIndexInColumn(backlog, item.priority, item.id));
   };
 
-  const priorityColumns = useMemo(
-    () => PRIORITIES.map((priority) => items.filter((item) => item.priority === priority).sort(compareItems)),
-    [items],
-  );
+  const focusItemIn = (pool: Item[], item: Item, query = '') => {
+    const column = pool.filter((row) => row.priority === item.priority);
+    const sorted = query.trim()
+      ? column.sort((a, b) => {
+          const scoreDiff = (scoreItem(b, query) ?? 0) - (scoreItem(a, query) ?? 0);
+          if (scoreDiff !== 0) return scoreDiff;
+          return compareItems(a, b);
+        })
+      : column.sort(compareItems);
+    const index = sorted.findIndex((row) => row.id === item.id);
+    setSelectedPriority(item.priority);
+    setSelected(Math.max(0, index));
+  };
+
+  const visibleItems = useMemo(() => {
+    if (!filtering) return items;
+    return items.filter((item) => itemMatchesQuery(item, activeQuery));
+  }, [items, filtering, activeQuery]);
+
+  const priorityColumns = useMemo(() => {
+    return PRIORITIES.map((priority) => {
+      const column = visibleItems.filter((item) => item.priority === priority);
+      if (!filtering) return column.sort(compareItems);
+      return column.sort((a, b) => {
+        const scoreDiff = (scoreItem(b, activeQuery) ?? 0) - (scoreItem(a, activeQuery) ?? 0);
+        if (scoreDiff !== 0) return scoreDiff;
+        return compareItems(a, b);
+      });
+    });
+  }, [visibleItems, filtering, activeQuery]);
   const selectedColumnIndex = PRIORITIES.indexOf(selectedPriority);
   const selectedColumn = priorityColumns[selectedColumnIndex] ?? [];
   const selectedItem = selectedColumn[selected];
@@ -125,7 +173,10 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
   const columnStarts = PRIORITIES.map(
     (_, columnIndex) => 2 + columnIndex * (columnWidth + COLUMN_DIVIDER_WIDTH),
   );
-  const maxItemsPerColumn = Math.max(1, contentRows - BACKLOG_VIEW_HEADER_ROWS - 1);
+  const maxItemsPerColumn = Math.max(
+    1,
+    contentRows - BACKLOG_VIEW_HEADER_ROWS - 1 - (mode === 'find' || filtering ? 1 : 0),
+  );
   const backlogBodyLines = useMemo(
     () =>
       priorityColumns.map((column, columnIndex) => {
@@ -251,6 +302,51 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
   }, [mode, priorityColumns, columnStarts, columnWidth, maxItemsPerColumn, selectedColumnIndex, selected]);
   useClickRegions('backlog', regions);
 
+  useEffect(() => {
+    if (mode !== 'find') return;
+    if (!findQuery.trim()) return;
+    const matches = visibleItems;
+    if (matches.length === 0) return;
+    const best = [...matches].sort((a, b) => {
+      const scoreDiff = (scoreItem(b, findQuery) ?? 0) - (scoreItem(a, findQuery) ?? 0);
+      if (scoreDiff !== 0) return scoreDiff;
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      return compareItems(a, b);
+    })[0];
+    if (best) focusItemIn(matches, best, findQuery);
+    // Only re-jump when the query changes; navigation must not fight this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: query-driven jump
+  }, [findQuery, mode]);
+
+  const clearFilter = () => {
+    setFilterQuery('');
+    setFindQuery('');
+    setFindSnapshot(null);
+  };
+
+  const cancelFind = () => {
+    if (findSnapshot) {
+      setSelectedPriority(findSnapshot.priority);
+      setSelected(findSnapshot.index);
+      setFilterQuery(findSnapshot.filterQuery);
+    }
+    setFindQuery('');
+    setFindSnapshot(null);
+    setMode('list');
+  };
+
+  const acceptFind = () => {
+    const next = findQuery.trim();
+    if (next && visibleItems.length === 0) {
+      cancelFind();
+      return;
+    }
+    setFilterQuery(next);
+    setFindQuery('');
+    setFindSnapshot(null);
+    setMode('list');
+  };
+
   useAppInput(
     (input, key) => {
       if (mode === 'quick') {
@@ -260,7 +356,49 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
         }
         return;
       }
+
+      if (mode === 'find') {
+        if (key.escape) {
+          cancelFind();
+          return;
+        }
+        if (key.return) {
+          acceptFind();
+          return;
+        }
+        if (key.downArrow) {
+          moveVertical(1);
+          return;
+        }
+        if (key.upArrow) {
+          moveVertical(-1);
+          return;
+        }
+        if (key.leftArrow) {
+          movePriority(-1);
+          return;
+        }
+        if (key.rightArrow) {
+          movePriority(1);
+          return;
+        }
+
+        const deletion = deleteTextInput(findQuery, findQuery.length, input, key);
+        if (deletion) {
+          setFindQuery(deletion.value);
+          return;
+        }
+        if (key.ctrl || key.meta || !input) return;
+        setFindQuery((q) => q + input);
+        return;
+      }
+
       if (mode !== 'list') return;
+
+      if (key.escape && filterQuery.trim()) {
+        clearFilter();
+        return;
+      }
 
       if (input === 'H' || (key.shift && key.leftArrow)) {
         moveSelectedPriority(-1);
@@ -274,6 +412,12 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
       if (input === 'k' || key.upArrow) moveVertical(-1);
       if (input === 'h' || key.leftArrow) movePriority(-1);
       if (input === 'l' || key.rightArrow) movePriority(1);
+      if (input === 'f') {
+        setFindSnapshot({ priority: selectedPriority, index: selected, filterQuery });
+        setFindQuery(filterQuery);
+        setMode('find');
+        return;
+      }
       if (input === 'a') setMode('add');
       if (input === 'q') setMode('quick');
       if (input === 'e' && selectedItem) setMode('edit');
@@ -305,7 +449,7 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
       }
       if (input === 's' && selectedItem) setMode('schedule');
     },
-    { isActive: mode === 'list' || mode === 'quick' },
+    { isActive: mode === 'list' || mode === 'quick' || mode === 'find' },
   );
 
   if (mode === 'quick') {
@@ -418,9 +562,31 @@ export function BacklogView({ onRefresh, onStatus, refreshToken }: Props) {
     );
   }
 
+  const finding = mode === 'find';
+  const findMiss = filtering && visibleItems.length === 0;
+
   return (
     <Box flexDirection="column">
-      <ShortcutBar shortcuts={BACKLOG_SHORTCUTS} context={{ scheduled: Boolean(selectedItem?.start), hasLink: Boolean(selectedItem?.url) }} />
+      {finding ? (
+        <ShortcutBar shortcuts={BACKLOG_FIND_SHORTCUTS} context={{}} />
+      ) : (
+        <ShortcutBar
+          shortcuts={BACKLOG_SHORTCUTS}
+          context={{
+            scheduled: Boolean(selectedItem?.start),
+            hasLink: Boolean(selectedItem?.url),
+            filtered: Boolean(filterQuery.trim()),
+          }}
+        />
+      )}
+      {finding || filterQuery.trim() ? (
+        <Box marginTop={1}>
+          <Text color="cyanBright">{finding ? 'find: ' : 'filter: '}</Text>
+          <Text>{finding ? findQuery : filterQuery}</Text>
+          {finding ? <Text inverse> </Text> : null}
+          {findMiss ? <Text dimColor>  (no matches)</Text> : null}
+        </Box>
+      ) : null}
       <Box marginTop={1} flexDirection="column" width={viewWidth}>
         <Box flexDirection="row">
           {PRIORITIES.map((priority, columnIndex) => {
