@@ -7,6 +7,7 @@ export type Shortcut<C> = {
 export type BacklogHelpContext = {
   scheduled: boolean;
   hasLink: boolean;
+  filtered?: boolean;
 };
 
 export type PastDueHelpContext = {
@@ -43,12 +44,13 @@ export const BACKLOG_SHORTCUTS: Shortcut<BacklogHelpContext>[] = [
   { keys: 'x', label: 'done' },
   { keys: 'd', label: 'delete' },
   { keys: 'o', label: 'open link', show: (ctx) => ctx.hasLink },
+  { keys: 'esc', label: 'clear filter', show: (ctx) => Boolean(ctx.filtered) },
 ];
 
 export const BACKLOG_FIND_SHORTCUTS: Shortcut<Record<string, never>>[] = [
   { keys: '↑/↓', label: 'navigate' },
   { keys: '←/→', label: 'priority' },
-  { keys: 'enter', label: 'accept' },
+  { keys: 'enter', label: 'keep filter' },
   { keys: 'esc', label: 'cancel' },
 ];
 

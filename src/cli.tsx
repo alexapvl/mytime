@@ -217,7 +217,7 @@ Text inputs:
 Backlog:
   ←/→       Move priority
   ↑/↓       Navigate
-  f         Find (title / project / tags / notes)
+  f         Find (title / project / tags / notes; Enter keeps filter, Esc clears)
   a         Add task
   q         Quick-add (NLP)
   e         Edit
