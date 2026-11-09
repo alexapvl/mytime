@@ -69,6 +69,7 @@ Run `mytime agent --help` or `mytime agent --help task` for concise reference.
 
 ## Tips
 
+- Pass local times without a UTC offset (`2026-11-10T11:00:00`). mytime resolves them in the system zone with the correct DST offset. Explicit offsets that do not match the zone's offset for that date are rejected.
 - Treat conversation origin as project context. For example, work requested while operating in the `mytime` repository belongs to `@mytime` unless the user indicates another project.
 - Output is TOON-encoded and token-efficient; pipe through `grep` when filtering long lists.
 - External calendar events (`source: external`) can be edited, rescheduled, or deleted when their original calendar grants write access. Check item `capabilities` first.

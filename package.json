@@ -1,6 +1,6 @@
 {
   "name": "mytime",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Unified tasks + calendar CLI with Google and Apple Calendar sync",
   "type": "module",
   "packageManager": "pnpm@9.5.0",
@@ -11,6 +11,7 @@
     "build": "tsup && scripts/build-eventkit-helper.sh",
     "build:native": "scripts/build-eventkit-helper.sh",
     "dev": "tsx src/cli.tsx",
+    "test": "tsx src/lib/isoOffset.selfcheck.ts && tsx src/lib/syncNotes.selfcheck.ts && tsx src/lib/itemSearch.selfcheck.ts",
     "start": "node dist/cli.js",
     "pack:macos": "scripts/build-macos-pack.sh"
   },

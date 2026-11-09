@@ -25,6 +25,7 @@ import {
 } from '../calendar/provider.js';
 import { parseQuickAdd } from '../lib/nlp.js';
 import { rankItems } from '../lib/itemSearch.js';
+import { isoOffsetMismatch } from '../lib/isoOffset.js';
 import { listFreeSlots } from '../lib/scheduleOverlap.js';
 import { allDayRange, defaultEnd, multiDayAllDayRange, todayEnd, todayStart } from '../lib/time.js';
 import { parseDayArg } from './dates.js';
@@ -48,6 +49,14 @@ import {
 
 const SCHEDULE_HINT =
   'Run `mytime agent slots --date <day>` before scheduling, or `mytime agent schedule list` to inspect the day.';
+
+function offsetError(...values: Array<string | undefined>): AgentResult | null {
+  for (const value of values) {
+    const message = value ? isoOffsetMismatch(value) : null;
+    if (message) return err(message, undefined, 2);
+  }
+  return null;
+}
 
 async function syncPush(id: string): Promise<string> {
   const provider = getActiveProvider();
@@ -499,6 +508,8 @@ export async function agentScheduleTask(input: {
   const { id, start, end, allDay, durationMinutes } = input;
   if (!DateTime.fromISO(start).isValid) return err(`Invalid start datetime: ${start}`, undefined, 2);
   if (end && !DateTime.fromISO(end).isValid) return err(`Invalid end datetime: ${end}`, undefined, 2);
+  const badOffset = offsetError(start, end);
+  if (badOffset) return badOffset;
   await ensureFresh();
   const useAllDay = allDay === true || !start.includes('T');
   if (useAllDay) {
@@ -555,6 +566,8 @@ export async function agentAddEvent(input: {
 }): Promise<AgentResult> {
   const { title, notes, location, url, start, end, allDay, reminders, guests, googleMeet } = input;
   if (!DateTime.fromISO(start).isValid) return err(`Invalid start: ${start}`, undefined, 2);
+  const badOffset = offsetError(start, end);
+  if (badOffset) return badOffset;
   const invalidGuest = guests?.find((email) => !isEmail(email));
   if (invalidGuest) return err(`Invalid guest email: ${invalidGuest}`, undefined, 2);
   await ensureFresh();
@@ -661,6 +674,8 @@ export async function agentScheduleEvent(input: {
   const { id, start, end, allDay, durationMinutes } = input;
   if (!DateTime.fromISO(start).isValid) return err(`Invalid start datetime: ${start}`, undefined, 2);
   if (end && !DateTime.fromISO(end).isValid) return err(`Invalid end datetime: ${end}`, undefined, 2);
+  const badOffset = offsetError(start, end);
+  if (badOffset) return badOffset;
   await ensureFresh();
   const item = getItem(id);
   if (!item) return err(`No item with id ${id}`);
