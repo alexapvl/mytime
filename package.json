@@ -11,6 +11,7 @@
     "build": "tsup && scripts/build-eventkit-helper.sh",
     "build:native": "scripts/build-eventkit-helper.sh",
     "dev": "tsx src/cli.tsx",
+    "test": "tsx src/lib/isoOffset.selfcheck.ts && tsx src/lib/syncNotes.selfcheck.ts && tsx src/lib/itemSearch.selfcheck.ts",
     "start": "node dist/cli.js",
     "pack:macos": "scripts/build-macos-pack.sh"
   },
