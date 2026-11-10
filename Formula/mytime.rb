@@ -1,7 +1,7 @@
 class Mytime < Formula
   desc "Terminal task manager with Google and Apple Calendar sync and agent CLI"
   homepage "https://github.com/alexapvl/mytime"
-  version "0.4.1"
+  version "0.4.3"
   license "MIT"
 
   head "https://github.com/alexapvl/mytime.git", branch: "main"
@@ -12,13 +12,13 @@ class Mytime < Formula
   # Slim prebuilt pack (dist + node_modules). Uses Homebrew node@20. See scripts/build-macos-pack.sh.
   on_macos do
     on_arm do
-      url "https://github.com/alexapvl/mytime/releases/download/v0.4.1/mytime-0.4.1-macos-arm64.tar.gz"
-      sha256 "e2b0344184909584116aac2ac99e6bef7c7e9501f96e37cf5e284516962b3dde"
+      url "https://github.com/alexapvl/mytime/releases/download/v0.4.3/mytime-0.4.3-macos-arm64.tar.gz"
+      sha256 "996e6b8a0ffcde68e7e55feab1c76c90302eb081b875b9a07aa8bb4f86e004a3"
     end
 
     on_intel do
-      url "https://github.com/alexapvl/mytime/releases/download/v0.4.1/mytime-0.4.1-macos-x86_64.tar.gz"
-      sha256 "157e4968c39bf5d34861979a0602f4c9aebb2f5ade777194f8c81e6e9557d65d"
+      url "https://github.com/alexapvl/mytime/releases/download/v0.4.3/mytime-0.4.3-macos-x86_64.tar.gz"
+      sha256 "92af1062f1380ab2c87b06231a639e633560e32845598da2113851bdda230b72"
     end
   end
 
